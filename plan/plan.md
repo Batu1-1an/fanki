@@ -70,14 +70,14 @@ Transform language learning with AI-powered flashcards featuring dynamic content
 - [x] Create sentence generation service (3 cloze test sentences)
 - [x] Create image generation service (memorable, exaggerated images)
 - [x] Implement content caching to reduce API costs
-- [ ] Add content moderation and filtering
+- [x] Add content moderation and filtering
 
 ### 3.3 Flashcard System
-- [ ] Design responsive flashcard component
-- [ ] Implement card flip animation
-- [ ] Create cloze test interface (fill-in-the-blanks)
-- [ ] Add image display with loading states
-- [ ] Implement card navigation (previous/next)
+- [x] Design responsive flashcard component
+- [x] Implement card flip animation
+- [x] Create cloze test interface (fill-in-the-blanks)
+- [x] Add image display with loading states
+- [x] Implement card navigation (previous/next)
 
 ---
 
