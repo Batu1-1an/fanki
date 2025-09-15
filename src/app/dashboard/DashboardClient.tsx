@@ -10,6 +10,7 @@ import WelcomeTour from '@/components/onboarding/WelcomeTour'
 import OnboardingPreferences from '@/components/onboarding/OnboardingPreferences'
 import FirstWordTutorial from '@/components/onboarding/FirstWordTutorial'
 import AddWordModal from '@/components/words/AddWordModal'
+import { StudySessionDashboard } from '@/components/dashboard/StudySessionDashboard'
 
 interface DashboardClientProps {
   user: User
@@ -141,158 +142,169 @@ export default function DashboardClient({ user }: DashboardClientProps) {
         {/* Main content */}
         <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
           <div className="px-4 py-6 sm:px-0">
-            {/* Stats cards */}
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4" data-tour="stats-cards">
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                        </svg>
+            {/* Show onboarding content for new users, comprehensive dashboard for existing users */}
+            {onboardingState.currentStep !== 'complete' ? (
+              /* Show basic dashboard during onboarding */
+              <>
+                {/* Stats cards */}
+                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4" data-tour="stats-cards">
+                  <div className="bg-white overflow-hidden shadow rounded-lg">
+                    <div className="p-5">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                          <div className="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center">
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                          <dl>
+                            <dt className="text-sm font-medium text-gray-500 truncate">
+                              Total Words
+                            </dt>
+                            <dd className="text-lg font-medium text-gray-900">
+                              {wordStats.total}
+                            </dd>
+                          </dl>
+                        </div>
                       </div>
                     </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">
-                          Total Words
-                        </dt>
-                        <dd className="text-lg font-medium text-gray-900">
-                          {wordStats.total}
-                        </dd>
-                      </dl>
-                    </div>
                   </div>
-                </div>
-              </div>
-
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-green-500 rounded-md flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                  <div className="bg-white overflow-hidden shadow rounded-lg">
+                    <div className="p-5">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                          <div className="w-8 h-8 bg-green-500 rounded-md flex items-center justify-center">
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                          <dl>
+                            <dt className="text-sm font-medium text-gray-500 truncate">
+                              Words Learned
+                            </dt>
+                            <dd className="text-lg font-medium text-gray-900">
+                              {wordStats.total}
+                            </dd>
+                          </dl>
+                        </div>
                       </div>
                     </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">
-                          Words Learned
-                        </dt>
-                        <dd className="text-lg font-medium text-gray-900">
-                          {wordStats.total}
-                        </dd>
-                      </dl>
-                    </div>
                   </div>
-                </div>
-              </div>
-
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-yellow-500 rounded-md flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                  <div className="bg-white overflow-hidden shadow rounded-lg">
+                    <div className="p-5">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                          <div className="w-8 h-8 bg-yellow-500 rounded-md flex items-center justify-center">
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                          <dl>
+                            <dt className="text-sm font-medium text-gray-500 truncate">
+                              Due Today
+                            </dt>
+                            <dd className="text-lg font-medium text-gray-900">
+                              0
+                            </dd>
+                          </dl>
+                        </div>
                       </div>
                     </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">
-                          Due Today
-                        </dt>
-                        <dd className="text-lg font-medium text-gray-900">
-                          0
-                        </dd>
-                      </dl>
-                    </div>
                   </div>
-                </div>
-              </div>
-
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <div className="w-8 h-8 bg-purple-500 rounded-md flex items-center justify-center">
-                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
+                  <div className="bg-white overflow-hidden shadow rounded-lg">
+                    <div className="p-5">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0">
+                          <div className="w-8 h-8 bg-purple-500 rounded-md flex items-center justify-center">
+                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                          </div>
+                        </div>
+                        <div className="ml-5 w-0 flex-1">
+                          <dl>
+                            <dt className="text-sm font-medium text-gray-500 truncate">
+                              Current Streak
+                            </dt>
+                            <dd className="text-lg font-medium text-gray-900">
+                              0 days
+                            </dd>
+                          </dl>
+                        </div>
                       </div>
                     </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">
-                          Current Streak
-                        </dt>
-                        <dd className="text-lg font-medium text-gray-900">
-                          0 days
-                        </dd>
-                      </dl>
+                  </div>
+                </div>
+
+                {/* Quick Actions during onboarding */}
+                <div className="mt-8">
+                  <div className="bg-white shadow rounded-lg">
+                    <div className="px-6 py-4 border-b border-gray-200">
+                      <h2 className="text-lg font-medium text-gray-900">Quick Actions</h2>
+                    </div>
+                    <div className="p-6">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <Button 
+                          className="h-20 flex-col" 
+                          data-tour="add-word-button"
+                          onClick={() => {
+                            if (onboardingState.currentStep === 'first-word') {
+                              setShowAddWordModal(true)
+                            } else {
+                              window.location.href = '/dashboard/words'
+                            }
+                          }}
+                        >
+                          <svg className="w-6 h-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Add New Word
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          className="h-20 flex-col" 
+                          data-tour="study-button"
+                          onClick={() => {
+                            if (wordStats.total === 0) {
+                              alert('Add some words first to start studying!')
+                            } else {
+                              window.location.href = '/study'
+                            }
+                          }}
+                        >
+                          <svg className="w-6 h-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                          </svg>
+                          Study Now
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          className="h-20 flex-col" 
+                          data-tour="progress-button"
+                          onClick={() => {
+                            window.location.href = '/dashboard/progress'
+                          }}
+                        >
+                          <svg className="w-6 h-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                          View Progress
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            {/* Main content area */}
-            <div className="mt-8">
-              <div className="bg-white shadow rounded-lg">
-                <div className="px-6 py-4 border-b border-gray-200">
-                  <h2 className="text-lg font-medium text-gray-900">Quick Actions</h2>
-                </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <Button 
-                      className="h-20 flex-col" 
-                      data-tour="add-word-button"
-                      onClick={() => {
-                        if (onboardingState.currentStep === 'first-word') {
-                          setShowAddWordModal(true)
-                        } else {
-                          window.location.href = '/dashboard/words'
-                        }
-                      }}
-                    >
-                      <svg className="w-6 h-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      Add New Word
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="h-20 flex-col" 
-                      data-tour="study-button"
-                      onClick={() => {
-                        if (wordStats.total === 0) {
-                          // If no words, prompt to add words first
-                          alert('Add some words first to start studying!')
-                        } else {
-                          // Navigate to study session
-                          window.location.href = '/study'
-                        }
-                      }}
-                    >
-                      <svg className="w-6 h-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                      </svg>
-                      Study Now
-                    </Button>
-                    <Button variant="outline" className="h-20 flex-col" data-tour="progress-button">
-                      <svg className="w-6 h-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                      View Progress
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
+              </>
+            ) : (
+              /* Show comprehensive StudySessionDashboard for users who completed onboarding */
+              <StudySessionDashboard className="mt-0" />
+            )}
 
             {/* Dynamic onboarding content */}
             {onboardingState.currentStep === 'complete' ? (

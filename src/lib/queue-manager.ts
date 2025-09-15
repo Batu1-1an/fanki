@@ -1,0 +1,381 @@
+import { createClientComponentClient } from './supabase'
+import { Word, Review, FlashcardWithWord } from '@/types'
+import { getDueWords, getWordProgress } from './reviews'
+import { getUserFlashcards } from './flashcards'
+
+const supabase = createClientComponentClient()
+
+export type QueuePriority = 'overdue' | 'due_today' | 'new' | 'review_soon'
+export type StudyMode = 'mixed' | 'new_only' | 'review_only' | 'overdue_only'
+
+export interface QueuedWord extends Word {
+  priority: QueuePriority
+  daysSinceLastReview?: number
+  currentEaseFactor?: number
+  timesReviewed?: number
+  lastReview?: Review
+  flashcard?: FlashcardWithWord
+}
+
+export interface QueueOptions {
+  maxWords?: number
+  studyMode?: StudyMode
+  difficultyRange?: [number, number] // [min, max] ease factor
+  prioritizeWeakWords?: boolean
+  includeNewWords?: boolean
+}
+
+/**
+ * Smart review queue manager that prioritizes words based on:
+ * 1. Overdue status (highest priority)
+ * 2. Difficulty (lower ease factor = higher priority)
+ * 3. Time since last review
+ * 4. Learning stage (new words vs review words)
+ */
+export class ReviewQueueManager {
+  private static instance: ReviewQueueManager
+  private currentQueue: QueuedWord[] = []
+  private queueGenerated: Date | null = null
+
+  static getInstance(): ReviewQueueManager {
+    if (!ReviewQueueManager.instance) {
+      ReviewQueueManager.instance = new ReviewQueueManager()
+    }
+    return ReviewQueueManager.instance
+  }
+
+  /**
+   * Generate optimized study queue
+   */
+  async generateQueue(options: QueueOptions = {}): Promise<{
+    queue: QueuedWord[]
+    stats: {
+      total: number
+      overdue: number
+      dueToday: number
+      newWords: number
+      averageDifficulty: number
+    }
+    error?: any
+  }> {
+    try {
+      const {
+        maxWords = 20,
+        studyMode = 'mixed',
+        difficultyRange = [1.3, 3.0],
+        prioritizeWeakWords = true,
+        includeNewWords = true
+      } = options
+
+      // Get due words with their review history
+      const { data: dueWords, error: dueError } = await getDueWords(100)
+      if (dueError) {
+        return { 
+          queue: [], 
+          stats: { total: 0, overdue: 0, dueToday: 0, newWords: 0, averageDifficulty: 2.5 },
+          error: dueError 
+        }
+      }
+
+      // Enrich words with queue metadata
+      const enrichedWords = await Promise.all(
+        (dueWords || []).map(async (word) => {
+          const progress = await getWordProgress(word.id)
+          const queuedWord: QueuedWord = {
+            ...word,
+            priority: this.calculatePriority(word, progress),
+            daysSinceLastReview: this.calculateDaysSinceLastReview(word.lastReview),
+            currentEaseFactor: progress.currentEaseFactor,
+            timesReviewed: progress.totalReviews,
+            lastReview: word.lastReview
+          }
+          return queuedWord
+        })
+      )
+
+      // Apply filters based on study mode
+      let filteredWords = this.applyStudyModeFilter(enrichedWords, studyMode)
+
+      // Apply difficulty filter
+      if (difficultyRange) {
+        filteredWords = filteredWords.filter(word => 
+          (word.currentEaseFactor || 2.5) >= difficultyRange[0] && 
+          (word.currentEaseFactor || 2.5) <= difficultyRange[1]
+        )
+      }
+
+      // Sort by priority and difficulty
+      const sortedWords = this.sortByPriority(filteredWords, prioritizeWeakWords)
+
+      // Limit to requested number
+      const finalQueue = sortedWords.slice(0, maxWords)
+
+      // Attach flashcards to queued words
+      const queueWithFlashcards = await this.attachFlashcards(finalQueue)
+
+      // Calculate statistics
+      const stats = this.calculateQueueStats(queueWithFlashcards)
+
+      // Cache the queue
+      this.currentQueue = queueWithFlashcards
+      this.queueGenerated = new Date()
+
+      return { queue: queueWithFlashcards, stats }
+    } catch (error) {
+      return { 
+        queue: [], 
+        stats: { total: 0, overdue: 0, dueToday: 0, newWords: 0, averageDifficulty: 2.5 },
+        error 
+      }
+    }
+  }
+
+  /**
+   * Get current cached queue or generate new one
+   */
+  async getCurrentQueue(forceRefresh: boolean = false): Promise<QueuedWord[]> {
+    const cacheExpired = !this.queueGenerated || 
+      Date.now() - this.queueGenerated.getTime() > 5 * 60 * 1000 // 5 minutes
+
+    if (forceRefresh || cacheExpired || this.currentQueue.length === 0) {
+      const { queue } = await this.generateQueue()
+      return queue
+    }
+
+    return this.currentQueue
+  }
+
+  /**
+   * Remove a word from the current queue (after review)
+   */
+  removeFromQueue(wordId: string): void {
+    this.currentQueue = this.currentQueue.filter(word => word.id !== wordId)
+  }
+
+  /**
+   * Get next word from queue
+   */
+  getNextWord(): QueuedWord | null {
+    return this.currentQueue.length > 0 ? this.currentQueue[0] : null
+  }
+
+  /**
+   * Calculate priority based on due date and review history
+   */
+  private calculatePriority(
+    word: Word & { lastReview?: Review }, 
+    progress: any
+  ): QueuePriority {
+    if (!word.lastReview) {
+      return 'new'
+    }
+
+    const dueDate = new Date(word.lastReview.due_date)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    dueDate.setHours(0, 0, 0, 0)
+    
+    const daysDifference = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
+
+    if (daysDifference > 0) {
+      return 'overdue'
+    } else if (daysDifference === 0) {
+      return 'due_today'
+    } else {
+      return 'review_soon'
+    }
+  }
+
+  /**
+   * Calculate days since last review
+   */
+  private calculateDaysSinceLastReview(lastReview?: Review): number | undefined {
+    if (!lastReview) return undefined
+    
+    const lastReviewDate = new Date(lastReview.reviewed_at)
+    const today = new Date()
+    return Math.floor((today.getTime() - lastReviewDate.getTime()) / (1000 * 60 * 60 * 24))
+  }
+
+  /**
+   * Apply study mode filter
+   */
+  private applyStudyModeFilter(words: QueuedWord[], mode: StudyMode): QueuedWord[] {
+    switch (mode) {
+      case 'new_only':
+        return words.filter(word => word.priority === 'new')
+      case 'review_only':
+        return words.filter(word => word.priority !== 'new')
+      case 'overdue_only':
+        return words.filter(word => word.priority === 'overdue')
+      case 'mixed':
+      default:
+        return words
+    }
+  }
+
+  /**
+   * Sort words by priority and difficulty
+   */
+  private sortByPriority(words: QueuedWord[], prioritizeWeakWords: boolean): QueuedWord[] {
+    return words.sort((a, b) => {
+      // Priority ranking: overdue > due_today > new > review_soon
+      const priorityOrder = { 'overdue': 4, 'due_today': 3, 'new': 2, 'review_soon': 1 }
+      const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority]
+      
+      if (priorityDiff !== 0) {
+        return priorityDiff
+      }
+
+      // Within same priority, sort by difficulty if enabled
+      if (prioritizeWeakWords) {
+        const aEase = a.currentEaseFactor || 2.5
+        const bEase = b.currentEaseFactor || 2.5
+        return aEase - bEase // Lower ease factor first (harder words)
+      }
+
+      // Otherwise sort by days since last review
+      const aDays = a.daysSinceLastReview || 0
+      const bDays = b.daysSinceLastReview || 0
+      return bDays - aDays // More days since review first
+    })
+  }
+
+  /**
+   * Attach flashcards to words
+   */
+  private async attachFlashcards(words: QueuedWord[]): Promise<QueuedWord[]> {
+    const wordIds = words.map(w => w.id)
+    const { data: flashcards } = await getUserFlashcards({ wordIds })
+    
+    const flashcardMap = new Map<string, FlashcardWithWord>()
+    flashcards?.forEach(fc => {
+      flashcardMap.set(fc.word.id, fc)
+    })
+
+    return words.map(word => ({
+      ...word,
+      flashcard: flashcardMap.get(word.id)
+    }))
+  }
+
+  /**
+   * Calculate queue statistics
+   */
+  private calculateQueueStats(queue: QueuedWord[]) {
+    const total = queue.length
+    const overdue = queue.filter(w => w.priority === 'overdue').length
+    const dueToday = queue.filter(w => w.priority === 'due_today').length
+    const newWords = queue.filter(w => w.priority === 'new').length
+    
+    const easeFactors = queue
+      .map(w => w.currentEaseFactor)
+      .filter((ef): ef is number => ef !== undefined)
+    
+    const averageDifficulty = easeFactors.length > 0 ? 
+      Math.round((easeFactors.reduce((sum, ef) => sum + ef, 0) / easeFactors.length) * 100) / 100 : 
+      2.5
+
+    return {
+      total,
+      overdue,
+      dueToday,
+      newWords,
+      averageDifficulty
+    }
+  }
+}
+
+/**
+ * Helper functions for queue management
+ */
+
+/**
+ * Get queue manager instance
+ */
+export function getQueueManager(): ReviewQueueManager {
+  return ReviewQueueManager.getInstance()
+}
+
+/**
+ * Generate study session with optimal word selection
+ */
+export async function generateStudySession(options: QueueOptions = {}): Promise<{
+  words: QueuedWord[]
+  sessionId: string
+  estimatedTimeMinutes: number
+  error?: any
+}> {
+  try {
+    const queueManager = getQueueManager()
+    const { queue, error } = await queueManager.generateQueue(options)
+
+    if (error) {
+      return { words: [], sessionId: '', estimatedTimeMinutes: 0, error }
+    }
+
+    // Generate session ID
+    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+    // Estimate time based on word count and difficulty
+    const estimatedTimeMinutes = Math.max(5, Math.ceil(queue.length * 1.5)) // ~1.5 min per word
+
+    return {
+      words: queue,
+      sessionId,
+      estimatedTimeMinutes
+    }
+  } catch (error) {
+    return { words: [], sessionId: '', estimatedTimeMinutes: 0, error }
+  }
+}
+
+/**
+ * Get recommended study mode based on user's current situation
+ */
+export async function getRecommendedStudyMode(): Promise<{
+  mode: StudyMode
+  reasoning: string
+  priority: 'high' | 'medium' | 'low'
+}> {
+  try {
+    const queueManager = getQueueManager()
+    const { stats } = await queueManager.generateQueue({ maxWords: 100 })
+
+    if (stats.overdue > 10) {
+      return {
+        mode: 'overdue_only',
+        reasoning: `You have ${stats.overdue} overdue words. Focus on catching up!`,
+        priority: 'high'
+      }
+    }
+
+    if (stats.dueToday > 20) {
+      return {
+        mode: 'review_only',
+        reasoning: `${stats.dueToday} words are due today. Focus on reviews first.`,
+        priority: 'medium'
+      }
+    }
+
+    if (stats.newWords < 5) {
+      return {
+        mode: 'mixed',
+        reasoning: 'Good balance of new and review words. Keep up the momentum!',
+        priority: 'low'
+      }
+    }
+
+    return {
+      mode: 'mixed',
+      reasoning: 'Balanced study session recommended.',
+      priority: 'low'
+    }
+  } catch (error) {
+    return {
+      mode: 'mixed',
+      reasoning: 'Mixed mode is always a safe choice.',
+      priority: 'low'
+    }
+  }
+}

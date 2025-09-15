@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FlashcardComponent } from './FlashcardComponent'
+import { ReviewButtons } from './ReviewButtons'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -13,6 +14,16 @@ import {
   StudySession as StudySessionType,
   SessionType 
 } from '@/types'
+import { submitReview, getWordProgress } from '@/lib/reviews'
+import { getQueueManager } from '@/lib/queue-manager'
+import { 
+  createStudySession, 
+  updateStudySession, 
+  completeStudySession, 
+  pauseStudySession, 
+  resumeStudySession,
+  abandonStudySession
+} from '@/lib/study-sessions'
 import { 
   Clock, 
   Target, 
@@ -20,13 +31,18 @@ import {
   XCircle, 
   RotateCcw,
   TrendingUp,
-  Award
+  Award,
+  Pause,
+  Play,
+  StopCircle,
+  Timer
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface StudySessionProps {
   flashcards: FlashcardWithWord[]
   sessionType: SessionType
+  sessionId?: string
   onSessionComplete: (session: Partial<StudySessionType>) => void
   onExit: () => void
   className?: string
@@ -42,9 +58,17 @@ interface SessionStats {
   averageResponseTime: number
 }
 
+interface CardReview {
+  wordId: string
+  button: 'again' | 'hard' | 'good' | 'easy'
+  responseTime: number
+  timestamp: Date
+}
+
 export function StudySession({
   flashcards,
   sessionType,
+  sessionId: propSessionId,
   onSessionComplete,
   onExit,
   className
@@ -60,6 +84,12 @@ export function StudySession({
   })
   const [isSessionComplete, setIsSessionComplete] = useState(false)
   const [responseTimes, setResponseTimes] = useState<number[]>([])
+  const [cardReviews, setCardReviews] = useState<CardReview[]>([])
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false)
+  const [dbSessionId, setDbSessionId] = useState<string | null>(propSessionId || null)
+  const [isPaused, setIsPaused] = useState(false)
+  const [pauseStartTime, setPauseStartTime] = useState<Date | null>(null)
+  const [totalPauseTime, setTotalPauseTime] = useState(0)
 
   const currentCard = flashcards[currentIndex]
   const totalCards = flashcards.length
@@ -69,14 +99,35 @@ export function StudySession({
   const [sessionDuration, setSessionDuration] = useState(0)
   
   useEffect(() => {
+    if (isPaused) return
+    
     const timer = setInterval(() => {
       const now = new Date()
-      const duration = Math.floor((now.getTime() - sessionStats.startTime.getTime()) / 1000)
-      setSessionDuration(duration)
+      const elapsed = Math.floor((now.getTime() - sessionStats.startTime.getTime()) / 1000)
+      setSessionDuration(elapsed - totalPauseTime)
     }, 1000)
 
     return () => clearInterval(timer)
-  }, [sessionStats.startTime])
+  }, [sessionStats.startTime, isPaused, totalPauseTime])
+
+  // Initialize database session
+  useEffect(() => {
+    if (!dbSessionId) {
+      initializeSession()
+    }
+  }, [])
+
+  const initializeSession = async () => {
+    const { data, error } = await createStudySession({
+      sessionType
+    })
+    
+    if (data) {
+      setDbSessionId(data.id)
+    } else {
+      console.error('Failed to create session:', error)
+    }
+  }
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -84,29 +135,83 @@ export function StudySession({
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  const handleReview = useCallback((result: ReviewResult) => {
-    const isCorrect = result.quality >= 3 // Quality 3+ is considered correct
+  const handleReviewButton = useCallback(async (button: 'again' | 'hard' | 'good' | 'easy') => {
+    if (!currentCard || isSubmittingReview) return
     
-    setSessionStats(prev => {
-      const newStats = {
-        ...prev,
-        cardsStudied: prev.cardsStudied + 1,
-        cardsCorrect: prev.cardsCorrect + (isCorrect ? 1 : 0),
-        totalReviews: prev.totalReviews + 1,
-        accuracy: ((prev.cardsCorrect + (isCorrect ? 1 : 0)) / (prev.cardsStudied + 1)) * 100
+    setIsSubmittingReview(true)
+    const responseTime = Date.now() - sessionStats.startTime.getTime()
+    
+    try {
+      // Submit review to SM-2 system
+      const { error } = await submitReview({
+        wordId: currentCard.word.id,
+        flashcardId: currentCard.flashcard.id,
+        button,
+        responseTimeMs: responseTime
+      })
+      
+      if (error) {
+        console.error('Failed to submit review:', error)
       }
-      return newStats
-    })
-
-    if (result.response_time_ms) {
-      setResponseTimes(prev => [...prev, result.response_time_ms!])
+      
+      // Update local stats
+      const isCorrect = button === 'good' || button === 'easy'
+      
+      setSessionStats(prev => {
+        const newStats = {
+          ...prev,
+          cardsStudied: prev.cardsStudied + 1,
+          cardsCorrect: prev.cardsCorrect + (isCorrect ? 1 : 0),
+          totalReviews: prev.totalReviews + 1,
+          accuracy: ((prev.cardsCorrect + (isCorrect ? 1 : 0)) / (prev.cardsStudied + 1)) * 100
+        }
+        
+        // Update database session
+        if (dbSessionId) {
+          updateStudySession(dbSessionId, {
+            wordsStudied: newStats.cardsStudied,
+            wordsCorrect: newStats.cardsCorrect,
+            totalReviews: newStats.totalReviews,
+            accuracyPercentage: newStats.accuracy
+          })
+        }
+        
+        return newStats
+      })
+      
+      // Track review for session summary
+      const review: CardReview = {
+        wordId: currentCard.word.id,
+        button,
+        responseTime,
+        timestamp: new Date()
+      }
+      setCardReviews(prev => [...prev, review])
+      setResponseTimes(prev => [...prev, responseTime])
+      
+      // Remove from queue
+      const queueManager = getQueueManager()
+      queueManager.removeFromQueue(currentCard.word.id)
+      
+    } catch (error) {
+      console.error('Review submission failed:', error)
+    } finally {
+      setIsSubmittingReview(false)
+      
+      // Move to next card after a short delay
+      setTimeout(() => {
+        handleNext()
+      }, 1000)
     }
-
-    // Move to next card after a short delay
-    setTimeout(() => {
-      handleNext()
-    }, 1000)
-  }, [])
+  }, [currentCard, isSubmittingReview, sessionStats.startTime])
+  
+  const handleReview = useCallback((result: ReviewResult) => {
+    // Legacy support for existing ReviewResult interface
+    const button = result.quality >= 5 ? 'easy' : 
+                  result.quality >= 3 ? 'good' : 
+                  result.quality >= 2 ? 'hard' : 'again'
+    handleReviewButton(button)
+  }, [handleReviewButton])
 
   const handleNext = useCallback(() => {
     if (currentIndex < totalCards - 1) {
@@ -122,9 +227,9 @@ export function StudySession({
     }
   }, [currentIndex])
 
-  const completeSession = useCallback(() => {
+  const completeSession = useCallback(async () => {
     const endTime = new Date()
-    const duration = Math.floor((endTime.getTime() - sessionStats.startTime.getTime()) / 1000)
+    const duration = sessionDuration
     const avgResponseTime = responseTimes.length > 0 
       ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length 
       : 0
@@ -138,6 +243,17 @@ export function StudySession({
     setSessionStats(finalStats)
     setIsSessionComplete(true)
 
+    // Complete session in database
+    if (dbSessionId) {
+      await completeStudySession(dbSessionId, {
+        wordsStudied: finalStats.cardsStudied,
+        wordsCorrect: finalStats.cardsCorrect,
+        totalReviews: finalStats.totalReviews,
+        sessionDurationSeconds: duration,
+        accuracyPercentage: finalStats.accuracy
+      })
+    }
+
     // Call completion handler with session data
     onSessionComplete({
       session_type: sessionType,
@@ -149,7 +265,38 @@ export function StudySession({
       started_at: finalStats.startTime.toISOString(),
       ended_at: endTime.toISOString()
     })
-  }, [sessionStats, responseTimes, sessionType, onSessionComplete])
+  }, [sessionStats, responseTimes, sessionType, onSessionComplete, sessionDuration, dbSessionId])
+
+  const handlePauseResume = useCallback(async () => {
+    if (isPaused) {
+      // Resume session
+      if (pauseStartTime) {
+        const pauseDuration = Math.floor((new Date().getTime() - pauseStartTime.getTime()) / 1000)
+        setTotalPauseTime(prev => prev + pauseDuration)
+      }
+      setIsPaused(false)
+      setPauseStartTime(null)
+      
+      if (dbSessionId) {
+        await resumeStudySession(dbSessionId)
+      }
+    } else {
+      // Pause session
+      setIsPaused(true)
+      setPauseStartTime(new Date())
+      
+      if (dbSessionId) {
+        await pauseStudySession(dbSessionId)
+      }
+    }
+  }, [isPaused, pauseStartTime, dbSessionId])
+
+  const handleExitSession = useCallback(async () => {
+    if (dbSessionId && !isSessionComplete) {
+      await abandonStudySession(dbSessionId)
+    }
+    onExit()
+  }, [dbSessionId, isSessionComplete, onExit])
 
   const restartSession = useCallback(() => {
     setCurrentIndex(0)
@@ -162,7 +309,12 @@ export function StudySession({
       averageResponseTime: 0
     })
     setResponseTimes([])
+    setCardReviews([])
     setIsSessionComplete(false)
+    setIsPaused(false)
+    setPauseStartTime(null)
+    setTotalPauseTime(0)
+    setDbSessionId(null)
   }, [])
 
   // Session completion screen
@@ -240,7 +392,7 @@ export function StudySession({
               </Button>
               
               <Button
-                onClick={onExit}
+                onClick={handleExitSession}
                 className="gap-2"
               >
                 <CheckCircle className="w-4 h-4" />
@@ -266,7 +418,7 @@ export function StudySession({
             <p className="text-muted-foreground mb-4">
               There are no flashcards ready for this study session.
             </p>
-            <Button onClick={onExit}>
+            <Button onClick={handleExitSession}>
               Return to Dashboard
             </Button>
           </CardContent>
@@ -301,13 +453,35 @@ export function StudySession({
                 </div>
               </div>
               
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onExit}
-              >
-                Exit Session
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePauseResume}
+                  disabled={isSubmittingReview}
+                >
+                  {isPaused ? (
+                    <>
+                      <Play className="w-4 h-4 mr-1" />
+                      Resume
+                    </>
+                  ) : (
+                    <>
+                      <Pause className="w-4 h-4 mr-1" />
+                      Pause
+                    </>
+                  )}
+                </Button>
+                
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExitSession}
+                >
+                  <StopCircle className="w-4 h-4 mr-1" />
+                  Exit
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -321,16 +495,33 @@ export function StudySession({
       {/* Main flashcard */}
       <AnimatePresence mode="wait">
         {currentCard && (
-          <FlashcardComponent
-            key={currentCard.flashcard.id}
-            word={currentCard.word}
-            flashcard={currentCard.flashcard}
-            onReview={handleReview}
-            onNext={currentIndex < totalCards - 1 ? handleNext : undefined}
-            onPrevious={currentIndex > 0 ? handlePrevious : undefined}
-            showNavigation={true}
-            autoFlip={false}
-          />
+          <div className="space-y-6">
+            <FlashcardComponent
+              key={currentCard.flashcard.id}
+              word={currentCard.word}
+              flashcard={currentCard.flashcard}
+              onReview={handleReview}
+              onNext={currentIndex < totalCards - 1 ? handleNext : undefined}
+              onPrevious={currentIndex > 0 ? handlePrevious : undefined}
+              showNavigation={false}
+              autoFlip={false}
+            />
+            
+            {/* SM-2 Review Buttons */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <ReviewButtons
+                wordId={currentCard.word.id}
+                onReview={handleReviewButton}
+                disabled={isSubmittingReview}
+                showPreview={true}
+                className="max-w-2xl mx-auto"
+              />
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
