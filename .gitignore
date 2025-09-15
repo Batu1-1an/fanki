@@ -1,0 +1,31 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Next.js build folder
+/.next/
+
+# Next.js production folder
+/out/
+
+# Vercel
+/.vercel
+
+# Environment variables
+.env*.local
+!/.env.production.local
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Misc
+.DS_Store
+*.pem
+
+# VSCode
+.vscode/
