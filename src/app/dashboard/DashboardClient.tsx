@@ -1,13 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { User } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { signOut } from '@/lib/auth'
 import { useOnboarding } from '@/hooks/useOnboarding'
+import { getWordStats } from '@/lib/words'
 import WelcomeTour from '@/components/onboarding/WelcomeTour'
 import OnboardingPreferences from '@/components/onboarding/OnboardingPreferences'
 import FirstWordTutorial from '@/components/onboarding/FirstWordTutorial'
+import AddWordModal from '@/components/words/AddWordModal'
 
 interface DashboardClientProps {
   user: User
@@ -25,6 +27,25 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const [showTour, setShowTour] = useState(false)
   const [showPreferences, setShowPreferences] = useState(false)
   const [showFirstWordTutorial, setShowFirstWordTutorial] = useState(false)
+  const [showAddWordModal, setShowAddWordModal] = useState(false)
+  const [wordStats, setWordStats] = useState({
+    total: 0,
+    byDifficulty: {} as Record<number, number>,
+    byCategory: {} as Record<string, number>,
+    recentCount: 0
+  })
+
+  // Load word statistics
+  useEffect(() => {
+    const loadWordStats = async () => {
+      const stats = await getWordStats()
+      setWordStats(stats)
+    }
+    
+    if (!loading) {
+      loadWordStats()
+    }
+  }, [loading])
 
   // Show appropriate onboarding step when ready
   useState(() => {
@@ -74,7 +95,17 @@ export default function DashboardClient({ user }: DashboardClientProps) {
 
   const handleFirstWordTutorialComplete = () => {
     setShowFirstWordTutorial(false)
-    // The actual word adding will be handled by the word management system
+    setShowAddWordModal(true)
+  }
+
+  const handleWordAdded = () => {
+    // Reload word stats after adding a word
+    const loadWordStats = async () => {
+      const stats = await getWordStats()
+      setWordStats(stats)
+    }
+    loadWordStats()
+    markFirstWordAdded()
   }
 
   if (loading) {
@@ -128,7 +159,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                           Total Words
                         </dt>
                         <dd className="text-lg font-medium text-gray-900">
-                          0
+                          {wordStats.total}
                         </dd>
                       </dl>
                     </div>
@@ -152,7 +183,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                           Words Learned
                         </dt>
                         <dd className="text-lg font-medium text-gray-900">
-                          0
+                          {wordStats.total}
                         </dd>
                       </dl>
                     </div>
@@ -221,9 +252,11 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                       className="h-20 flex-col" 
                       data-tour="add-word-button"
                       onClick={() => {
-                        // This will be handled by the word management system in Phase 3
-                        alert('Add word functionality coming in Phase 3!')
-                        markFirstWordAdded() // For demo purposes
+                        if (onboardingState.currentStep === 'first-word') {
+                          setShowAddWordModal(true)
+                        } else {
+                          window.location.href = '/dashboard/words'
+                        }
                       }}
                     >
                       <svg className="w-6 h-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -328,6 +361,12 @@ export default function DashboardClient({ user }: DashboardClientProps) {
         isOpen={showFirstWordTutorial}
         onClose={() => setShowFirstWordTutorial(false)}
         onComplete={handleFirstWordTutorialComplete}
+      />
+      
+      <AddWordModal
+        isOpen={showAddWordModal}
+        onClose={() => setShowAddWordModal(false)}
+        onWordAdded={handleWordAdded}
       />
     </>
   )

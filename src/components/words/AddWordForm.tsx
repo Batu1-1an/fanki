@@ -8,6 +8,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createWord, checkWordExists, DIFFICULTY_LEVELS, WORD_CATEGORIES } from '@/lib/words'
 import { Word } from '@/types'
+import { aiService } from '@/lib/ai-services'
+import { useAuth } from '@/hooks/useAuth'
 
 interface AddWordFormProps {
   onWordAdded?: (word: Word) => void
@@ -16,6 +18,7 @@ interface AddWordFormProps {
 }
 
 export default function AddWordForm({ onWordAdded, onCancel, isModal = false }: AddWordFormProps) {
+  const { user } = useAuth()
   const [formData, setFormData] = useState({
     word: '',
     definition: '',
@@ -27,6 +30,7 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false }: 
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false)
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false)
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -122,6 +126,22 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false }: 
       }
       
       if (data) {
+        // Generate AI content in the background
+        if (user) {
+          setIsGeneratingAI(true)
+          // Generate AI content asynchronously - don't block the UI
+          aiService.generateFlashcardContent(
+            data.word,
+            data.difficulty <= 2 ? 'beginner' : data.difficulty >= 4 ? 'advanced' : 'intermediate',
+            user.id
+          ).catch(error => {
+            console.error('Background AI generation failed:', error)
+            // Don't show error to user - this is background generation
+          }).finally(() => {
+            setIsGeneratingAI(false)
+          })
+        }
+        
         // Reset form
         setFormData({
           word: '',
@@ -282,6 +302,13 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false }: 
           )}
         </Button>
       </div>
+      
+      {isGeneratingAI && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-md text-sm flex items-center">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+          Generating AI flashcard content in the background...
+        </div>
+      )}
     </form>
   )
 }
