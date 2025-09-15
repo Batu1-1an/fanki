@@ -51,17 +51,60 @@ export interface UserPreferences {
 
 // Study session types
 export type SessionType = 'review' | 'learn' | 'practice'
+export type FlashcardMode = 'front' | 'back' | 'cloze'
+export type ReviewQuality = 0 | 1 | 2 | 3 | 4 | 5 // SM-2 algorithm quality ratings
 
 // Learning levels
 export type LearningLevel = 'beginner' | 'intermediate' | 'advanced'
+
+// Enhanced flashcard types
+export interface FlashcardWithWord {
+  flashcard: Flashcard & {
+    sentences: FlashcardSentence[]
+  }
+  word: Word
+}
+
+export interface FlashcardState {
+  isFlipped: boolean
+  currentSentenceIndex: number
+  userInput: string
+  isCorrect?: boolean
+  showFeedback: boolean
+  responseTime: number
+}
+
+export interface FlashcardAnswer {
+  sentenceIndex: number
+  userAnswer: string
+  isCorrect: boolean
+  responseTimeMs: number
+}
 
 // Component props
 export interface FlashcardProps {
   word: Word
   flashcard: Flashcard
   onReview: (result: ReviewResult) => void
-  isFlipped: boolean
-  onFlip: () => void
+  onNext?: () => void
+  onPrevious?: () => void
+  showNavigation?: boolean
+  autoFlip?: boolean
+  className?: string
+}
+
+export interface ClozeTestProps {
+  sentence: FlashcardSentence
+  onAnswer: (answer: FlashcardAnswer) => void
+  isRevealed?: boolean
+  className?: string
+}
+
+export interface FlashcardImageProps {
+  imageUrl?: string
+  alt: string
+  className?: string
+  priority?: boolean
 }
 
 export interface ProgressStats {
