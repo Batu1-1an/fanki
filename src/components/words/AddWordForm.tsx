@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { createWord, checkWordExists, DIFFICULTY_LEVELS, WORD_CATEGORIES } from '@/lib/words'
+import { getUserDesks, addWordToDesk, getDefaultDesk, Desk } from '@/lib/desks'
 import { Word } from '@/types'
 import { aiService } from '@/lib/ai-services'
 import { useAuth } from '@/hooks/useAuth'
@@ -15,22 +16,47 @@ interface AddWordFormProps {
   onWordAdded?: (word: Word) => void
   onCancel?: () => void
   isModal?: boolean
+  selectedDesk?: Desk | null
 }
 
-export default function AddWordForm({ onWordAdded, onCancel, isModal = false }: AddWordFormProps) {
+export default function AddWordForm({ onWordAdded, onCancel, isModal = false, selectedDesk }: AddWordFormProps) {
   const { user } = useAuth()
   const [formData, setFormData] = useState({
     word: '',
     definition: '',
     difficulty: 3,
     category: 'General',
-    pronunciation: ''
+    pronunciation: '',
+    deskId: selectedDesk?.id || ''
   })
+  
+  const [desks, setDesks] = useState<Desk[]>([])
+  const [defaultDesk, setDefaultDesk] = useState<Desk | null>(null)
   
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false)
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
+
+  // Load desks on component mount
+  useEffect(() => {
+    const loadDesks = async () => {
+      const { data: desksData } = await getUserDesks()
+      const { data: defaultDeskData } = await getDefaultDesk()
+      
+      if (desksData) {
+        setDesks(desksData)
+      }
+      if (defaultDeskData) {
+        setDefaultDesk(defaultDeskData)
+        // Set default desk if no desk is pre-selected
+        if (!selectedDesk && !formData.deskId) {
+          setFormData(prev => ({ ...prev, deskId: defaultDeskData.id }))
+        }
+      }
+    }
+    loadDesks()
+  }, [selectedDesk])
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
@@ -113,7 +139,8 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false }: 
         difficulty: formData.difficulty,
         category: formData.category,
         pronunciation: formData.pronunciation.trim() || null,
-        language: 'en'
+        language: 'en',
+        user_id: user!.id
       })
       
       if (error) {
@@ -126,6 +153,12 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false }: 
       }
       
       if (data) {
+        // Add word to selected desk
+        const targetDeskId = formData.deskId || defaultDesk?.id
+        if (targetDeskId) {
+          await addWordToDesk(data.id, targetDeskId)
+        }
+        
         // Generate AI content in the background
         if (user) {
           setIsGeneratingAI(true)
@@ -148,7 +181,8 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false }: 
           definition: '',
           difficulty: 3,
           category: 'General',
-          pronunciation: ''
+          pronunciation: '',
+          deskId: selectedDesk?.id || defaultDesk?.id || ''
         })
         setErrors({})
         
@@ -169,9 +203,13 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false }: 
     <form onSubmit={handleSubmit} className={containerClass}>
       {!isModal && (
         <div>
-          <h2 className="text-lg font-medium text-gray-900 mb-2">Add New Word</h2>
+          <h2 className="text-lg font-medium text-gray-900 mb-2">
+            {selectedDesk ? `Add Flashcard to ${selectedDesk.name}` : 'Create New Flashcard'}
+          </h2>
           <p className="text-sm text-gray-600">
-            Add a new word to your vocabulary with definition and difficulty level.
+            {selectedDesk 
+              ? `Add a new flashcard to your "${selectedDesk.name}" deck.`
+              : 'Create a new flashcard and choose which deck to add it to.'}
           </p>
         </div>
       )}
@@ -261,6 +299,38 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false }: 
               ))}
             </SelectContent>
           </Select>
+        </div>
+        
+        <div className="sm:col-span-2">
+          <Label htmlFor="deck">Flashcard Deck</Label>
+          <Select
+            value={formData.deskId}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, deskId: value }))}
+            disabled={isLoading}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a deck" />
+            </SelectTrigger>
+            <SelectContent>
+              {desks.map((desk) => (
+                <SelectItem key={desk.id} value={desk.id}>
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: desk.color }}
+                    />
+                    {desk.name}
+                    {desk.is_default && <span className="text-xs text-gray-500">(Default)</span>}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-gray-500 mt-1">
+            {selectedDesk 
+              ? `Adding to "${selectedDesk.name}" deck` 
+              : 'Choose which deck to add this flashcard to'}
+          </p>
         </div>
         
         <div className="sm:col-span-2">

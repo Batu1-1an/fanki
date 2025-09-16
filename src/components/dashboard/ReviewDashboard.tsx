@@ -22,6 +22,8 @@ import { getReviewStats } from '@/lib/reviews'
 import { getQueueManager, getRecommendedStudyMode, generateStudySession } from '@/lib/queue-manager'
 import { formatInterval } from '@/utils/sm2'
 import { cn } from '@/lib/utils'
+import { getUserDesks, Desk } from '@/lib/desks'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface ReviewDashboardProps {
   onStartSession: (words: any[], sessionId: string) => void
@@ -70,12 +72,48 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
     reasoning: 'Balanced study session recommended.',
     priority: 'low'
   })
+  const [desks, setDesks] = useState<Desk[]>([])
+  const [selectedDeskId, setSelectedDeskId] = useState<string>('all')
   const [isLoading, setIsLoading] = useState(true)
   const [isStartingSession, setIsStartingSession] = useState(false)
 
   useEffect(() => {
     loadDashboardData()
+    loadDesks()
   }, [])
+
+  useEffect(() => {
+    // Reload queue stats when desk selection changes
+    if (!isLoading) {
+      loadQueueStats()
+    }
+  }, [selectedDeskId])
+
+  const loadDesks = async () => {
+    try {
+      const { data: userDesks } = await getUserDesks()
+      if (userDesks) {
+        setDesks(userDesks)
+      }
+    } catch (error) {
+      console.error('Failed to load desks:', error)
+    }
+  }
+
+  const loadQueueStats = async () => {
+    try {
+      const queueManager = getQueueManager()
+      const options = (selectedDeskId && selectedDeskId !== 'all') ? { maxWords: 100, deskId: selectedDeskId } : { maxWords: 100 }
+      const { stats: queueData } = await queueManager.generateQueue(options)
+      setQueueStats(queueData)
+
+      // Load recommended study mode for selected desk
+      const recommendation = await getRecommendedStudyMode()
+      setRecommendedMode(recommendation)
+    } catch (error) {
+      console.error('Failed to load queue stats:', error)
+    }
+  }
 
   const loadDashboardData = async () => {
     setIsLoading(true)
@@ -84,14 +122,7 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
       const reviewStats = await getReviewStats()
       setStats(reviewStats)
 
-      // Load queue statistics
-      const queueManager = getQueueManager()
-      const { stats: queueData } = await queueManager.generateQueue({ maxWords: 100 })
-      setQueueStats(queueData)
-
-      // Load recommended study mode
-      const recommendation = await getRecommendedStudyMode()
-      setRecommendedMode(recommendation)
+      await loadQueueStats()
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
     } finally {
@@ -102,11 +133,18 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
   const handleStartSession = async (mode: any = recommendedMode.mode, maxWords: number = 20) => {
     setIsStartingSession(true)
     try {
-      const { words, sessionId } = await generateStudySession({
+      const options: any = {
         maxWords,
         studyMode: mode,
         prioritizeWeakWords: true
-      })
+      }
+
+      // Add desk filter if specific desk is selected
+      if (selectedDeskId && selectedDeskId !== 'all') {
+        options.deskId = selectedDeskId
+      }
+
+      const { words, sessionId } = await generateStudySession(options)
 
       if (words.length > 0) {
         onStartSession(words, sessionId)
@@ -119,6 +157,11 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
     } finally {
       setIsStartingSession(false)
     }
+  }
+
+  const getSelectedDeskInfo = () => {
+    if (!selectedDeskId || selectedDeskId === 'all') return null
+    return desks.find(desk => desk.id === selectedDeskId)
   }
 
   const getPriorityColor = (priority: string) => {
@@ -208,13 +251,66 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
         </Card>
       </div>
 
+      {/* Deck Selection */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5" />
+            Study Deck Selection
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Choose a deck to study:</label>
+              <Select value={selectedDeskId} onValueChange={setSelectedDeskId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="All decks (default)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-gray-400" />
+                      All Decks
+                    </div>
+                  </SelectItem>
+                  {desks.map(desk => (
+                    <SelectItem key={desk.id} value={desk.id}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: desk.color }} />
+                        {desk.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {getSelectedDeskInfo() && (
+              <div className="p-3 bg-muted/50 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <div 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ backgroundColor: getSelectedDeskInfo()!.color }} 
+                  />
+                  <span className="font-medium">{getSelectedDeskInfo()!.name}</span>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Studying from: {getSelectedDeskInfo()!.description || 'Selected deck'}
+                </p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Study Recommendation */}
       <Card className={cn("border-2", getPriorityColor(recommendedMode.priority))}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Award className="w-5 h-5" />
-              Study Recommendation
+              Study Recommendation {selectedDeskId && `(${getSelectedDeskInfo()?.name})`}
             </CardTitle>
             <Badge variant="outline" className={getPriorityColor(recommendedMode.priority)}>
               {recommendedMode.priority} priority
@@ -222,11 +318,16 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
           </div>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground mb-4">{recommendedMode.reasoning}</p>
+          <p className="text-muted-foreground mb-4">
+            {selectedDeskId 
+              ? `${recommendedMode.reasoning} - Studying from "${getSelectedDeskInfo()?.name}" deck.`
+              : recommendedMode.reasoning
+            }
+          </p>
           <div className="flex gap-3">
             <Button
               onClick={() => handleStartSession(recommendedMode.mode)}
-              disabled={isStartingSession}
+              disabled={isStartingSession || queueStats.total === 0}
               size="lg"
               className="flex-1"
             >
@@ -235,11 +336,16 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
             <Button
               variant="outline"
               onClick={() => handleStartSession('mixed', 10)}
-              disabled={isStartingSession}
+              disabled={isStartingSession || queueStats.total === 0}
             >
               Quick Review (10 cards)
             </Button>
           </div>
+          {queueStats.total === 0 && (
+            <p className="text-sm text-orange-600 mt-2">
+              {selectedDeskId ? 'No cards available in selected deck.' : 'No cards available to study.'}
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -283,7 +389,7 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
                   variant={queueStats.overdue > 0 ? "destructive" : "outline"}
                   className="w-full justify-between"
                 >
-                  <span>Focus on Overdue Cards</span>
+                  <span>Focus on Overdue Cards {selectedDeskId && `(${getSelectedDeskInfo()?.name})`}</span>
                   <Badge variant="secondary">{queueStats.overdue}</Badge>
                 </Button>
 
@@ -293,7 +399,7 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
                   variant="outline"
                   className="w-full justify-between"
                 >
-                  <span>Review Due Cards</span>
+                  <span>Review Due Cards {selectedDeskId && `(${getSelectedDeskInfo()?.name})`}</span>
                   <Badge variant="secondary">{queueStats.dueToday}</Badge>
                 </Button>
 
@@ -303,7 +409,7 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
                   variant="outline"
                   className="w-full justify-between"
                 >
-                  <span>Learn New Words</span>
+                  <span>Learn New Words {selectedDeskId && `(${getSelectedDeskInfo()?.name})`}</span>
                   <Badge variant="secondary">{queueStats.newWords}</Badge>
                 </Button>
               </div>
@@ -387,12 +493,12 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
                 </Button>
 
                 <Button
-                  onClick={loadDashboardData}
+                  onClick={() => window.location.href = '/dashboard/words'}
                   variant="outline"
                   className="h-20 flex-col gap-2"
                 >
-                  <span className="font-semibold">Refresh Data</span>
-                  <span className="text-sm text-muted-foreground">Update statistics</span>
+                  <span className="font-semibold">Manage Decks</span>
+                  <span className="text-sm text-muted-foreground">Edit flashcards</span>
                 </Button>
               </div>
             </CardContent>

@@ -11,6 +11,7 @@ import OnboardingPreferences from '@/components/onboarding/OnboardingPreferences
 import FirstWordTutorial from '@/components/onboarding/FirstWordTutorial'
 import AddWordModal from '@/components/words/AddWordModal'
 import { StudySessionDashboard } from '@/components/dashboard/StudySessionDashboard'
+import { DeskManager } from '@/components/dashboard/DeskManager'
 
 interface DashboardClientProps {
   user: User
@@ -323,7 +324,14 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               </>
             ) : (
               /* Show comprehensive StudySessionDashboard for users who completed onboarding */
-              <StudySessionDashboard className="mt-0" />
+              <>
+                <StudySessionDashboard className="mt-0" />
+                
+                {/* Desk Management Section */}
+                <div className="mt-8">
+                  <DeskManager />
+                </div>
+              </>
             )}
 
             {/* Dynamic onboarding content */}

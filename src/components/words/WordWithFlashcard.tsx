@@ -4,21 +4,30 @@ import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Sparkles, Eye, EyeOff, Image as ImageIcon, Type, Loader2 } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Sparkles, Eye, EyeOff, Image as ImageIcon, Type, Loader2, MoreHorizontal, MoveRight, BookOpen } from 'lucide-react'
 import { Word } from '@/types'
+import { getUserDesks, removeWordFromDesk, addWordToDesk, Desk } from '@/lib/desks'
 import { aiService } from '@/lib/ai-services'
 import { useAuth } from '@/hooks/useAuth'
 import { FlashcardGenerator } from './FlashcardGenerator'
+import { useToast } from '@/hooks/use-toast'
 
 interface WordWithFlashcardProps {
   word: Word
   onEdit: (word: Word) => void
   onDelete: (wordId: string) => void
   isDeleting: boolean
+  selectedDesk?: Desk | null
+  isSelected?: boolean
+  onSelectionChange?: (wordId: string, selected: boolean) => void
+  showSelection?: boolean
 }
 
-export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting }: WordWithFlashcardProps) {
+export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting, selectedDesk, isSelected = false, onSelectionChange, showSelection = false }: WordWithFlashcardProps) {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [showFlashcard, setShowFlashcard] = useState(false)
   const [flashcardContent, setFlashcardContent] = useState<{
     sentences: string[]
@@ -26,6 +35,8 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting }: WordWi
     imageDescription?: string
   } | null>(null)
   const [loadingFlashcard, setLoadingFlashcard] = useState(false)
+  const [availableDesks, setAvailableDesks] = useState<Desk[]>([])
+  const [movingToDeskId, setMovingToDeskId] = useState<string | null>(null)
 
   const getDifficultyBadge = (difficulty: number) => {
     const colors = {
@@ -86,142 +97,224 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting }: WordWi
     setFlashcardContent(content)
   }
 
-  return (
-    <div className="border rounded-lg p-6 hover:bg-gray-50 transition-colors">
-      <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center space-x-3 mb-2">
-            <h3 className="text-lg font-medium text-gray-900 capitalize">
-              {word.word}
-            </h3>
-            {getDifficultyBadge(word.difficulty)}
-            <Badge variant="outline">{word.category}</Badge>
-          </div>
-          
-          <p className="text-gray-600 text-sm mb-2">
-            {word.definition}
-          </p>
-          
-          {word.pronunciation && (
-            <p className="text-xs text-gray-500 mb-2">
-              <span className="font-medium">Pronunciation:</span> {word.pronunciation}
-            </p>
-          )}
-          
-          <p className="text-xs text-gray-400 mb-3">
-            Added {new Date(word.created_at).toLocaleDateString()}
-          </p>
+  // Load available desks for moving
+  useEffect(() => {
+    const loadDesks = async () => {
+      const { data } = await getUserDesks()
+      if (data) {
+        setAvailableDesks(data.filter(desk => desk.id !== selectedDesk?.id))
+      }
+    }
+    loadDesks()
+  }, [selectedDesk])
 
-          {/* Flashcard toggle */}
-          <div className="flex items-center gap-2 mb-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleShowFlashcard}
-              className="flex items-center gap-2"
-            >
-              {showFlashcard ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              {showFlashcard ? 'Hide' : 'Show'} AI Flashcard
-            </Button>
-            
-            {loadingFlashcard && (
-              <div className="flex items-center gap-1 text-xs text-gray-500">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                Loading...
-              </div>
+  const handleMoveToDesk = async (targetDeskId: string) => {
+    if (!selectedDesk) return
+    
+    setMovingToDeskId(targetDeskId)
+    try {
+      // Remove from current desk
+      await removeWordFromDesk(word.id, selectedDesk.id)
+      // Add to target desk
+      await addWordToDesk(word.id, targetDeskId)
+      
+      const targetDesk = availableDesks.find(d => d.id === targetDeskId)
+      toast({
+        title: 'Flashcard moved',
+        description: `"${word.word}" moved to ${targetDesk?.name || 'selected deck'}`
+      })
+      
+      // Trigger refresh by calling onEdit with a flag or similar
+      window.location.reload() // Simple refresh for now
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to move flashcard',
+        variant: 'destructive'
+      })
+    } finally {
+      setMovingToDeskId(null)
+    }
+  }
+
+  return (
+    <Card className={`group hover:shadow-lg transition-all duration-200 hover:scale-[1.02] bg-gradient-to-br from-white to-gray-50 ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            {showSelection && (
+              <Checkbox
+                checked={isSelected}
+                onCheckedChange={(checked: boolean) => onSelectionChange?.(word.id, checked)}
+                className="flex-shrink-0"
+              />
             )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <h3 className="text-lg font-semibold text-gray-900 capitalize truncate">
+                  {word.word}
+                </h3>
+                {getDifficultyBadge(word.difficulty)}
+              </div>
+              <Badge variant="outline" className="text-xs">{word.category}</Badge>
+            </div>
           </div>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(word)}>
+                Edit Flashcard
+              </DropdownMenuItem>
+              {selectedDesk && availableDesks.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <DropdownMenuItem>
+                      <MoveRight className="h-4 w-4 mr-2" />
+                      Move to Deck
+                    </DropdownMenuItem>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="left">
+                    {availableDesks.map((deck) => (
+                      <DropdownMenuItem
+                        key={deck.id}
+                        onClick={() => handleMoveToDesk(deck.id)}
+                        disabled={movingToDeskId === deck.id}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: deck.color }}
+                          />
+                          {deck.name}
+                          {movingToDeskId === deck.id && <Loader2 className="h-3 w-3 animate-spin ml-auto" />}
+                        </div>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+              <DropdownMenuItem 
+                onClick={() => onDelete(word.id)} 
+                disabled={isDeleting}
+                className="text-red-600"
+              >
+                {isDeleting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : 'Delete'}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="pt-0">
+        <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+          {word.definition}
+        </p>
+        
+        {word.pronunciation && (
+          <p className="text-xs text-gray-500 mb-3">
+            <span className="font-medium">🔊</span> {word.pronunciation}
+          </p>
+        )}
+        
+        {/* Flashcard toggle */}
+        <div className="flex items-center gap-2 mb-3">
+          <Button
+            variant={showFlashcard ? "default" : "outline"}
+            size="sm"
+            onClick={handleShowFlashcard}
+            className="flex items-center gap-2 text-xs"
+          >
+            {showFlashcard ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+            {showFlashcard ? 'Hide' : 'Study'}
+          </Button>
+          
+          {loadingFlashcard && (
+            <div className="flex items-center gap-1 text-xs text-gray-500">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Loading...
+            </div>
+          )}
         </div>
         
-        <div className="flex space-x-2 ml-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onEdit(word)}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={() => onDelete(word.id)}
-            disabled={isDeleting}
-          >
-            {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete'}
-          </Button>
+        <div className="flex items-center justify-between text-xs text-gray-400">
+          <span>Added {new Date(word.created_at).toLocaleDateString()}</span>
+          {selectedDesk && (
+            <div className="flex items-center gap-1">
+              <div 
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: selectedDesk.color }}
+              />
+              <span>{selectedDesk.name}</span>
+            </div>
+          )}
         </div>
-      </div>
+      </CardContent>
 
-      {/* Flashcard Content */}
+      {/* Flashcard Study Mode */}
       {showFlashcard && (
-        <div className="mt-4 border-t pt-4">
+        <div className="border-t mt-4 pt-4">
           {flashcardContent ? (
-            <div className="space-y-4">
-              {/* Sentences */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <Type className="h-4 w-4 text-blue-500" />
-                    Cloze Test Sentences
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {flashcardContent.sentences.map((sentenceObj, index) => (
-                      <div key={index} className="p-3 bg-gray-50 rounded-md">
-                        <p className="text-sm">
-                          {typeof sentenceObj === 'string' ? sentenceObj : (sentenceObj as any).sentence}
-                        </p>
-                        {typeof sentenceObj === 'object' && (sentenceObj as any).explanation && (
-                          <p className="text-xs text-gray-600 mt-1 italic">
-                            {(sentenceObj as any).explanation}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="space-y-3">
+              {/* Compact Sentences */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-md">
+                <div className="text-xs font-medium text-blue-700 mb-2 flex items-center gap-1">
+                  <Type className="h-3 w-3" />
+                  Practice Sentences
+                </div>
+                <div className="space-y-2">
+                  {flashcardContent.sentences.slice(0, 2).map((sentenceObj, index) => (
+                    <p key={index} className="text-xs text-gray-700">
+                      {typeof sentenceObj === 'string' ? sentenceObj : (sentenceObj as any).sentence}
+                    </p>
+                  ))}
+                  {flashcardContent.sentences.length > 2 && (
+                    <p className="text-xs text-gray-500 italic">+{flashcardContent.sentences.length - 2} more...</p>
+                  )}
+                </div>
+              </div>
 
-              {/* Image */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <ImageIcon className="h-4 w-4 text-green-500" />
-                    Visual Memory Aid
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="rounded-md overflow-hidden bg-gray-100 flex items-center justify-center h-32">
-                      <img
-                        src={flashcardContent.imageUrl}
-                        alt={`Visual representation of ${word.word}`}
-                        className="max-h-full max-w-full object-contain"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement
-                          target.src = `https://placehold.co/300x200/6366F1/FFFFFF?text=${encodeURIComponent(word.word)}`
-                        }}
-                      />
-                    </div>
-                    {flashcardContent.imageDescription && (
-                      <p className="text-xs text-gray-600">
-                        {flashcardContent.imageDescription}
-                      </p>
-                    )}
+              {/* Compact Image */}
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 p-3 rounded-md">
+                <div className="text-xs font-medium text-green-700 mb-2 flex items-center gap-1">
+                  <ImageIcon className="h-3 w-3" />
+                  Visual Aid
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-12 rounded overflow-hidden bg-gray-100 flex-shrink-0">
+                    <img
+                      src={flashcardContent.imageUrl}
+                      alt={`Visual for ${word.word}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement
+                        target.src = `https://placehold.co/64x48/6366F1/FFFFFF?text=${encodeURIComponent(word.word.charAt(0))}`
+                      }}
+                    />
                   </div>
-                </CardContent>
-              </Card>
+                  {flashcardContent.imageDescription && (
+                    <p className="text-xs text-gray-600 flex-1">
+                      {flashcardContent.imageDescription}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           ) : (
-            <FlashcardGenerator
-              word={word.word}
-              difficulty={word.difficulty <= 2 ? 'beginner' : word.difficulty >= 4 ? 'advanced' : 'intermediate'}
-              onContentGenerated={handleContentGenerated}
-            />
+            <div className="bg-yellow-50 p-3 rounded-md">
+              <FlashcardGenerator
+                word={word.word}
+                difficulty={word.difficulty <= 2 ? 'beginner' : word.difficulty >= 4 ? 'advanced' : 'intermediate'}
+                onContentGenerated={handleContentGenerated}
+              />
+            </div>
           )}
         </div>
       )}
-    </div>
+    </Card>
   )
 }

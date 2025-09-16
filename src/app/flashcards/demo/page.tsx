@@ -34,6 +34,7 @@ const mockWords: Word[] = [
     difficulty: 4,
     category: 'Academic',
     pronunciation: 'ser-ən-ˈdi-pə-tē',
+    status: 'new',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   },
@@ -46,6 +47,7 @@ const mockWords: Word[] = [
     difficulty: 3,
     category: 'Academic',
     pronunciation: 'ə-ˈfem-ər-əl',
+    status: 'learning',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   },
@@ -58,6 +60,7 @@ const mockWords: Word[] = [
     difficulty: 4,
     category: 'Academic',
     pronunciation: 'yo͞o-ˈbi-kwə-təs',
+    status: 'review',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   }

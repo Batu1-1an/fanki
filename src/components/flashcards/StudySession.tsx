@@ -58,6 +58,12 @@ interface SessionStats {
   averageResponseTime: number
 }
 
+interface RelearningCard extends FlashcardWithWord {
+  originalIndex: number
+  timesRelearned: number
+  addedToRelearningAt: Date
+}
+
 interface CardReview {
   wordId: string
   button: 'again' | 'hard' | 'good' | 'easy'
@@ -90,10 +96,20 @@ export function StudySession({
   const [isPaused, setIsPaused] = useState(false)
   const [pauseStartTime, setPauseStartTime] = useState<Date | null>(null)
   const [totalPauseTime, setTotalPauseTime] = useState(0)
+  
+  // Re-learning queue for lapsed cards
+  const [relearningQueue, setRelearningQueue] = useState<RelearningCard[]>([])
+  const [currentlyShowingRelearning, setCurrentlyShowingRelearning] = useState(false)
+  const [mainQueueCompleted, setMainQueueCompleted] = useState(false)
 
-  const currentCard = flashcards[currentIndex]
-  const totalCards = flashcards.length
-  const progress = totalCards > 0 ? ((currentIndex + 1) / totalCards) * 100 : 0
+  // Get current card from either main queue or re-learning queue
+  const currentCard = currentlyShowingRelearning && relearningQueue.length > 0
+    ? relearningQueue[0] // Show first card from re-learning queue
+    : flashcards[currentIndex] // Show card from main queue
+  
+  const totalCards = flashcards.length + relearningQueue.length
+  const completedCards = currentIndex + (relearningQueue.length - (currentlyShowingRelearning ? relearningQueue.length : 0))
+  const progress = totalCards > 0 ? ((completedCards + 1) / totalCards) * 100 : 0
 
   // Session timer
   const [sessionDuration, setSessionDuration] = useState(0)
@@ -134,6 +150,46 @@ export function StudySession({
     const secs = seconds % 60
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
+
+  // Helper functions for re-learning queue management
+  const addToRelearningQueue = useCallback((card: FlashcardWithWord, originalIndex: number) => {
+    const relearningCard: RelearningCard = {
+      ...card,
+      originalIndex,
+      timesRelearned: 1,
+      addedToRelearningAt: new Date()
+    }
+    
+    setRelearningQueue(prev => {
+      // Check if card is already in re-learning queue
+      const existingIndex = prev.findIndex(c => c.word.id === card.word.id)
+      if (existingIndex >= 0) {
+        // Update existing entry - increase times relearned
+        const updated = [...prev]
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          timesRelearned: updated[existingIndex].timesRelearned + 1,
+          addedToRelearningAt: new Date()
+        }
+        return updated
+      } else {
+        // Add new entry to the end of the queue
+        return [...prev, relearningCard]
+      }
+    })
+  }, [])
+
+  const removeFromRelearningQueue = useCallback((wordId: string) => {
+    setRelearningQueue(prev => prev.filter(card => card.word.id !== wordId))
+  }, [])
+
+  const shouldShowRelearningCard = useCallback(() => {
+    // Show re-learning cards after every 3-4 regular cards, or when main queue is done
+    return relearningQueue.length > 0 && (
+      mainQueueCompleted || 
+      (currentIndex > 0 && currentIndex % 3 === 0)
+    )
+  }, [relearningQueue.length, mainQueueCompleted, currentIndex])
 
   const handleReviewButton = useCallback(async (button: 'again' | 'hard' | 'good' | 'easy') => {
     if (!currentCard || isSubmittingReview) return
@@ -189,9 +245,27 @@ export function StudySession({
       setCardReviews(prev => [...prev, review])
       setResponseTimes(prev => [...prev, responseTime])
       
-      // Remove from queue
-      const queueManager = getQueueManager()
-      queueManager.removeFromQueue(currentCard.word.id)
+      // Handle "Again" button - add to re-learning queue instead of removing completely
+      if (button === 'again') {
+        if (currentlyShowingRelearning) {
+          // If this is already a re-learning card, update its re-learning count
+          const relearningCard = relearningQueue[0]
+          addToRelearningQueue(relearningCard, relearningCard.originalIndex)
+          // Remove current re-learning card (it will be re-added with updated count)
+          removeFromRelearningQueue(currentCard.word.id)
+        } else {
+          // Add current card to re-learning queue
+          addToRelearningQueue(currentCard, currentIndex)
+        }
+      } else {
+        // For other buttons, remove from appropriate queue
+        if (currentlyShowingRelearning) {
+          removeFromRelearningQueue(currentCard.word.id)
+        } else {
+          const queueManager = getQueueManager()
+          queueManager.removeFromQueue(currentCard.word.id)
+        }
+      }
       
     } catch (error) {
       console.error('Review submission failed:', error)
@@ -203,7 +277,7 @@ export function StudySession({
         handleNext()
       }, 1000)
     }
-  }, [currentCard, isSubmittingReview, sessionStats.startTime])
+  }, [currentCard, isSubmittingReview, sessionStats.startTime, currentlyShowingRelearning, relearningQueue, currentIndex, addToRelearningQueue, removeFromRelearningQueue])
   
   const handleReview = useCallback((result: ReviewResult) => {
     // Legacy support for existing ReviewResult interface
@@ -212,20 +286,6 @@ export function StudySession({
                   result.quality >= 2 ? 'hard' : 'again'
     handleReviewButton(button)
   }, [handleReviewButton])
-
-  const handleNext = useCallback(() => {
-    if (currentIndex < totalCards - 1) {
-      setCurrentIndex(prev => prev + 1)
-    } else {
-      completeSession()
-    }
-  }, [currentIndex, totalCards])
-
-  const handlePrevious = useCallback(() => {
-    if (currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1)
-    }
-  }, [currentIndex])
 
   const completeSession = useCallback(async () => {
     const endTime = new Date()
@@ -266,6 +326,47 @@ export function StudySession({
       ended_at: endTime.toISOString()
     })
   }, [sessionStats, responseTimes, sessionType, onSessionComplete, sessionDuration, dbSessionId])
+
+  const handleNext = useCallback(() => {
+    if (currentlyShowingRelearning) {
+      // We just finished a re-learning card, go back to main queue
+      setCurrentlyShowingRelearning(false)
+    } else {
+      // We just finished a main queue card
+      // Check if we should show a re-learning card next
+      if (shouldShowRelearningCard() && !mainQueueCompleted) {
+        setCurrentlyShowingRelearning(true)
+        return
+      }
+      
+      // Continue with main queue
+      if (currentIndex < flashcards.length - 1) {
+        setCurrentIndex(prev => prev + 1)
+      } else {
+        // Main queue completed
+        setMainQueueCompleted(true)
+        
+        // If there are re-learning cards, start showing them
+        if (relearningQueue.length > 0) {
+          setCurrentlyShowingRelearning(true)
+        } else {
+          // No re-learning cards, session complete
+          completeSession()
+        }
+      }
+    }
+    
+    // If we're in re-learning mode but no cards left, complete session
+    if (mainQueueCompleted && relearningQueue.length === 0) {
+      completeSession()
+    }
+  }, [currentIndex, flashcards.length, currentlyShowingRelearning, shouldShowRelearningCard, mainQueueCompleted, relearningQueue.length, completeSession])
+
+  const handlePrevious = useCallback(() => {
+    if (currentIndex > 0) {
+      setCurrentIndex(prev => prev - 1)
+    }
+  }, [currentIndex])
 
   const handlePauseResume = useCallback(async () => {
     if (isPaused) {
@@ -439,6 +540,12 @@ export function StudySession({
                 {sessionType} Session
               </Badge>
               
+              {currentlyShowingRelearning && (
+                <Badge variant="destructive" className="animate-pulse">
+                  Re-learning
+                </Badge>
+              )}
+              
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Clock className="w-4 h-4" />
                 {formatTime(sessionDuration)}
@@ -449,8 +556,13 @@ export function StudySession({
               <div className="text-right">
                 <div className="text-sm text-muted-foreground">Progress</div>
                 <div className="font-semibold">
-                  {currentIndex + 1} / {totalCards}
+                  {currentIndex + 1} / {flashcards.length}
                 </div>
+                {relearningQueue.length > 0 && (
+                  <div className="text-xs text-orange-600">
+                    +{relearningQueue.length} re-learning
+                  </div>
+                )}
               </div>
               
               <div className="flex items-center gap-2">
@@ -513,7 +625,7 @@ export function StudySession({
       {/* Session stats sidebar */}
       <Card className="bg-muted/30">
         <CardContent className="p-4">
-          <div className="grid grid-cols-3 gap-4 text-center">
+          <div className="grid grid-cols-4 gap-3 text-center">
             <div>
               <div className="text-lg font-semibold text-green-600">
                 {sessionStats.cardsCorrect}
@@ -533,6 +645,13 @@ export function StudySession({
                 {sessionStats.accuracy.toFixed(0)}%
               </div>
               <div className="text-xs text-muted-foreground">Accuracy</div>
+            </div>
+            
+            <div>
+              <div className="text-lg font-semibold text-orange-600">
+                {relearningQueue.length}
+              </div>
+              <div className="text-xs text-muted-foreground">Re-learning</div>
             </div>
           </div>
         </CardContent>
