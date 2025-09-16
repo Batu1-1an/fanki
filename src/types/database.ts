@@ -61,6 +61,7 @@ export interface Database {
           difficulty: number
           category: string | null
           pronunciation: string | null
+          status: 'new' | 'learning' | 'review'
           created_at: string
           updated_at: string
         }
@@ -73,6 +74,7 @@ export interface Database {
           difficulty?: number
           category?: string | null
           pronunciation?: string | null
+          status?: 'new' | 'learning' | 'review'
           created_at?: string
           updated_at?: string
         }
@@ -85,6 +87,7 @@ export interface Database {
           difficulty?: number
           category?: string | null
           pronunciation?: string | null
+          status?: 'new' | 'learning' | 'review'
           created_at?: string
           updated_at?: string
         }

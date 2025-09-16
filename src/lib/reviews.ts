@@ -1,11 +1,11 @@
 import { createClientComponentClient } from './supabase'
-import { Review, SM2Result, TablesInsert, Word } from '@/types'
+import { Review, SM2Result, TablesInsert, Word, WordStatus, LEARNING_STEPS, GRADUATION_INTERVAL } from '@/types'
 import { calculateSM2, buttonToQuality } from '@/utils/sm2'
 
 const supabase = createClientComponentClient()
 
 /**
- * Submit a review for a word and update SM-2 scheduling
+ * Submit a review for a word and update SM-2 scheduling or learning phase
  */
 export async function submitReview({
   wordId,
@@ -25,7 +25,18 @@ export async function submitReview({
       return { data: null, error: 'User not authenticated' }
     }
 
-    // Get the most recent review for this word to get current SM-2 values
+    // Get word and its current status
+    const { data: word, error: wordError } = await supabase
+      .from('words')
+      .select('status')
+      .eq('id', wordId)
+      .single()
+
+    if (wordError) {
+      return { data: null, error: wordError }
+    }
+
+    // Get the most recent review for this word
     const { data: lastReview } = await supabase
       .from('reviews')
       .select('*')
@@ -35,36 +46,258 @@ export async function submitReview({
       .limit(1)
       .single()
 
-    // Calculate new SM-2 values
     const quality = buttonToQuality(button)
-    const sm2Result = calculateSM2({
-      quality,
-      ease_factor: lastReview?.ease_factor || 2.5,
-      interval_days: lastReview?.interval_days || 1,
-      repetitions: lastReview?.repetitions || 0
-    })
+    let reviewData: TablesInsert<'reviews'>
+    let newWordStatus: WordStatus = word.status
 
-    // Insert new review record
-    const reviewData: TablesInsert<'reviews'> = {
-      user_id: user.id,
-      word_id: wordId,
-      flashcard_id: flashcardId || null,
-      quality,
-      ease_factor: sm2Result.ease_factor,
-      interval_days: sm2Result.interval_days,
-      repetitions: sm2Result.repetitions,
-      due_date: sm2Result.due_date.toISOString(),
-      reviewed_at: new Date().toISOString(),
-      response_time_ms: responseTimeMs || null
+    // Handle learning phase differently from regular SM-2
+    if (word.status === 'new' || word.status === 'learning') {
+      const result = await handleLearningPhase({
+        wordId,
+        quality,
+        button,
+        lastReview,
+        currentStatus: word.status
+      })
+      
+      reviewData = {
+        user_id: user.id,
+        word_id: wordId,
+        flashcard_id: flashcardId || null,
+        quality,
+        ease_factor: result.ease_factor,
+        interval_days: result.interval_days,
+        repetitions: result.repetitions,
+        due_date: result.due_date.toISOString(),
+        reviewed_at: new Date().toISOString(),
+        response_time_ms: responseTimeMs || null
+      }
+      
+      newWordStatus = result.newStatus
+    } else {
+      // Regular SM-2 for review cards
+      const sm2Result = calculateSM2({
+        quality,
+        ease_factor: lastReview?.ease_factor || 2.5,
+        interval_days: lastReview?.interval_days || 1,
+        repetitions: lastReview?.repetitions || 0
+      })
+
+      reviewData = {
+        user_id: user.id,
+        word_id: wordId,
+        flashcard_id: flashcardId || null,
+        quality,
+        ease_factor: sm2Result.ease_factor,
+        interval_days: sm2Result.interval_days,
+        repetitions: sm2Result.repetitions,
+        due_date: sm2Result.due_date.toISOString(),
+        reviewed_at: new Date().toISOString(),
+        response_time_ms: responseTimeMs || null
+      }
     }
 
+    // Insert review record
     const { data, error } = await supabase
       .from('reviews')
       .insert(reviewData)
       .select()
       .single()
 
-    return { data, error }
+    if (error) {
+      return { data: null, error }
+    }
+
+    // Update word status if it changed
+    if (newWordStatus !== word.status) {
+      await supabase
+        .from('words')
+        .update({ status: newWordStatus })
+        .eq('id', wordId)
+    }
+
+    return { data, error: null }
+  } catch (error) {
+    return { data: null, error }
+  }
+}
+
+/**
+ * Handle learning phase progression
+ */
+async function handleLearningPhase({
+  wordId,
+  quality,
+  button,
+  lastReview,
+  currentStatus
+}: {
+  wordId: string
+  quality: number
+  button: 'again' | 'hard' | 'good' | 'easy'
+  lastReview?: Review
+  currentStatus: WordStatus
+}): Promise<{
+  ease_factor: number
+  interval_days: number
+  repetitions: number
+  due_date: Date
+  newStatus: WordStatus
+}> {
+  const now = new Date()
+  let newStatus: WordStatus = currentStatus
+  let ease_factor = 2.5
+  let interval_days = 0
+  let repetitions = lastReview?.repetitions || 0
+
+  if (currentStatus === 'new') {
+    // New card - move to learning phase
+    newStatus = 'learning'
+    repetitions = 0
+  }
+
+  if (button === 'again') {
+    // Reset to first learning step
+    interval_days = 0 // Show again in 1 minute (handled by queue manager)
+    const dueDate = new Date(now.getTime() + LEARNING_STEPS[0] * 60 * 1000)
+    return {
+      ease_factor,
+      interval_days,
+      repetitions,
+      due_date: dueDate,
+      newStatus: 'learning'
+    }
+  }
+
+  if (currentStatus === 'learning') {
+    if (button === 'good' || button === 'hard') {
+      // Move to next learning step or graduate
+      const currentStep = lastReview ? Math.min(lastReview.repetitions, LEARNING_STEPS.length - 1) : 0
+      
+      if (currentStep < LEARNING_STEPS.length - 1) {
+        // Move to next learning step
+        const nextStep = currentStep + 1
+        repetitions = nextStep
+        interval_days = 0
+        const dueDate = new Date(now.getTime() + LEARNING_STEPS[nextStep] * 60 * 1000)
+        return {
+          ease_factor,
+          interval_days,
+          repetitions,
+          due_date: dueDate,
+          newStatus: 'learning'
+        }
+      } else {
+        // Graduate to review
+        newStatus = 'review'
+        repetitions = 1
+        interval_days = GRADUATION_INTERVAL
+        ease_factor = 2.5
+        const dueDate = new Date(now.getTime() + interval_days * 24 * 60 * 60 * 1000)
+        return {
+          ease_factor,
+          interval_days,
+          repetitions,
+          due_date: dueDate,
+          newStatus: 'review'
+        }
+      }
+    }
+    
+    if (button === 'easy') {
+      // Graduate immediately
+      newStatus = 'review'
+      repetitions = 1
+      interval_days = 4 // Easy graduation gets 4 days
+      ease_factor = 2.6
+      const dueDate = new Date(now.getTime() + interval_days * 24 * 60 * 60 * 1000)
+      return {
+        ease_factor,
+        interval_days,
+        repetitions,
+        due_date: dueDate,
+        newStatus: 'review'
+      }
+    }
+  }
+
+  // Default fallback
+  const dueDate = new Date(now.getTime() + LEARNING_STEPS[0] * 60 * 1000)
+  return {
+    ease_factor,
+    interval_days: 0,
+    repetitions,
+    due_date: dueDate,
+    newStatus: 'learning'
+  }
+}
+
+/**
+ * Get words currently in learning phase (due for review in current session)
+ */
+export async function getLearningWords(limit: number = 20): Promise<{
+  data: Array<Word & { lastReview?: Review }> | null
+  error: any
+}> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return { data: null, error: 'User not authenticated' }
+    }
+
+    const now = new Date().toISOString()
+
+    // Get learning words with reviews due now or in the past
+    const { data: learningReviews, error: reviewError } = await supabase
+      .from('reviews')
+      .select(`
+        word_id,
+        ease_factor,
+        interval_days,
+        repetitions,
+        due_date,
+        quality,
+        reviewed_at
+      `)
+      .eq('user_id', user.id)
+      .lte('due_date', now)
+      .order('due_date', { ascending: true })
+
+    if (reviewError) {
+      return { data: null, error: reviewError }
+    }
+
+    // Get latest review for each word
+    const latestReviews = new Map<string, Review>()
+    learningReviews?.forEach(review => {
+      const existing = latestReviews.get(review.word_id)
+      if (!existing || new Date(review.reviewed_at) > new Date(existing.reviewed_at)) {
+        latestReviews.set(review.word_id, review as Review)
+      }
+    })
+
+    // Get words that are in learning status
+    const reviewedWordIds = Array.from(latestReviews.keys()).slice(0, limit)
+    const { data: learningWords, error: wordsError } = reviewedWordIds.length > 0 ? 
+      await supabase
+        .from('words')
+        .select('*')
+        .in('id', reviewedWordIds)
+        .eq('status', 'learning') : 
+      { data: [], error: null }
+
+    if (wordsError) {
+      return { data: null, error: wordsError }
+    }
+
+    // Format results with review data
+    const results = (learningWords || []).map(word => ({
+      ...word,
+      lastReview: latestReviews.get(word.id)
+    })).slice(0, limit)
+
+    return { data: results, error: null }
   } catch (error) {
     return { data: null, error }
   }
@@ -116,12 +349,18 @@ export async function getDueWords(limit: number = 20): Promise<{
     })
 
     // Get words that have never been reviewed
-    const { data: unreviewed, error: unreviewedError } = await supabase
+    let unreviewedQuery = supabase
       .from('words')
       .select('*')
       .eq('user_id', user.id)
-      .not('id', 'in', `(${Array.from(latestReviews.keys()).map(id => `'${id}'`).join(',') || "''"})`)
-      .limit(limit)
+
+    // Only exclude reviewed words if there are any
+    if (latestReviews.size > 0) {
+      const reviewedWordIds = Array.from(latestReviews.keys())
+      unreviewedQuery = unreviewedQuery.not('id', 'in', `(${reviewedWordIds.join(',')})`)
+    }
+
+    const { data: unreviewed, error: unreviewedError } = await unreviewedQuery.limit(limit)
 
     if (unreviewedError) {
       return { data: null, error: unreviewedError }
@@ -158,7 +397,7 @@ export async function getDueWords(limit: number = 20): Promise<{
 }
 
 /**
- * Get review statistics for a user
+ * Get review statistics for a user (optimized with database aggregation)
  */
 export async function getReviewStats(): Promise<{
   totalReviews: number
@@ -186,64 +425,91 @@ export async function getReviewStats(): Promise<{
 
     const today = new Date().toISOString().split('T')[0]
 
-    // Get all reviews for calculations
-    const { data: reviews, error: reviewsError } = await supabase
-      .from('reviews')
-      .select('quality, ease_factor, reviewed_at, due_date')
-      .eq('user_id', user.id)
-      .order('reviewed_at', { ascending: false })
-
-    if (reviewsError) {
-      return { 
-        totalReviews: 0, 
-        todaysReviews: 0, 
-        wordsDueToday: 0, 
-        retentionRate: 0, 
-        averageEaseFactor: 2.5, 
-        currentStreak: 0,
-        error: reviewsError 
-      }
-    }
-
-    // Calculate statistics
-    const totalReviews = reviews?.length || 0
-    const todaysReviews = reviews?.filter(r => 
-      r.reviewed_at.startsWith(today)
-    ).length || 0
-
-    const { data: dueWords } = await getDueWords(100)
-    const wordsDueToday = dueWords?.length || 0
-
-    const correctReviews = reviews?.filter(r => r.quality >= 3).length || 0
-    const retentionRate = totalReviews > 0 ? Math.round((correctReviews / totalReviews) * 100) : 0
-
-    const easeFactors = reviews?.map(r => r.ease_factor).filter(ef => ef > 0) || []
-    const averageEaseFactor = easeFactors.length > 0 ? 
-      Math.round((easeFactors.reduce((sum, ef) => sum + ef, 0) / easeFactors.length) * 100) / 100 : 2.5
-
-    // Calculate current streak (consecutive days with reviews)
-    let currentStreak = 0
-    const reviewDates = [...new Set(reviews?.map(r => r.reviewed_at.split('T')[0]) || [])]
-    reviewDates.sort((a, b) => b.localeCompare(a)) // Most recent first
-
-    for (let i = 0; i < reviewDates.length; i++) {
-      const date = new Date(reviewDates[i])
-      const expectedDate = new Date()
-      expectedDate.setDate(expectedDate.getDate() - i)
+    // Use database aggregation for better performance
+    const [
+      { count: totalReviews },
+      { count: todaysReviews },
+      { count: correctReviews },
+      { data: avgEaseFactor },
+      { data: dueWords },
+      { data: streakData }
+    ] = await Promise.all([
+      // Total reviews count
+      supabase
+        .from('reviews')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id),
       
-      if (date.toDateString() === expectedDate.toDateString()) {
-        currentStreak++
-      } else {
-        break
+      // Today's reviews count
+      supabase
+        .from('reviews')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('reviewed_at', `${today}T00:00:00.000Z`)
+        .lte('reviewed_at', `${today}T23:59:59.999Z`),
+      
+      // Correct reviews count (quality >= 3)
+      supabase
+        .from('reviews')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('quality', 3),
+      
+      // Average ease factor - get recent reviews for calculation
+      supabase
+        .from('reviews')
+        .select('ease_factor')
+        .eq('user_id', user.id)
+        .gt('ease_factor', 0)
+        .order('reviewed_at', { ascending: false })
+        .limit(100), // Get last 100 reviews for average
+      
+      // Words due today
+      getDueWords(100),
+      
+      // Streak calculation - get distinct review dates from last 30 days
+      supabase
+        .from('reviews')
+        .select('reviewed_at')
+        .eq('user_id', user.id)
+        .gte('reviewed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+        .order('reviewed_at', { ascending: false })
+    ])
+
+    const wordsDueToday = dueWords?.length || 0
+    const retentionRate = (totalReviews || 0) > 0 ? Math.round(((correctReviews || 0) / (totalReviews || 1)) * 100) : 0
+    
+    // Calculate average ease factor from recent reviews
+    const easeFactors = avgEaseFactor?.map(r => r.ease_factor).filter(ef => ef > 0) || []
+    const averageEaseFactor = easeFactors.length > 0 ? 
+      easeFactors.reduce((sum, ef) => sum + ef, 0) / easeFactors.length : 2.5
+
+    // Calculate streak efficiently using dates only
+    let currentStreak = 0
+    if (streakData && streakData.length > 0) {
+      const reviewDates = Array.from(new Set(streakData.map(r => r.reviewed_at.split('T')[0])))
+      reviewDates.sort((a, b) => b.localeCompare(a))
+      
+      const today = new Date()
+      for (let i = 0; i < reviewDates.length; i++) {
+        const reviewDate = new Date(reviewDates[i])
+        const expectedDate = new Date(today)
+        expectedDate.setDate(today.getDate() - i)
+        
+        if (reviewDate.toDateString() === expectedDate.toDateString()) {
+          currentStreak++
+        } else {
+          break
+        }
       }
     }
 
     return {
-      totalReviews,
-      todaysReviews,
+      totalReviews: totalReviews || 0,
+      todaysReviews: todaysReviews || 0,
       wordsDueToday,
       retentionRate,
-      averageEaseFactor,
+      averageEaseFactor: Math.round(averageEaseFactor * 100) / 100,
       currentStreak
     }
   } catch (error) {

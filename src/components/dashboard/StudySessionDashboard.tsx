@@ -126,6 +126,15 @@ export function StudySessionDashboard({ className }: StudySessionDashboardProps)
             
             <div className="flex gap-3">
               <Button 
+                variant="outline" 
+                size="lg" 
+                onClick={() => window.location.href = '/dashboard/words'}
+                className="gap-2"
+              >
+                <BookOpen className="w-5 h-5" />
+                Manage Words
+              </Button>
+              <Button 
                 size="lg" 
                 onClick={handleQuickStart}
                 className="gap-2"

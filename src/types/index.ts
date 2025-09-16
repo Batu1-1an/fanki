@@ -57,6 +57,13 @@ export type ReviewQuality = 0 | 1 | 2 | 3 | 4 | 5 // SM-2 algorithm quality rati
 // Learning levels
 export type LearningLevel = 'beginner' | 'intermediate' | 'advanced'
 
+// Word status for learning phases
+export type WordStatus = 'new' | 'learning' | 'review'
+
+// Learning phase steps (in minutes)
+export const LEARNING_STEPS = [1, 10] // 1 minute, then 10 minutes
+export const GRADUATION_INTERVAL = 1 // 1 day after graduating
+
 // Enhanced flashcard types
 export interface FlashcardWithWord {
   flashcard: Flashcard & {

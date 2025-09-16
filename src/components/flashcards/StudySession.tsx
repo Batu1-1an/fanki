@@ -506,21 +506,6 @@ export function StudySession({
               showNavigation={false}
               autoFlip={false}
             />
-            
-            {/* SM-2 Review Buttons */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <ReviewButtons
-                wordId={currentCard.word.id}
-                onReview={handleReviewButton}
-                disabled={isSubmittingReview}
-                showPreview={true}
-                className="max-w-2xl mx-auto"
-              />
-            </motion.div>
           </div>
         )}
       </AnimatePresence>

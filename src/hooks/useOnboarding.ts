@@ -55,16 +55,22 @@ export function useOnboarding() {
       const hasSetPreferences = !!profile?.learning_level && !!profile?.target_language
       const hasAddedFirstWord = (wordsCount?.length || 0) > 0
       
-      // Get tour completion from localStorage
-      const hasCompletedTour = localStorage.getItem('fanki-tour-completed') === 'true'
+      // Get tour completion from localStorage or profile preferences
+      const hasCompletedTour = localStorage.getItem('fanki-tour-completed') === 'true' || 
+                                profile?.preferences?.onboarding_completed === true
+
+      // Force completion if user has words and preferences set up
+      const shouldCompleteOnboarding = hasSetPreferences && hasAddedFirstWord
 
       let currentStep: OnboardingState['currentStep'] = 'complete'
-      if (!hasCompletedTour) {
-        currentStep = 'tour'
-      } else if (!hasSetPreferences) {
-        currentStep = 'preferences'
-      } else if (!hasAddedFirstWord) {
-        currentStep = 'first-word'
+      if (!shouldCompleteOnboarding) {
+        if (!hasCompletedTour) {
+          currentStep = 'tour'
+        } else if (!hasSetPreferences) {
+          currentStep = 'preferences'
+        } else if (!hasAddedFirstWord) {
+          currentStep = 'first-word'
+        }
       }
 
       setOnboardingState({

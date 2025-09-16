@@ -178,7 +178,7 @@ export function FlashcardGenerator({ word, difficulty, onContentGenerated }: Fla
                   className="max-h-full max-w-full object-contain"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement
-                    target.src = `https://via.placeholder.com/400x300/6366F1/FFFFFF?text=${encodeURIComponent(word)}`
+                    target.src = `https://placehold.co/400x300/6366F1/FFFFFF?text=${encodeURIComponent(word)}`
                   }}
                 />
               </div>

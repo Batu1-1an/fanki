@@ -1,5 +1,6 @@
 import { createClientComponentClient } from './supabase'
 import { StudySession, SessionType, TablesInsert, TablesUpdate } from '@/types'
+import { ExtendedStudySession, ExtendedStudySessionInsert, ExtendedStudySessionUpdate, SessionStatus } from '@/types/study-sessions'
 
 const supabase = createClientComponentClient()
 
@@ -10,7 +11,7 @@ export async function createStudySession({
   sessionType
 }: {
   sessionType: SessionType
-}): Promise<{ data: StudySession | null; error: any }> {
+}): Promise<{ data: ExtendedStudySession | null; error: any }> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -18,10 +19,11 @@ export async function createStudySession({
       return { data: null, error: 'User not authenticated' }
     }
 
-    const sessionData: TablesInsert<'study_sessions'> = {
+    const sessionData: ExtendedStudySessionInsert = {
       user_id: user.id,
       session_type: sessionType,
-      started_at: new Date().toISOString()
+      started_at: new Date().toISOString(),
+      status: 'active'
     }
 
     const { data, error } = await supabase
@@ -47,7 +49,7 @@ export async function updateStudySession(
     totalReviews?: number
     accuracyPercentage?: number
   }
-): Promise<{ data: StudySession | null; error: any }> {
+): Promise<{ data: ExtendedStudySession | null; error: any }> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -55,7 +57,7 @@ export async function updateStudySession(
       return { data: null, error: 'User not authenticated' }
     }
 
-    const updateData: TablesUpdate<'study_sessions'> = {
+    const updateData: ExtendedStudySessionUpdate = {
       words_studied: updates.wordsStudied,
       words_correct: updates.wordsCorrect,
       total_reviews: updates.totalReviews
@@ -88,7 +90,7 @@ export async function completeStudySession(
     accuracyPercentage: number
     endedAt?: string
   }
-): Promise<{ data: StudySession | null; error: any }> {
+): Promise<{ data: ExtendedStudySession | null; error: any }> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -96,11 +98,12 @@ export async function completeStudySession(
       return { data: null, error: 'User not authenticated' }
     }
 
-    const updateData: TablesUpdate<'study_sessions'> = {
+    const updateData: ExtendedStudySessionUpdate = {
       words_studied: completion.wordsStudied,
       words_correct: completion.wordsCorrect,
       total_reviews: completion.totalReviews,
       session_duration_seconds: completion.sessionDurationSeconds,
+      status: 'completed',
       ended_at: completion.endedAt || new Date().toISOString()
     }
 
@@ -121,18 +124,53 @@ export async function completeStudySession(
 /**
  * Pause a study session
  */
-// Note: Pause/resume functionality will be handled in-memory since DB doesn't have status columns
 export async function pauseStudySession(sessionId: string): Promise<{ error: any }> {
-  // In-memory pause tracking - no database update needed
-  return { error: null }
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return { error: 'User not authenticated' }
+    }
+
+    const { error } = await supabase
+      .from('study_sessions')
+      .update({
+        status: 'paused',
+        paused_at: new Date().toISOString()
+      })
+      .eq('id', sessionId)
+      .eq('user_id', user.id)
+
+    return { error }
+  } catch (error) {
+    return { error }
+  }
 }
 
 /**
  * Resume a paused study session
  */
 export async function resumeStudySession(sessionId: string): Promise<{ error: any }> {
-  // In-memory resume tracking - no database update needed
-  return { error: null }
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return { error: 'User not authenticated' }
+    }
+
+    const { error } = await supabase
+      .from('study_sessions')
+      .update({
+        status: 'active',
+        resumed_at: new Date().toISOString()
+      })
+      .eq('id', sessionId)
+      .eq('user_id', user.id)
+
+    return { error }
+  } catch (error) {
+    return { error }
+  }
 }
 
 /**
@@ -146,12 +184,15 @@ export async function abandonStudySession(sessionId: string): Promise<{ error: a
       return { error: 'User not authenticated' }
     }
 
-    // Mark session as abandoned by setting ended_at without completion data
+    // Mark session as abandoned
+    const updateData: ExtendedStudySessionUpdate = {
+      status: 'abandoned',
+      ended_at: new Date().toISOString()
+    }
+
     const { error } = await supabase
       .from('study_sessions')
-      .update({
-        ended_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', sessionId)
       .eq('user_id', user.id)
 
@@ -165,7 +206,7 @@ export async function abandonStudySession(sessionId: string): Promise<{ error: a
  * Get active study session for user
  */
 export async function getActiveStudySession(): Promise<{
-  data: StudySession | null
+  data: ExtendedStudySession | null
   error: any
 }> {
   try {
@@ -175,12 +216,12 @@ export async function getActiveStudySession(): Promise<{
       return { data: null, error: 'User not authenticated' }
     }
 
-    // Get most recent session that hasn't ended
+    // Get most recent session that is active or paused
     const { data, error } = await supabase
       .from('study_sessions')
       .select('*')
       .eq('user_id', user.id)
-      .is('ended_at', null)
+      .in('status', ['active', 'paused'])
       .order('started_at', { ascending: false })
       .limit(1)
       .single()
@@ -195,7 +236,7 @@ export async function getActiveStudySession(): Promise<{
  * Get study session history
  */
 export async function getStudySessionHistory(limit: number = 20): Promise<{
-  data: StudySession[] | null
+  data: ExtendedStudySession[] | null
   error: any
 }> {
   try {

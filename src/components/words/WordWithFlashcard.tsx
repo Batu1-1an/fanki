@@ -60,7 +60,7 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting }: WordWi
       if (cached && cached.sentences && cached.sentences.length > 0) {
         setFlashcardContent({
           sentences: cached.sentences,
-          imageUrl: cached.image_url || `https://via.placeholder.com/300x200/6366F1/FFFFFF?text=${encodeURIComponent(word.word)}`,
+          imageUrl: cached.image_url || `https://placehold.co/300x200/6366F1/FFFFFF?text=${encodeURIComponent(word.word)}`,
           imageDescription: cached.image_description
         })
       }
@@ -167,9 +167,16 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting }: WordWi
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {flashcardContent.sentences.map((sentence, index) => (
+                    {flashcardContent.sentences.map((sentenceObj, index) => (
                       <div key={index} className="p-3 bg-gray-50 rounded-md">
-                        <p className="text-sm">{sentence}</p>
+                        <p className="text-sm">
+                          {typeof sentenceObj === 'string' ? sentenceObj : (sentenceObj as any).sentence}
+                        </p>
+                        {typeof sentenceObj === 'object' && (sentenceObj as any).explanation && (
+                          <p className="text-xs text-gray-600 mt-1 italic">
+                            {(sentenceObj as any).explanation}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -193,7 +200,7 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting }: WordWi
                         className="max-h-full max-w-full object-contain"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement
-                          target.src = `https://via.placeholder.com/300x200/6366F1/FFFFFF?text=${encodeURIComponent(word.word)}`
+                          target.src = `https://placehold.co/300x200/6366F1/FFFFFF?text=${encodeURIComponent(word.word)}`
                         }}
                       />
                     </div>

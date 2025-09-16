@@ -45,9 +45,13 @@ serve(async (req) => {
     // Check if sentences already exist in cache (flashcards table)
     const { data: existingFlashcard, error: fetchError } = await supabase
       .from('flashcards')
-      .select('sentences, generated_at')
-      .eq('word', word.toLowerCase())
-      .eq('user_id', userId)
+      .select(`
+        sentences, 
+        generated_at,
+        words!inner(id, word, user_id)
+      `)
+      .eq('words.word', word.toLowerCase())
+      .eq('words.user_id', userId)
       .order('generated_at', { ascending: false })
       .limit(1)
       .single()
@@ -91,76 +95,178 @@ serve(async (req) => {
 4. Be appropriate for flashcard study
 5. Vary in context and usage
 
-Format the response as a JSON array of strings, like this:
-["Sentence 1 with ____.", "Sentence 2 with ____.", "Sentence 3 with ____."]
+Format the response as a JSON array of objects, where each object has:
+- "sentence": the sentence with ____ as the blank
+- "correct_word": the word that goes in the blank
+- "blank_position": the position where the blank starts in the sentence
+- "explanation": a brief explanation of why this word fits in context
+
+Example format:
+[
+  {
+    "sentence": "The chef's ____ was evident in every dish he prepared.",
+    "correct_word": "skill",
+    "blank_position": 12,
+    "explanation": "Shows mastery and expertise in cooking"
+  }
+]
 
 Make the sentences engaging and educational for someone learning English.`
 
-    const geminiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: prompt
-            }]
-          }],
-          generationConfig: {
-            temperature: 0.7,
-            topK: 40,
-            topP: 0.95,
-            maxOutputTokens: 1024,
+    // Retry logic for Gemini API with exponential backoff
+    let geminiResponse
+    let attempts = 0
+    const maxAttempts = 3
+    
+    while (attempts < maxAttempts) {
+      try {
+        geminiResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              contents: [{
+                parts: [{
+                  text: prompt
+                }]
+              }],
+              generationConfig: {
+                temperature: 0.7,
+                topK: 40,
+                topP: 0.95,
+                maxOutputTokens: 1024,
+              }
+            }),
           }
-        }),
-      }
-    )
+        )
 
-    if (!geminiResponse.ok) {
-      const errorData = await geminiResponse.text()
-      console.error('Gemini API error:', errorData)
-      throw new Error(`Gemini API error: ${geminiResponse.status}`)
+        if (geminiResponse.ok) {
+          break // Success, exit retry loop
+        }
+
+        const errorData = await geminiResponse.text()
+        console.error(`Gemini API error (attempt ${attempts + 1}):`, errorData)
+        
+        // If it's a 503 (service unavailable), retry with backoff
+        if (geminiResponse.status === 503 && attempts < maxAttempts - 1) {
+          const backoffDelay = Math.pow(2, attempts) * 1000 // 1s, 2s, 4s
+          console.log(`Retrying in ${backoffDelay}ms...`)
+          await new Promise(resolve => setTimeout(resolve, backoffDelay))
+          attempts++
+          continue
+        }
+        
+        throw new Error(`Gemini API error: ${geminiResponse.status}`)
+      } catch (error) {
+        attempts++
+        if (attempts >= maxAttempts) {
+          throw error
+        }
+        // Wait before retry for non-HTTP errors too
+        const backoffDelay = Math.pow(2, attempts - 1) * 1000
+        console.log(`Network error, retrying in ${backoffDelay}ms...`)
+        await new Promise(resolve => setTimeout(resolve, backoffDelay))
+      }
     }
 
     const geminiData = await geminiResponse.json()
     const generatedText = geminiData.candidates[0].content.parts[0].text
 
     // Parse the JSON response from Gemini
-    let sentences: string[]
+    let sentences: any[]
     try {
       sentences = JSON.parse(generatedText.trim())
       if (!Array.isArray(sentences) || sentences.length !== 3) {
         throw new Error('Invalid sentence format')
       }
+      // Validate that each sentence has the required structure
+      for (const sentence of sentences) {
+        if (!sentence.sentence || !sentence.correct_word || typeof sentence.blank_position !== 'number') {
+          throw new Error('Invalid sentence object structure')
+        }
+      }
     } catch (parseError) {
       console.error('Failed to parse Gemini response:', generatedText)
       // Fallback sentences if parsing fails
       sentences = [
-        `The ${word} was absolutely ____ in that situation.`,
-        `I found the book quite ____ and engaging.`,
-        `Her performance was truly ____ last night.`
+        {
+          sentence: `The team's ____ helped them win the championship.`,
+          correct_word: word.toLowerCase(),
+          blank_position: 12,
+          explanation: `Shows how ${word} contributes to success.`
+        },
+        {
+          sentence: `Her ____ was evident in the quality of her work.`,
+          correct_word: word.toLowerCase(),
+          blank_position: 4,
+          explanation: `Demonstrates ${word} through visible results.`
+        },
+        {
+          sentence: `The project required a lot of ____ to complete successfully.`,
+          correct_word: word.toLowerCase(),
+          blank_position: 31,
+          explanation: `Indicates the importance of ${word} for achievement.`
+        }
       ]
     }
 
-    // Cache the generated sentences in the database
-    const { error: insertError } = await supabase
-      .from('flashcards')
-      .upsert({
-        user_id: userId,
-        word: word.toLowerCase(),
-        sentences: sentences,
-        generated_at: new Date().toISOString(),
-      }, {
-        onConflict: 'user_id,word'
-      })
+    // First, get or create the word record
+    let { data: wordRecord, error: wordError } = await supabase
+      .from('words')
+      .select('id')
+      .eq('word', word.toLowerCase())
+      .eq('user_id', userId)
+      .single()
 
-    if (insertError) {
-      console.error('Failed to cache sentences:', insertError)
-      // Continue anyway, don't fail the request
+    if (wordError && wordError.code !== 'PGRST116') { // PGRST116 is "not found" error
+      console.error('Error fetching word:', wordError)
     }
+
+    // If word doesn't exist, create it
+    if (!wordRecord) {
+      const { data: newWord, error: createWordError } = await supabase
+        .from('words')
+        .insert({
+          word: word.toLowerCase(),
+          user_id: userId,
+          language: 'en',
+          difficulty: difficulty === 'beginner' ? 1 : difficulty === 'intermediate' ? 3 : 5,
+          status: 'new'
+        })
+        .select('id')
+        .single()
+
+      if (createWordError) {
+        console.error('Error creating word:', createWordError)
+        // Continue anyway, don't fail the request
+      } else {
+        wordRecord = newWord
+      }
+    }
+
+    // Cache the generated sentences in the flashcards table
+    if (wordRecord) {
+      const { error: insertError } = await supabase
+        .from('flashcards')
+        .upsert({
+          word_id: wordRecord.id,
+          sentences: sentences,
+          generated_at: new Date().toISOString(),
+          generation_version: 1,
+          is_active: true
+        }, {
+          onConflict: 'word_id'
+        })
+
+      if (insertError) {
+        console.error('Failed to cache sentences:', insertError)
+        // Continue anyway, don't fail the request
+      }
+    }
+
 
     console.log(`Generated new sentences for word: ${word}`)
     return new Response(

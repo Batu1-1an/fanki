@@ -21,18 +21,25 @@ export function ClozeTest({
   const [startTime] = useState(Date.now())
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Split sentence at blank position
-  const beforeBlank = sentence.sentence.substring(0, sentence.blank_position)
-  const afterBlank = sentence.sentence.substring(
-    sentence.blank_position + sentence.correct_word.length
-  )
+  // Split sentence at blank position (handle both formats)
+  const blankMarker = '___'
+  const blankPosition = sentence.sentence.indexOf(blankMarker)
+  const correctWord = (sentence as any).blank || sentence.correct_word || ''
+  
+  const beforeBlank = blankPosition >= 0 
+    ? sentence.sentence.substring(0, blankPosition)
+    : sentence.sentence.substring(0, sentence.blank_position || 0)
+  
+  const afterBlank = blankPosition >= 0
+    ? sentence.sentence.substring(blankPosition + blankMarker.length)
+    : sentence.sentence.substring((sentence.blank_position || 0) + correctWord.length)
 
   const checkAnswer = useCallback(() => {
     if (isAnswered) return
 
     const responseTime = Date.now() - startTime
     const trimmedInput = userInput.trim().toLowerCase()
-    const correctAnswer = sentence.correct_word.toLowerCase()
+    const correctAnswer = correctWord.toLowerCase()
     const isAnswerCorrect = trimmedInput === correctAnswer
 
     setIsCorrect(isAnswerCorrect)
@@ -46,7 +53,7 @@ export function ClozeTest({
     }
 
     onAnswer(answer)
-  }, [userInput, sentence.correct_word, isAnswered, startTime, onAnswer])
+  }, [userInput, correctWord, isAnswered, startTime, onAnswer])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -133,7 +140,7 @@ export function ClozeTest({
                 isRevealed && !isAnswered && "bg-blue-100 text-blue-900"
               )}
             >
-              {isAnswered ? userInput : sentence.correct_word}
+              {isAnswered ? userInput : correctWord}
               {getStatusIcon()}
             </motion.span>
           )}
@@ -187,7 +194,7 @@ export function ClozeTest({
               
               {!isCorrect && (
                 <span className="text-sm text-muted-foreground">
-                  Correct answer: <span className="font-medium text-foreground">{sentence.correct_word}</span>
+                  Correct answer: <span className="font-medium text-foreground">{correctWord}</span>
                 </span>
               )}
             </div>

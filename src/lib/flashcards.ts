@@ -93,11 +93,18 @@ export async function getDueFlashcards(): Promise<{ data: FlashcardWithWord[] | 
     }
 
     // Get words that have never been reviewed
-    const { data: unreviewed, error: unreviewedError } = await supabase
+    let unreviewedQuery = supabase
       .from('words')
       .select('id')
       .eq('user_id', user.id)
-      .not('id', 'in', `(${dueReviews?.map(r => `'${r.word_id}'`).join(',') || "''"})`)
+
+    // Only exclude reviewed words if there are any
+    if (dueReviews && dueReviews.length > 0) {
+      const reviewedWordIds = dueReviews.map(r => r.word_id)
+      unreviewedQuery = unreviewedQuery.not('id', 'in', `(${reviewedWordIds.map(id => `'${id}'`).join(',')})`)
+    }
+
+    const { data: unreviewed, error: unreviewedError } = await unreviewedQuery
 
     if (unreviewedError) {
       return { data: null, error: unreviewedError }

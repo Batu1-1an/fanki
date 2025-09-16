@@ -49,7 +49,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   }, [loading])
 
   // Show appropriate onboarding step when ready
-  useState(() => {
+  useEffect(() => {
     if (!loading && onboardingState.currentStep !== 'complete') {
       setTimeout(() => {
         switch (onboardingState.currentStep) {
@@ -65,7 +65,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
         }
       }, 500) // Small delay for better UX
     }
-  })
+  }, [loading, onboardingState.currentStep])
 
   const handleSignOut = async () => {
     try {
@@ -130,7 +130,17 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   Welcome back, {user.user_metadata?.full_name || user.email}
                 </p>
               </div>
-              <div>
+              <div className="flex gap-3">
+                <Button 
+                  variant="outline" 
+                  onClick={() => window.location.href = '/profile'}
+                  className="border-gray-300 hover:bg-gray-50"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Profile
+                </Button>
                 <Button variant="outline" onClick={handleSignOut}>
                   Sign out
                 </Button>
@@ -265,6 +275,16 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                           </svg>
                           Add New Word
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          className="h-20 flex-col" 
+                          onClick={() => window.location.href = '/dashboard/words'}
+                        >
+                          <svg className="w-6 h-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                          Manage Words
                         </Button>
                         <Button 
                           variant="outline" 

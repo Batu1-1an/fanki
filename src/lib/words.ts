@@ -191,7 +191,7 @@ export async function updateWord(wordId: string, updates: TablesUpdate<'words'>)
   }
 }
 
-// Delete a word
+// Delete a word and all its related data (reviews, flashcards)
 export async function deleteWord(wordId: string): Promise<{ error: any }> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
@@ -200,11 +200,22 @@ export async function deleteWord(wordId: string): Promise<{ error: any }> {
       return { error: 'User not authenticated' }
     }
 
-    const { error } = await supabase
+    // Verify the word belongs to the current user before deletion
+    const { data: word, error: fetchError } = await supabase
       .from('words')
-      .delete()
+      .select('id')
       .eq('id', wordId)
       .eq('user_id', user.id)
+      .single()
+
+    if (fetchError || !word) {
+      return { error: fetchError || 'Word not found or access denied' }
+    }
+
+    // Use the RPC function to delete word and all dependent records atomically
+    const { error } = await supabase.rpc('delete_word_and_dependents', {
+      word_id_to_delete: wordId
+    })
 
     return { error }
   } catch (error) {

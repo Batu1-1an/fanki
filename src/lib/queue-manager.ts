@@ -1,11 +1,12 @@
 import { createClientComponentClient } from './supabase'
-import { Word, Review, FlashcardWithWord } from '@/types'
-import { getDueWords, getWordProgress } from './reviews'
+import { Word, Review, FlashcardWithWord, WordStatus, LEARNING_STEPS } from '@/types'
+import { getDueWords, getWordProgress, getLearningWords } from './reviews'
 import { getUserFlashcards } from './flashcards'
+import { getDeskWords } from './desks'
 
 const supabase = createClientComponentClient()
 
-export type QueuePriority = 'overdue' | 'due_today' | 'new' | 'review_soon'
+export type QueuePriority = 'learning' | 'overdue' | 'due_today' | 'new' | 'review_soon'
 export type StudyMode = 'mixed' | 'new_only' | 'review_only' | 'overdue_only'
 
 export interface QueuedWord extends Word {
@@ -23,6 +24,7 @@ export interface QueueOptions {
   difficultyRange?: [number, number] // [min, max] ease factor
   prioritizeWeakWords?: boolean
   includeNewWords?: boolean
+  deskId?: string // Filter by specific desk
 }
 
 /**
@@ -64,8 +66,15 @@ export class ReviewQueueManager {
         studyMode = 'mixed',
         difficultyRange = [1.3, 3.0],
         prioritizeWeakWords = true,
-        includeNewWords = true
+        includeNewWords = true,
+        deskId
       } = options
+
+      // Get learning words first (highest priority)
+      const { data: learningWords, error: learningError } = await getLearningWords(50)
+      if (learningError) {
+        console.warn('Error fetching learning words:', learningError)
+      }
 
       // Get due words with their review history
       const { data: dueWords, error: dueError } = await getDueWords(100)
@@ -77,21 +86,37 @@ export class ReviewQueueManager {
         }
       }
 
-      // Enrich words with queue metadata
-      const enrichedWords = await Promise.all(
-        (dueWords || []).map(async (word) => {
-          const progress = await getWordProgress(word.id)
-          const queuedWord: QueuedWord = {
-            ...word,
-            priority: this.calculatePriority(word, progress),
-            daysSinceLastReview: this.calculateDaysSinceLastReview(word.lastReview),
-            currentEaseFactor: progress.currentEaseFactor,
-            timesReviewed: progress.totalReviews,
-            lastReview: word.lastReview
-          }
-          return queuedWord
-        })
-      )
+      // Combine learning and due words, avoiding duplicates
+      const learningWordIds = new Set((learningWords || []).map(w => w.id))
+      let allWords = [
+        ...(learningWords || []),
+        ...(dueWords || []).filter(word => !learningWordIds.has(word.id))
+      ]
+
+      // Filter by desk if specified
+      if (deskId) {
+        const { data: deskWords } = await getDeskWords(deskId)
+        if (deskWords) {
+          const deskWordIds = new Set(deskWords.map((w: any) => w.id))
+          allWords = allWords.filter(word => deskWordIds.has(word.id))
+        }
+      }
+
+      // Enrich words with queue metadata (optimized - no N+1 queries)
+      const enrichedWords = allWords.map((word) => {
+        const queuedWord: QueuedWord = {
+          ...word,
+          priority: this.calculatePriority(word, { 
+            currentEaseFactor: word.lastReview?.ease_factor || 2.5,
+            totalReviews: 1 // Will be calculated from existing data
+          }),
+          daysSinceLastReview: this.calculateDaysSinceLastReview(word.lastReview),
+          currentEaseFactor: word.lastReview?.ease_factor || 2.5,
+          timesReviewed: word.lastReview?.repetitions || 0,
+          lastReview: word.lastReview
+        }
+        return queuedWord
+      })
 
       // Apply filters based on study mode
       let filteredWords = this.applyStudyModeFilter(enrichedWords, studyMode)
@@ -160,22 +185,29 @@ export class ReviewQueueManager {
   }
 
   /**
-   * Calculate priority based on due date and review history
+   * Calculate priority based on due date, review history, and learning status
    */
   private calculatePriority(
     word: Word & { lastReview?: Review }, 
     progress: any
   ): QueuePriority {
+    // Check if word is in learning phase (highest priority)
+    if (word.status === 'learning') {
+      return 'learning'
+    }
+
     if (!word.lastReview) {
       return 'new'
     }
 
+    // For review cards, check daily schedule
     const dueDate = new Date(word.lastReview.due_date)
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    dueDate.setHours(0, 0, 0, 0)
+    const dueDateOnly = new Date(dueDate)
+    dueDateOnly.setHours(0, 0, 0, 0)
     
-    const daysDifference = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
+    const daysDifference = Math.floor((today.getTime() - dueDateOnly.getTime()) / (1000 * 60 * 60 * 24))
 
     if (daysDifference > 0) {
       return 'overdue'
@@ -219,8 +251,8 @@ export class ReviewQueueManager {
    */
   private sortByPriority(words: QueuedWord[], prioritizeWeakWords: boolean): QueuedWord[] {
     return words.sort((a, b) => {
-      // Priority ranking: overdue > due_today > new > review_soon
-      const priorityOrder = { 'overdue': 4, 'due_today': 3, 'new': 2, 'review_soon': 1 }
+      // Priority ranking: learning > overdue > due_today > new > review_soon
+      const priorityOrder = { 'learning': 5, 'overdue': 4, 'due_today': 3, 'new': 2, 'review_soon': 1 }
       const priorityDiff = priorityOrder[b.priority] - priorityOrder[a.priority]
       
       if (priorityDiff !== 0) {
@@ -314,15 +346,15 @@ export async function generateStudySession(options: QueueOptions = {}): Promise<
       return { words: [], sessionId: '', estimatedTimeMinutes: 0, error }
     }
 
-    // Generate session ID
-    const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    // Generate session ID - let Supabase generate UUID automatically
+    const sessionId = undefined // Will be auto-generated by database
 
     // Estimate time based on word count and difficulty
     const estimatedTimeMinutes = Math.max(5, Math.ceil(queue.length * 1.5)) // ~1.5 min per word
 
     return {
       words: queue,
-      sessionId,
+      sessionId: '', // Will be generated when session is created in database
       estimatedTimeMinutes
     }
   } catch (error) {

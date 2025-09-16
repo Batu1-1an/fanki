@@ -162,9 +162,9 @@ export function TodaysCards({ onStartSession, className }: TodaysCardsProps) {
     })
 
     const selectedQueue = queue.filter(item => selectedCards.has(item.id))
-    const sessionId = `custom_session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     
-    onStartSession(selectedQueue, sessionId)
+    // Let the session creation function generate the proper UUID
+    onStartSession(selectedQueue, '')
   }
 
   const getDaysOverdue = (dueDate: string): number => {

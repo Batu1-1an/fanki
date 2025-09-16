@@ -89,7 +89,7 @@ export class AIService {
       console.error('AI Service - generateImage error:', error)
       
       // Fallback placeholder image
-      const fallbackImageUrl = `https://via.placeholder.com/400x300/6366F1/FFFFFF?text=${encodeURIComponent(word)}`
+      const fallbackImageUrl = `https://placehold.co/400x300/6366F1/FFFFFF?text=${encodeURIComponent(word)}`
       
       return {
         imageUrl: fallbackImageUrl,
@@ -136,9 +136,12 @@ export class AIService {
     try {
       const { data, error } = await this.supabase
         .from('flashcards')
-        .select('*')
-        .eq('word', word.toLowerCase())
-        .eq('user_id', userId)
+        .select(`
+          *,
+          words!inner(id, word, user_id)
+        `)
+        .eq('words.word', word.toLowerCase())
+        .eq('words.user_id', userId)
         .order('generated_at', { ascending: false })
         .limit(1)
         .single()
@@ -165,17 +168,53 @@ export class AIService {
     imageDescription?: string
   ) {
     try {
+      // First, get or create the word record
+      let { data: wordRecord, error: wordError } = await this.supabase
+        .from('words')
+        .select('id')
+        .eq('word', word.toLowerCase())
+        .eq('user_id', userId)
+        .single()
+
+      if (wordError && wordError.code !== 'PGRST116') { // PGRST116 is "not found" error
+        console.error('Error fetching word:', wordError)
+        return { data: null, error: wordError }
+      }
+
+      // If word doesn't exist, create it
+      if (!wordRecord) {
+        const { data: newWord, error: createWordError } = await this.supabase
+          .from('words')
+          .insert({
+            word: word.toLowerCase(),
+            user_id: userId,
+            language: 'en',
+            difficulty: 1,
+            status: 'new'
+          })
+          .select('id')
+          .single()
+
+        if (createWordError) {
+          console.error('Error creating word:', createWordError)
+          return { data: null, error: createWordError }
+        }
+        wordRecord = newWord
+      }
+
+      // Now save the flashcard
       const { data, error } = await this.supabase
         .from('flashcards')
         .upsert({
-          user_id: userId,
-          word: word.toLowerCase(),
+          word_id: wordRecord.id,
           sentences,
           image_url: imageUrl,
           image_description: imageDescription,
           generated_at: new Date().toISOString(),
+          generation_version: 1,
+          is_active: true
         }, {
-          onConflict: 'user_id,word'
+          onConflict: 'word_id'
         })
         .select()
 

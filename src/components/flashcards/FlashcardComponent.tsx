@@ -10,7 +10,8 @@ import {
   FlashcardState, 
   FlashcardAnswer, 
   FlashcardSentence,
-  ReviewQuality 
+  ReviewQuality,
+  Word
 } from '@/types'
 import { ClozeTest } from './ClozeTest'
 import { FlashcardImage } from './FlashcardImage'
@@ -22,10 +23,12 @@ import {
   X, 
   ChevronLeft, 
   ChevronRight,
-  Clock
+  Clock,
+  Edit
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DIFFICULTY_LEVELS } from '@/lib/words'
+import WordEditModal from '@/components/words/WordEditModal'
 
 const FLIP_ANIMATION = {
   initial: { rotateY: 0 },
@@ -47,8 +50,9 @@ export function FlashcardComponent({
   onPrevious,
   showNavigation = false,
   autoFlip = false,
-  className
-}: FlashcardProps) {
+  className,
+  onWordUpdated
+}: FlashcardProps & { onWordUpdated?: (updatedWord: Word) => void }) {
   const [state, setState] = useState<FlashcardState>({
     isFlipped: false,
     currentSentenceIndex: 0,
@@ -60,6 +64,8 @@ export function FlashcardComponent({
 
   const [startTime] = useState(Date.now())
   const [sentences, setSentences] = useState<FlashcardSentence[]>([])
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [currentWord, setCurrentWord] = useState<Word>(word)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
 
@@ -167,6 +173,20 @@ export function FlashcardComponent({
     }
   }, [onNext, onPrevious])
 
+  const handleEditWord = useCallback(() => {
+    setShowEditModal(true)
+  }, [])
+
+  const handleWordUpdated = useCallback((updatedWord: Word) => {
+    setCurrentWord(updatedWord)
+    setShowEditModal(false)
+    onWordUpdated?.(updatedWord)
+  }, [onWordUpdated])
+
+  const handleCloseEditModal = useCallback(() => {
+    setShowEditModal(false)
+  }, [])
+
   return (
     <motion.div 
       className={cn("relative w-full max-w-2xl mx-auto", className)}
@@ -189,7 +209,7 @@ export function FlashcardComponent({
         className="relative h-96 md:h-[500px] cursor-pointer perspective-1000"
         onClick={!state.isFlipped ? handleFlip : undefined}
         role="button"
-        aria-label={`Flashcard for word ${word.word}. ${state.isFlipped ? 'Back side showing exercises' : 'Front side showing word definition'}`}
+        aria-label={`Flashcard for word ${currentWord.word}. ${state.isFlipped ? 'Back side showing exercises' : 'Front side showing word definition'}`}
         tabIndex={0}
         onKeyDown={(e) => {
           if (e.key === ' ' || e.key === 'Enter') {
@@ -207,7 +227,7 @@ export function FlashcardComponent({
           <Card 
             className="absolute inset-0 backface-hidden border-2 border-border/50 hover:border-primary/20 transition-colors"
             role="img"
-            aria-label={`Word: ${word.word}. Definition: ${word.definition}`}
+            aria-label={`Word: ${currentWord.word}. Definition: ${currentWord.definition}`}
           >
             <CardContent className="p-8 h-full flex flex-col justify-between">
               {/* Word and metadata */}
@@ -215,28 +235,28 @@ export function FlashcardComponent({
                 <div className="flex items-center justify-center gap-2 mb-4">
                   <Badge 
                     variant="secondary"
-                    className={DIFFICULTY_LEVELS[word.difficulty as keyof typeof DIFFICULTY_LEVELS]?.color}
+                    className={DIFFICULTY_LEVELS[currentWord.difficulty as keyof typeof DIFFICULTY_LEVELS]?.color}
                   >
-                    {DIFFICULTY_LEVELS[word.difficulty as keyof typeof DIFFICULTY_LEVELS]?.label}
+                    {DIFFICULTY_LEVELS[currentWord.difficulty as keyof typeof DIFFICULTY_LEVELS]?.label}
                   </Badge>
-                  {word.category && (
-                    <Badge variant="outline">{word.category}</Badge>
+                  {currentWord.category && (
+                    <Badge variant="outline">{currentWord.category}</Badge>
                   )}
                 </div>
                 
                 <h2 className="text-4xl md:text-6xl font-bold text-foreground mb-2">
-                  {word.word}
+                  {currentWord.word}
                 </h2>
                 
-                {word.pronunciation && (
+                {currentWord.pronunciation && (
                   <p className="text-lg text-muted-foreground font-mono">
-                    /{word.pronunciation}/
+                    /{currentWord.pronunciation}/
                   </p>
                 )}
 
-                {word.definition && (
+                {currentWord.definition && (
                   <p className="text-xl text-muted-foreground max-w-md mx-auto leading-relaxed">
-                    {word.definition}
+                    {currentWord.definition}
                   </p>
                 )}
               </div>
@@ -286,16 +306,30 @@ export function FlashcardComponent({
             <CardContent className="p-8 h-full flex flex-col">
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-semibold">{word.word}</h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={resetCard}
-                  className="gap-2"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Reset
-                </Button>
+                <h3 className="text-2xl font-semibold">{currentWord.word}</h3>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleEditWord()
+                    }}
+                    className="gap-2"
+                  >
+                    <Edit className="w-4 h-4" />
+                    Edit
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={resetCard}
+                    className="gap-2"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Reset
+                  </Button>
+                </div>
               </div>
 
               {/* Cloze test sentences */}
@@ -345,6 +379,7 @@ export function FlashcardComponent({
                   Easy (4)
                 </Button>
               </div>
+
             </CardContent>
           </Card>
         </motion.div>
@@ -368,6 +403,15 @@ export function FlashcardComponent({
           <kbd className="px-2 py-1 bg-muted rounded text-xs ml-2">1-4</kbd> rate difficulty
         </p>
       </div>
+
+      {/* Edit Modal */}
+      {showEditModal && (
+        <WordEditModal
+          word={currentWord}
+          onWordUpdated={handleWordUpdated}
+          onClose={handleCloseEditModal}
+        />
+      )}
     </motion.div>
   )
 }
