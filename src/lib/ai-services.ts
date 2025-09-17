@@ -12,6 +12,11 @@ export interface GenerateImageResponse {
   note?: string
 }
 
+export interface GenerateAudioResponse {
+  audioUrl: string
+  cached: boolean
+}
+
 export class AIService {
   private supabase = createClientComponentClient()
 
@@ -96,6 +101,37 @@ export class AIService {
         cached: false,
         note: 'Using fallback placeholder due to API error'
       }
+    }
+  }
+
+  /**
+   * Generate pronunciation audio for a word using ElevenLabs API via Supabase Edge Functions
+   */
+  async generateAudio(word: string, wordId: string): Promise<GenerateAudioResponse> {
+    try {
+      const { data, error } = await this.supabase.functions.invoke('generate-audio', {
+        body: {
+          word: word.trim(),
+          wordId
+        }
+      })
+
+      if (error) {
+        console.error('Error calling generate-audio function:', error)
+        throw new Error(`Failed to generate audio: ${error.message}`)
+      }
+
+      if (!data.audioUrl) {
+        throw new Error('Invalid response format from audio generation service')
+      }
+
+      return {
+        audioUrl: data.audioUrl,
+        cached: data.cached || false
+      }
+    } catch (error) {
+      console.error('AI Service - generateAudio error:', error)
+      throw error // Re-throw to let the component handle the error
     }
   }
 

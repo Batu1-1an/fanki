@@ -29,6 +29,7 @@ import {
 import { cn } from '@/lib/utils'
 import { DIFFICULTY_LEVELS } from '@/lib/words'
 import WordEditModal from '@/components/words/WordEditModal'
+import { aiService } from '@/lib/ai-services'
 
 const FLIP_ANIMATION = {
   initial: { rotateY: 0 },
@@ -87,8 +88,19 @@ export function FlashcardComponent({
   const [startTime] = useState(Date.now())
   const [showEditModal, setShowEditModal] = useState(false)
   const [currentWord, setCurrentWord] = useState<Word>(word)
+  const [audioUrl, setAudioUrl] = useState<string | null>(null)
+  const [isLoadingAudio, setIsLoadingAudio] = useState(false)
+  const [audioError, setAudioError] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
+
+  // Reset audio state when word changes
+  useEffect(() => {
+    setCurrentWord(word)
+    setAudioUrl(null)
+    setAudioError(null)
+    setIsLoadingAudio(false)
+  }, [word.id])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -155,10 +167,40 @@ export function FlashcardComponent({
     })
   }, [onReview, state.responseTime])
 
+  const fetchAudio = useCallback(async () => {
+    if (!currentWord.id) return
+    
+    setIsLoadingAudio(true)
+    setAudioError(null)
+    
+    try {
+      const { audioUrl: newAudioUrl } = await aiService.generateAudio(
+        currentWord.word, 
+        currentWord.id
+      )
+      setAudioUrl(newAudioUrl)
+    } catch (error) {
+      console.error('Failed to generate audio:', error)
+      setAudioError('Failed to load audio')
+    } finally {
+      setIsLoadingAudio(false)
+    }
+  }, [currentWord.id, currentWord.word])
+
   const playAudio = useCallback(() => {
-    // Audio functionality temporarily removed for dynamic sentence implementation
-    // TODO: Implement dynamic audio generation
-  }, [])
+    if (audioUrl) {
+      if (audioRef.current) {
+        audioRef.current.play().catch(console.error)
+      } else {
+        // Create a new audio element if ref is not available
+        const audio = new Audio(audioUrl)
+        audio.play().catch(console.error)
+      }
+    } else if (!isLoadingAudio && !audioError) {
+      // First time - fetch the audio
+      fetchAudio()
+    }
+  }, [audioUrl, isLoadingAudio, audioError, fetchAudio])
 
   const resetCard = useCallback(() => {
     setState({
@@ -169,6 +211,10 @@ export function FlashcardComponent({
       showFeedback: false,
       responseTime: 0
     })
+    // Reset audio state
+    setAudioUrl(null)
+    setAudioError(null)
+    setIsLoadingAudio(false)
   }, [])
 
   // Touch/swipe gestures
@@ -203,7 +249,15 @@ export function FlashcardComponent({
       exit="exit"
       transition={{ duration: 0.3, ease: "easeInOut" }}
     >
-      {/* Audio functionality temporarily removed for dynamic implementation */}
+      {/* Hidden audio element for playback */}
+      {audioUrl && (
+        <audio
+          ref={audioRef}
+          src={audioUrl}
+          preload="metadata"
+          className="sr-only"
+        />
+      )}
 
       {/* Main flashcard */}
       <div 
@@ -301,7 +355,32 @@ export function FlashcardComponent({
             <CardContent className="p-8 h-full flex flex-col">
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-semibold">{currentWord.word}</h3>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-2xl font-semibold">{currentWord.word}</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      playAudio()
+                    }}
+                    disabled={isLoadingAudio || !!audioError}
+                    className="gap-2"
+                    title={
+                      audioError 
+                        ? audioError 
+                        : isLoadingAudio 
+                        ? 'Generating audio...' 
+                        : 'Play pronunciation'
+                    }
+                  >
+                    {isLoadingAudio ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                    ) : (
+                      <Volume2 className={cn("w-4 h-4", audioError && "text-red-500")} />
+                    )}
+                  </Button>
+                </div>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
