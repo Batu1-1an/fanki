@@ -42,39 +42,8 @@ serve(async (req) => {
       )
     }
 
-    // Check if sentences already exist in cache (flashcards table)
-    const { data: existingFlashcard, error: fetchError } = await supabase
-      .from('flashcards')
-      .select(`
-        sentences, 
-        generated_at,
-        words!inner(id, word, user_id)
-      `)
-      .eq('words.word', word.toLowerCase())
-      .eq('words.user_id', userId)
-      .order('generated_at', { ascending: false })
-      .limit(1)
-      .single()
-
-    // Return cached sentences if they exist and are recent (within 7 days)
-    if (existingFlashcard && !fetchError) {
-      const generatedAt = new Date(existingFlashcard.generated_at)
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-      
-      if (generatedAt > weekAgo) {
-        console.log(`Returning cached sentences for word: ${word}`)
-        return new Response(
-          JSON.stringify({ 
-            sentences: existingFlashcard.sentences,
-            cached: true 
-          }),
-          { 
-            status: 200, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        )
-      }
-    }
+    // RFC-001: Generate sentences on-demand (no caching)
+    // This function now generates fresh sentences for every request
 
     // Generate new sentences using Gemini API
     const geminiApiKey = Deno.env.get('GEMINI_API_KEY')
@@ -173,23 +142,36 @@ Make the sentences engaging and educational for someone learning English.`
     }
 
     const geminiData = await geminiResponse.json()
-    const generatedText = geminiData.candidates[0].content.parts[0].text
+    let generatedText = geminiData.candidates[0].content.parts[0].text
 
-    // Parse the JSON response from Gemini
+    // Robust JSON extraction - find the actual JSON array regardless of wrapping
     let sentences: any[]
     try {
-      sentences = JSON.parse(generatedText.trim())
-      if (!Array.isArray(sentences) || sentences.length !== 3) {
-        throw new Error('Invalid sentence format')
+      // Find the start of the JSON array (first '[')
+      const jsonStartIndex = generatedText.indexOf('[');
+      // Find the end of the JSON array (last ']')
+      const jsonEndIndex = generatedText.lastIndexOf(']');
+
+      if (jsonStartIndex === -1 || jsonEndIndex === -1) {
+        throw new Error("Could not find a valid JSON array in the AI response.");
+      }
+
+      // Extract only the JSON string
+      const jsonString = generatedText.substring(jsonStartIndex, jsonEndIndex + 1);
+      
+      sentences = JSON.parse(jsonString);
+
+      if (!Array.isArray(sentences) || sentences.length === 0) {
+        throw new Error('Parsed data is not a non-empty array')
       }
       // Validate that each sentence has the required structure
       for (const sentence of sentences) {
         if (!sentence.sentence || !sentence.correct_word || typeof sentence.blank_position !== 'number') {
-          throw new Error('Invalid sentence object structure')
+          throw new Error(`Invalid sentence object structure: ${JSON.stringify(sentence)}`)
         }
       }
     } catch (parseError) {
-      console.error('Failed to parse Gemini response:', generatedText)
+      console.error('Failed to parse Gemini response even after robust extraction:', generatedText, parseError)
       // Fallback sentences if parsing fails
       sentences = [
         {
@@ -213,66 +195,16 @@ Make the sentences engaging and educational for someone learning English.`
       ]
     }
 
-    // First, get or create the word record
-    let { data: wordRecord, error: wordError } = await supabase
-      .from('words')
-      .select('id')
-      .eq('word', word.toLowerCase())
-      .eq('user_id', userId)
-      .single()
-
-    if (wordError && wordError.code !== 'PGRST116') { // PGRST116 is "not found" error
-      console.error('Error fetching word:', wordError)
-    }
-
-    // If word doesn't exist, create it
-    if (!wordRecord) {
-      const { data: newWord, error: createWordError } = await supabase
-        .from('words')
-        .insert({
-          word: word.toLowerCase(),
-          user_id: userId,
-          language: 'en',
-          difficulty: difficulty === 'beginner' ? 1 : difficulty === 'intermediate' ? 3 : 5,
-          status: 'new'
-        })
-        .select('id')
-        .single()
-
-      if (createWordError) {
-        console.error('Error creating word:', createWordError)
-        // Continue anyway, don't fail the request
-      } else {
-        wordRecord = newWord
-      }
-    }
-
-    // Cache the generated sentences in the flashcards table
-    if (wordRecord) {
-      const { error: insertError } = await supabase
-        .from('flashcards')
-        .upsert({
-          word_id: wordRecord.id,
-          sentences: sentences,
-          generated_at: new Date().toISOString(),
-          generation_version: 1,
-          is_active: true
-        }, {
-          onConflict: 'word_id'
-        })
-
-      if (insertError) {
-        console.error('Failed to cache sentences:', insertError)
-        // Continue anyway, don't fail the request
-      }
-    }
+    // RFC-001: No longer saving sentences to database
+    // Sentences are now ephemeral and generated on-demand
 
 
-    console.log(`Generated new sentences for word: ${word}`)
+    console.log(`Generated dynamic sentences for word: ${word}`)
     return new Response(
       JSON.stringify({ 
         sentences,
-        cached: false 
+        cached: false,
+        dynamic: true
       }),
       { 
         status: 200, 

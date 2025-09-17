@@ -88,15 +88,10 @@ export function StudySessionDashboard({ className }: StudySessionDashboardProps)
 
   // If there's an active study session, show it
   if (activeSession) {
-    // Filter words that have flashcards - QueuedWord.flashcard is already FlashcardWithWord
-    const flashcardsWithWords = activeSession.words
-      .filter(w => w.flashcard)
-      .map(w => w.flashcard!)
-    
     return (
       <div className={cn("max-w-6xl mx-auto", className)}>
         <StudySession
-          flashcards={flashcardsWithWords}
+          words={activeSession.words}
           sessionType="review"
           sessionId={activeSession.sessionId}
           onSessionComplete={handleSessionComplete}

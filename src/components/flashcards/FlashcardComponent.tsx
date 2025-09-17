@@ -6,11 +6,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { 
-  FlashcardProps, 
   FlashcardState, 
   FlashcardAnswer, 
   FlashcardSentence,
   ReviewQuality,
+  ReviewResult,
   Word
 } from '@/types'
 import { ClozeTest } from './ClozeTest'
@@ -42,9 +42,31 @@ const CARD_VARIANTS = {
   exit: { scale: 0.9, opacity: 0, x: -100 }
 }
 
+interface FlashcardComponentProps {
+  word: Word
+  sentences: FlashcardSentence[] | null
+  imageUrl: string | null
+  imageDescription?: string | null
+  isGeneratingContent: boolean
+  contentGenerationError?: string | null
+  onRegenerateContent?: () => void
+  onReview: (result: ReviewResult) => void
+  onNext?: () => void
+  onPrevious?: () => void
+  showNavigation?: boolean
+  autoFlip?: boolean
+  className?: string
+  onWordUpdated?: (updatedWord: Word) => void
+}
+
 export function FlashcardComponent({
   word,
-  flashcard,
+  sentences,
+  imageUrl,
+  imageDescription,
+  isGeneratingContent,
+  contentGenerationError,
+  onRegenerateContent,
   onReview,
   onNext,
   onPrevious,
@@ -52,7 +74,7 @@ export function FlashcardComponent({
   autoFlip = false,
   className,
   onWordUpdated
-}: FlashcardProps & { onWordUpdated?: (updatedWord: Word) => void }) {
+}: FlashcardComponentProps) {
   const [state, setState] = useState<FlashcardState>({
     isFlipped: false,
     currentSentenceIndex: 0,
@@ -63,24 +85,10 @@ export function FlashcardComponent({
   })
 
   const [startTime] = useState(Date.now())
-  const [sentences, setSentences] = useState<FlashcardSentence[]>([])
   const [showEditModal, setShowEditModal] = useState(false)
   const [currentWord, setCurrentWord] = useState<Word>(word)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const cardRef = useRef<HTMLDivElement>(null)
-
-  // Parse flashcard sentences
-  useEffect(() => {
-    try {
-      const parsedSentences = Array.isArray(flashcard.sentences) 
-        ? flashcard.sentences 
-        : JSON.parse(flashcard.sentences as string)
-      setSentences(parsedSentences)
-    } catch (error) {
-      console.error('Error parsing flashcard sentences:', error)
-      setSentences([])
-    }
-  }, [flashcard.sentences])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -148,10 +156,9 @@ export function FlashcardComponent({
   }, [onReview, state.responseTime])
 
   const playAudio = useCallback(() => {
-    if (flashcard.audio_url && audioRef.current) {
-      audioRef.current.play().catch(console.error)
-    }
-  }, [flashcard.audio_url])
+    // Audio functionality temporarily removed for dynamic sentence implementation
+    // TODO: Implement dynamic audio generation
+  }, [])
 
   const resetCard = useCallback(() => {
     setState({
@@ -196,12 +203,7 @@ export function FlashcardComponent({
       exit="exit"
       transition={{ duration: 0.3, ease: "easeInOut" }}
     >
-      {/* Audio element */}
-      {flashcard.audio_url && (
-        <audio ref={audioRef} preload="metadata">
-          <source src={flashcard.audio_url} type="audio/mpeg" />
-        </audio>
-      )}
+      {/* Audio functionality temporarily removed for dynamic implementation */}
 
       {/* Main flashcard */}
       <div 
@@ -261,34 +263,27 @@ export function FlashcardComponent({
                 )}
               </div>
 
-              {/* Image display */}
-              {flashcard.image_url && (
-                <FlashcardImage 
-                  imageUrl={flashcard.image_url}
-                  alt={`Visual representation of ${word.word}`}
-                  className="flex-1 max-h-48"
-                />
-              )}
+              {/* Dynamic Image display */}
+              <div className="flex-1 my-4">
+                {isGeneratingContent ? (
+                  <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : imageUrl ? (
+                  <FlashcardImage 
+                    imageUrl={imageUrl}
+                    alt={`Visual representation of ${word.word}`}
+                    className="h-full w-full max-h-48"
+                  />
+                ) : (
+                  <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                    <p className="text-muted-foreground text-sm">No image available</p>
+                  </div>
+                )}
+              </div>
 
               {/* Front controls */}
-              <div className="flex items-center justify-between">
-                <div className="flex gap-2">
-                  {flashcard.audio_url && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        playAudio()
-                      }}
-                      className="gap-2"
-                    >
-                      <Volume2 className="w-4 h-4" />
-                      Play
-                    </Button>
-                  )}
-                </div>
-                
+              <div className="flex items-center justify-center">
                 <Button variant="ghost" size="sm" className="gap-2">
                   <Clock className="w-4 h-4" />
                   Tap to flip
@@ -332,16 +327,48 @@ export function FlashcardComponent({
                 </div>
               </div>
 
-              {/* Cloze test sentences */}
+              {/* Cloze test sentences - with dynamic loading states */}
               <div className="flex-1 space-y-6">
-                {sentences.map((sentence, index) => (
-                  <ClozeTest
-                    key={index}
-                    sentence={sentence}
-                    onAnswer={handleClozeAnswer}
-                    isRevealed={state.showFeedback}
-                  />
-                ))}
+                {isGeneratingContent ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                    <p className="text-center text-muted-foreground">
+                      Generating fresh content for "{word.word}"...
+                    </p>
+                  </div>
+                ) : contentGenerationError ? (
+                  <div className="space-y-4">
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <X className="w-8 h-8 text-red-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-red-800 mb-2">
+                        Generation Failed
+                      </h3>
+                      <p className="text-red-600 mb-4">{contentGenerationError}</p>
+                      {onRegenerateContent && (
+                        <Button onClick={onRegenerateContent} variant="outline" size="sm">
+                          Try Again
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ) : sentences && sentences.length > 0 ? (
+                  sentences.map((sentence, index) => (
+                    <ClozeTest
+                      key={index}
+                      sentence={sentence}
+                      onAnswer={handleClozeAnswer}
+                      isRevealed={state.showFeedback}
+                    />
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No sentences available
+                  </div>
+                )}
               </div>
 
               {/* Review buttons */}

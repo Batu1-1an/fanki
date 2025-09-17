@@ -6,6 +6,7 @@ const supabase = createClientComponentClient()
 
 /**
  * Submit a review for a word and update SM-2 scheduling or learning phase
+ * RFC-001: flashcardId is optional and will be null for dynamic sentence generation
  */
 export async function submitReview({
   wordId,
@@ -14,7 +15,7 @@ export async function submitReview({
   responseTimeMs
 }: {
   wordId: string
-  flashcardId?: string
+  flashcardId?: string | null
   button: 'again' | 'hard' | 'good' | 'easy'
   responseTimeMs?: number
 }): Promise<{ data: Review | null; error: any }> {
@@ -63,7 +64,7 @@ export async function submitReview({
       reviewData = {
         user_id: user.id,
         word_id: wordId,
-        flashcard_id: flashcardId || null,
+        flashcard_id: flashcardId || null, // RFC-001: null for dynamic sentences
         quality,
         ease_factor: result.ease_factor,
         interval_days: result.interval_days,
@@ -86,7 +87,7 @@ export async function submitReview({
       reviewData = {
         user_id: user.id,
         word_id: wordId,
-        flashcard_id: flashcardId || null,
+        flashcard_id: flashcardId || null, // RFC-001: null for dynamic sentences
         quality,
         ease_factor: sm2Result.ease_factor,
         interval_days: sm2Result.interval_days,

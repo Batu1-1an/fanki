@@ -9,13 +9,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { 
-  FlashcardWithWord, 
+  Word, 
+  FlashcardSentence, 
   ReviewResult, 
   StudySession as StudySessionType,
   SessionType 
 } from '@/types'
 import { submitReview, getWordProgress } from '@/lib/reviews'
 import { getQueueManager } from '@/lib/queue-manager'
+import { aiService } from '@/lib/ai-services'
+import { useAuth } from '@/hooks/useAuth'
 import { 
   createStudySession, 
   updateStudySession, 
@@ -40,7 +43,7 @@ import {
 import { cn } from '@/lib/utils'
 
 interface StudySessionProps {
-  flashcards: FlashcardWithWord[]
+  words: Word[]
   sessionType: SessionType
   sessionId?: string
   onSessionComplete: (session: Partial<StudySessionType>) => void
@@ -58,7 +61,7 @@ interface SessionStats {
   averageResponseTime: number
 }
 
-interface RelearningCard extends FlashcardWithWord {
+interface RelearningCard extends Word {
   originalIndex: number
   timesRelearned: number
   addedToRelearningAt: Date
@@ -72,13 +75,14 @@ interface CardReview {
 }
 
 export function StudySession({
-  flashcards,
+  words,
   sessionType,
   sessionId: propSessionId,
   onSessionComplete,
   onExit,
   className
 }: StudySessionProps) {
+  const { user } = useAuth()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [sessionStats, setSessionStats] = useState<SessionStats>({
     cardsStudied: 0,
@@ -88,6 +92,13 @@ export function StudySession({
     startTime: new Date(),
     averageResponseTime: 0
   })
+  
+  // Dynamic content generation state
+  const [currentSentences, setCurrentSentences] = useState<FlashcardSentence[] | null>(null)
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null)
+  const [currentImageDescription, setCurrentImageDescription] = useState<string | null>(null)
+  const [isGeneratingContent, setIsGeneratingContent] = useState(true)
+  const [contentGenerationError, setContentGenerationError] = useState<string | null>(null)
   const [isSessionComplete, setIsSessionComplete] = useState(false)
   const [responseTimes, setResponseTimes] = useState<number[]>([])
   const [cardReviews, setCardReviews] = useState<CardReview[]>([])
@@ -102,12 +113,12 @@ export function StudySession({
   const [currentlyShowingRelearning, setCurrentlyShowingRelearning] = useState(false)
   const [mainQueueCompleted, setMainQueueCompleted] = useState(false)
 
-  // Get current card from either main queue or re-learning queue
-  const currentCard = currentlyShowingRelearning && relearningQueue.length > 0
-    ? relearningQueue[0] // Show first card from re-learning queue
-    : flashcards[currentIndex] // Show card from main queue
+  // Get current word from either main queue or re-learning queue
+  const currentWord = currentlyShowingRelearning && relearningQueue.length > 0
+    ? relearningQueue[0] // Show first word from re-learning queue
+    : (words && words[currentIndex]) // Show word from main queue (with bounds check)
   
-  const totalCards = flashcards.length + relearningQueue.length
+  const totalCards = (words?.length || 0) + relearningQueue.length
   const completedCards = currentIndex + (relearningQueue.length - (currentlyShowingRelearning ? relearningQueue.length : 0))
   const progress = totalCards > 0 ? ((completedCards + 1) / totalCards) * 100 : 0
 
@@ -151,18 +162,56 @@ export function StudySession({
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
+  // Generate dynamic content (sentences + image) for the current word
+  const generateDynamicContent = useCallback(async () => {
+    if (!currentWord || !user?.id) return
+
+    setIsGeneratingContent(true)
+    setContentGenerationError(null)
+    setCurrentSentences(null)
+    setCurrentImageUrl(null)
+    setCurrentImageDescription(null)
+
+    try {
+      const difficulty = currentWord.difficulty <= 2 ? 'beginner' : 
+                       currentWord.difficulty <= 4 ? 'intermediate' : 'advanced'
+      
+      // Fetch sentences and image in parallel for better performance
+      const [sentenceResult, imageResult] = await Promise.all([
+        aiService.generateSentences(currentWord.word, difficulty, user.id),
+        aiService.generateImage(currentWord.word, user.id)
+      ])
+      
+      setCurrentSentences(sentenceResult.sentences as FlashcardSentence[])
+      setCurrentImageUrl(imageResult.imageUrl)
+      setCurrentImageDescription(imageResult.description || null)
+    } catch (error) {
+      console.error('Failed to generate dynamic content:', error)
+      setContentGenerationError('Failed to generate content. Click to retry.')
+    } finally {
+      setIsGeneratingContent(false)
+    }
+  }, [currentWord, user?.id])
+
+  // Generate dynamic content when current word changes
+  useEffect(() => {
+    if (currentWord) {
+      generateDynamicContent()
+    }
+  }, [generateDynamicContent])
+
   // Helper functions for re-learning queue management
-  const addToRelearningQueue = useCallback((card: FlashcardWithWord, originalIndex: number) => {
+  const addToRelearningQueue = useCallback((word: Word, originalIndex: number) => {
     const relearningCard: RelearningCard = {
-      ...card,
+      ...word,
       originalIndex,
       timesRelearned: 1,
       addedToRelearningAt: new Date()
     }
     
     setRelearningQueue(prev => {
-      // Check if card is already in re-learning queue
-      const existingIndex = prev.findIndex(c => c.word.id === card.word.id)
+      // Check if word is already in re-learning queue
+      const existingIndex = prev.findIndex(c => c.id === word.id)
       if (existingIndex >= 0) {
         // Update existing entry - increase times relearned
         const updated = [...prev]
@@ -180,7 +229,7 @@ export function StudySession({
   }, [])
 
   const removeFromRelearningQueue = useCallback((wordId: string) => {
-    setRelearningQueue(prev => prev.filter(card => card.word.id !== wordId))
+    setRelearningQueue(prev => prev.filter(word => word.id !== wordId))
   }, [])
 
   const shouldShowRelearningCard = useCallback(() => {
@@ -192,16 +241,15 @@ export function StudySession({
   }, [relearningQueue.length, mainQueueCompleted, currentIndex])
 
   const handleReviewButton = useCallback(async (button: 'again' | 'hard' | 'good' | 'easy') => {
-    if (!currentCard || isSubmittingReview) return
+    if (!currentWord || isSubmittingReview) return
     
     setIsSubmittingReview(true)
     const responseTime = Date.now() - sessionStats.startTime.getTime()
     
     try {
-      // Submit review to SM-2 system
+      // Submit review to SM-2 system (no flashcard_id needed for dynamic sentences)
       const { error } = await submitReview({
-        wordId: currentCard.word.id,
-        flashcardId: currentCard.flashcard.id,
+        wordId: currentWord.id,
         button,
         responseTimeMs: responseTime
       })
@@ -237,7 +285,7 @@ export function StudySession({
       
       // Track review for session summary
       const review: CardReview = {
-        wordId: currentCard.word.id,
+        wordId: currentWord.id,
         button,
         responseTime,
         timestamp: new Date()
@@ -248,22 +296,22 @@ export function StudySession({
       // Handle "Again" button - add to re-learning queue instead of removing completely
       if (button === 'again') {
         if (currentlyShowingRelearning) {
-          // If this is already a re-learning card, update its re-learning count
-          const relearningCard = relearningQueue[0]
-          addToRelearningQueue(relearningCard, relearningCard.originalIndex)
-          // Remove current re-learning card (it will be re-added with updated count)
-          removeFromRelearningQueue(currentCard.word.id)
+          // If this is already a re-learning word, update its re-learning count
+          const relearningWord = relearningQueue[0]
+          addToRelearningQueue(relearningWord, relearningWord.originalIndex)
+          // Remove current re-learning word (it will be re-added with updated count)
+          removeFromRelearningQueue(currentWord.id)
         } else {
-          // Add current card to re-learning queue
-          addToRelearningQueue(currentCard, currentIndex)
+          // Add current word to re-learning queue
+          addToRelearningQueue(currentWord, currentIndex)
         }
       } else {
         // For other buttons, remove from appropriate queue
         if (currentlyShowingRelearning) {
-          removeFromRelearningQueue(currentCard.word.id)
+          removeFromRelearningQueue(currentWord.id)
         } else {
           const queueManager = getQueueManager()
-          queueManager.removeFromQueue(currentCard.word.id)
+          queueManager.removeFromQueue(currentWord.id)
         }
       }
       
@@ -277,7 +325,7 @@ export function StudySession({
         handleNext()
       }, 1000)
     }
-  }, [currentCard, isSubmittingReview, sessionStats.startTime, currentlyShowingRelearning, relearningQueue, currentIndex, addToRelearningQueue, removeFromRelearningQueue])
+  }, [currentWord, isSubmittingReview, sessionStats.startTime, currentlyShowingRelearning, relearningQueue, currentIndex, addToRelearningQueue, removeFromRelearningQueue])
   
   const handleReview = useCallback((result: ReviewResult) => {
     // Legacy support for existing ReviewResult interface
@@ -340,17 +388,17 @@ export function StudySession({
       }
       
       // Continue with main queue
-      if (currentIndex < flashcards.length - 1) {
+      if (currentIndex < (words?.length || 0) - 1) {
         setCurrentIndex(prev => prev + 1)
       } else {
         // Main queue completed
         setMainQueueCompleted(true)
         
-        // If there are re-learning cards, start showing them
+        // If there are re-learning words, start showing them
         if (relearningQueue.length > 0) {
           setCurrentlyShowingRelearning(true)
         } else {
-          // No re-learning cards, session complete
+          // No re-learning words, session complete
           completeSession()
         }
       }
@@ -360,7 +408,7 @@ export function StudySession({
     if (mainQueueCompleted && relearningQueue.length === 0) {
       completeSession()
     }
-  }, [currentIndex, flashcards.length, currentlyShowingRelearning, shouldShowRelearningCard, mainQueueCompleted, relearningQueue.length, completeSession])
+  }, [currentIndex, words?.length, currentlyShowingRelearning, shouldShowRelearningCard, mainQueueCompleted, relearningQueue.length, completeSession])
 
   const handlePrevious = useCallback(() => {
     if (currentIndex > 0) {
@@ -506,8 +554,8 @@ export function StudySession({
     )
   }
 
-  // No cards available
-  if (totalCards === 0) {
+  // No cards available or no current word
+  if (totalCards === 0 || !currentWord) {
     return (
       <div className={cn("max-w-2xl mx-auto", className)}>
         <Card>
@@ -517,7 +565,9 @@ export function StudySession({
             </div>
             <h3 className="text-xl font-semibold mb-2">No Cards Available</h3>
             <p className="text-muted-foreground mb-4">
-              There are no flashcards ready for this study session.
+              {totalCards === 0 
+                ? "There are no words ready for this study session." 
+                : "Loading study session..."}
             </p>
             <Button onClick={handleExitSession}>
               Return to Dashboard
@@ -553,10 +603,10 @@ export function StudySession({
             </div>
 
             <div className="flex items-center gap-4">
-              <div className="text-right">
+                <div className="text-right">
                 <div className="text-sm text-muted-foreground">Progress</div>
                 <div className="font-semibold">
-                  {currentIndex + 1} / {flashcards.length}
+                  {currentIndex + 1} / {words?.length || 0}
                 </div>
                 {relearningQueue.length > 0 && (
                   <div className="text-xs text-orange-600">
@@ -606,12 +656,17 @@ export function StudySession({
 
       {/* Main flashcard */}
       <AnimatePresence mode="wait">
-        {currentCard && (
+        {currentWord && (
           <div className="space-y-6">
             <FlashcardComponent
-              key={currentCard.flashcard.id}
-              word={currentCard.word}
-              flashcard={currentCard.flashcard}
+              key={currentWord.id}
+              word={currentWord}
+              sentences={currentSentences}
+              imageUrl={currentImageUrl}
+              imageDescription={currentImageDescription}
+              isGeneratingContent={isGeneratingContent}
+              contentGenerationError={contentGenerationError}
+              onRegenerateContent={generateDynamicContent}
               onReview={handleReview}
               onNext={currentIndex < totalCards - 1 ? handleNext : undefined}
               onPrevious={currentIndex > 0 ? handlePrevious : undefined}

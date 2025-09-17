@@ -327,10 +327,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               <>
                 <StudySessionDashboard className="mt-0" />
                 
-                {/* Desk Management Section */}
-                <div className="mt-8">
-                  <DeskManager />
-                </div>
               </>
             )}
 

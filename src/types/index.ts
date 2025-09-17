@@ -88,17 +88,7 @@ export interface FlashcardAnswer {
   responseTimeMs: number
 }
 
-// Component props
-export interface FlashcardProps {
-  word: Word
-  flashcard: Flashcard
-  onReview: (result: ReviewResult) => void
-  onNext?: () => void
-  onPrevious?: () => void
-  showNavigation?: boolean
-  autoFlip?: boolean
-  className?: string
-}
+// Component props - legacy interface removed, now using dynamic FlashcardComponent interface
 
 export interface ClozeTestProps {
   sentence: FlashcardSentence
