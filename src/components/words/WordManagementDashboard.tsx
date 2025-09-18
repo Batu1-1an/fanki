@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
-import { Grid, List, MoreHorizontal, Calendar, Target } from 'lucide-react'
+import { Grid, List, MoreHorizontal, Calendar, Target, ImagePlus } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { motion, AnimatePresence, Variants } from 'framer-motion'
 import { getUserWords, deleteWord, getWordStats, DIFFICULTY_LEVELS, WORD_CATEGORIES } from '@/lib/words'
@@ -13,6 +13,7 @@ import { getUserDesks, getDeskWords, addWordToDesk, removeWordFromDesk, Desk } f
 import { Word } from '@/types'
 import AddWordForm from './AddWordForm'
 import WordEditModal from '@/components/words/WordEditModal'
+import AddFromImageModal from './AddFromImageModal'
 import { WordWithFlashcard } from './WordWithFlashcard'
 import { DeskManager } from '@/components/dashboard/DeskManager'
 
@@ -40,6 +41,7 @@ export default function WordManagementDashboard() {
 
   // UI state
   const [showAddForm, setShowAddForm] = useState(false)
+  const [showAddFromImageModal, setShowAddFromImageModal] = useState(false)
   const [editingWord, setEditingWord] = useState<Word | null>(null)
   const [deletingWordId, setDeletingWordId] = useState<string | null>(null)
   const [selectedWordIds, setSelectedWordIds] = useState<Set<string>>(new Set())
@@ -142,6 +144,13 @@ export default function WordManagementDashboard() {
   const handleWordAdded = (newWord: Word) => {
     setWords(prev => [newWord, ...prev])
     setShowAddForm(false)
+    loadStats()
+    loadDesks() // Refresh desks to update word counts
+  }
+
+  const handleWordsAddedFromImage = (newWords: Word[]) => {
+    setWords(prev => [...newWords, ...prev])
+    setShowAddFromImageModal(false)
     loadStats()
     loadDesks() // Refresh desks to update word counts
   }
@@ -309,6 +318,14 @@ export default function WordManagementDashboard() {
               onClick={() => setShowDeskManager(!showDeskManager)}
             >
               {showDeskManager ? 'Hide Decks' : 'Manage Decks'}
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => setShowAddFromImageModal(true)}
+              className="gap-2"
+            >
+              <ImagePlus className="h-4 w-4" />
+              Create from Image
             </Button>
             <Button onClick={() => setShowAddForm(!showAddForm)}>
               {showAddForm ? 'Cancel' : 'Add Flashcard'}
@@ -563,7 +580,7 @@ export default function WordManagementDashboard() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
           >
-            <AnimatePresence mode="wait">
+            <AnimatePresence>
               {filteredWords.map((word, index) => (
                 <motion.div
                   key={word.id}
@@ -608,7 +625,7 @@ export default function WordManagementDashboard() {
               <div className="col-span-1">Created</div>
               <div className="col-span-1">Actions</div>
             </div>
-            <AnimatePresence mode="wait">
+            <AnimatePresence>
               {filteredWords.map((word, index) => (
                 <motion.div 
                   key={word.id} 
@@ -682,6 +699,14 @@ export default function WordManagementDashboard() {
           </motion.div>
         )}
       </div>
+
+      {/* Add from Image modal */}
+      <AddFromImageModal
+        isOpen={showAddFromImageModal}
+        onClose={() => setShowAddFromImageModal(false)}
+        onWordsAdded={handleWordsAddedFromImage}
+        selectedDeskId={selectedDesk?.id}
+      />
 
       {/* Edit word modal */}
       {editingWord && (
