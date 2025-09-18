@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
+import { Grid, List, MoreHorizontal, Calendar, Target } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { motion, AnimatePresence, Variants } from 'framer-motion'
 import { getUserWords, deleteWord, getWordStats, DIFFICULTY_LEVELS, WORD_CATEGORIES } from '@/lib/words'
 import { getUserDesks, getDeskWords, addWordToDesk, removeWordFromDesk, Desk } from '@/lib/desks'
 import { Word } from '@/types'
@@ -41,6 +44,7 @@ export default function WordManagementDashboard() {
   const [deletingWordId, setDeletingWordId] = useState<string | null>(null)
   const [selectedWordIds, setSelectedWordIds] = useState<Set<string>>(new Set())
   const [bulkOperationLoading, setBulkOperationLoading] = useState(false)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
   useEffect(() => {
     loadDesks()
@@ -280,6 +284,26 @@ export default function WordManagementDashboard() {
             </p>
           </div>
           <div className="flex gap-3">
+            <div className="flex items-center bg-muted rounded-lg p-1">
+              <Button
+                variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('grid')}
+                className="gap-2 h-8"
+              >
+                <Grid className="w-4 h-4" />
+                Grid
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+                className="gap-2 h-8"
+              >
+                <List className="w-4 h-4" />
+                List
+              </Button>
+            </div>
             <Button 
               variant="outline" 
               onClick={() => setShowDeskManager(!showDeskManager)}
@@ -482,7 +506,7 @@ export default function WordManagementDashboard() {
         </div>
       </div>
 
-      {/* Flashcards Grid */}
+      {/* Flashcards Display */}
       <div className="bg-white shadow rounded-lg">
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">
@@ -531,22 +555,131 @@ export default function WordManagementDashboard() {
               </div>
             )}
           </div>
+        ) : viewMode === 'grid' ? (
+          <motion.div 
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <AnimatePresence mode="wait">
+              {filteredWords.map((word, index) => (
+                <motion.div
+                  key={word.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ 
+                    duration: 0.3, 
+                    delay: index * 0.05,
+                    ease: "easeOut"
+                  }}
+                >
+                  <WordWithFlashcard
+                    word={word}
+                    onEdit={setEditingWord}
+                    onDelete={handleDeleteWord}
+                    isDeleting={deletingWordId === word.id}
+                    selectedDesk={selectedDesk}
+                    isSelected={selectedWordIds.has(word.id)}
+                    onSelectionChange={handleWordSelection}
+                    showSelection={true}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
-            {filteredWords.map((word) => (
-              <WordWithFlashcard
-                key={word.id}
-                word={word}
-                onEdit={setEditingWord}
-                onDelete={handleDeleteWord}
-                isDeleting={deletingWordId === word.id}
-                selectedDesk={selectedDesk}
-                isSelected={selectedWordIds.has(word.id)}
-                onSelectionChange={handleWordSelection}
-                showSelection={true}
-              />
-            ))}
-          </div>
+          // List View
+          <motion.div 
+            className="divide-y divide-gray-200"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="px-6 py-3 bg-gray-50 grid grid-cols-12 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <div className="col-span-1">Select</div>
+              <div className="col-span-3">Word</div>
+              <div className="col-span-4">Definition</div>
+              <div className="col-span-1">Category</div>
+              <div className="col-span-1">Difficulty</div>
+              <div className="col-span-1">Created</div>
+              <div className="col-span-1">Actions</div>
+            </div>
+            <AnimatePresence mode="wait">
+              {filteredWords.map((word, index) => (
+                <motion.div 
+                  key={word.id} 
+                  className="px-6 py-4 grid grid-cols-12 gap-4 items-center hover:bg-gray-50"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ 
+                    duration: 0.2, 
+                    delay: index * 0.03,
+                    ease: "easeOut" 
+                  }}
+                >
+                  <div className="col-span-1">
+                    <input
+                      type="checkbox"
+                      checked={selectedWordIds.has(word.id)}
+                      onChange={(e) => handleWordSelection(word.id, e.target.checked)}
+                      className="rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                  </div>
+                  <div className="col-span-3">
+                    <div className="text-sm font-medium text-gray-900">{word.word}</div>
+                    {word.pronunciation && (
+                      <div className="text-xs text-gray-500 font-mono">/{word.pronunciation}/</div>
+                    )}
+                  </div>
+                  <div className="col-span-4">
+                    <div className="text-sm text-gray-700 truncate" title={word.definition || ''}>
+                      {word.definition}
+                    </div>
+                  </div>
+                  <div className="col-span-1">
+                    {word.category && (
+                      <Badge variant="outline" className="text-xs">
+                        {word.category}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="col-span-1">
+                    {getDifficultyBadge(word.difficulty)}
+                  </div>
+                  <div className="col-span-1">
+                    <div className="text-xs text-gray-500">
+                      {new Date(word.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div className="col-span-1">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setEditingWord(word)}>
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => handleDeleteWord(word.id)}
+                          className="text-red-600"
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </motion.div>
+              ))}
+            </AnimatePresence>
+          </motion.div>
         )}
       </div>
 

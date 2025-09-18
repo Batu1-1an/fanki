@@ -26,13 +26,21 @@ import { cn } from '@/lib/utils'
 
 interface StudySessionDashboardProps {
   className?: string
-}
-
-export function StudySessionDashboard({ className }: StudySessionDashboardProps) {
-  const [activeSession, setActiveSession] = useState<{
+  activeSession?: {
     words: QueuedWord[]
     sessionId: string
-  } | null>(null)
+  } | null
+  onActiveSessionChange?: (session: {
+    words: QueuedWord[]
+    sessionId: string
+  } | null) => void
+}
+
+export function StudySessionDashboard({ 
+  className,
+  activeSession,
+  onActiveSessionChange
+}: StudySessionDashboardProps) {
   const [hasActiveDbSession, setHasActiveDbSession] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -53,19 +61,19 @@ export function StudySessionDashboard({ className }: StudySessionDashboardProps)
   }
 
   const handleStartSession = (words: QueuedWord[], sessionId: string) => {
-    setActiveSession({ words, sessionId })
+    onActiveSessionChange?.({ words, sessionId })
   }
 
   const handleSessionComplete = (sessionData: any) => {
     console.log('Session completed:', sessionData)
-    setActiveSession(null)
+    onActiveSessionChange?.(null)
     setHasActiveDbSession(false)
     // Refresh dashboard data by re-checking for active session
     checkForActiveSession()
   }
 
   const handleExitSession = () => {
-    setActiveSession(null)
+    onActiveSessionChange?.(null)
     checkForActiveSession()
   }
 
@@ -104,32 +112,36 @@ export function StudySessionDashboard({ className }: StudySessionDashboardProps)
   return (
     <div className={cn("max-w-6xl mx-auto space-y-6", className)}>
       {/* Header with quick actions */}
-      <Card className="bg-gradient-to-r from-blue-50 to-purple-50">
-        <CardContent className="p-6">
+      <Card variant="premium" className="overflow-hidden relative">
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-50 via-white to-purple-50/50 pointer-events-none" />
+        <CardContent className="relative p-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold mb-2">Study Session Center</h1>
-              <p className="text-muted-foreground">
+              <h1 className="text-3xl font-bold mb-2 heading-gradient">
+                Study Session Center
+              </h1>
+              <p className="text-muted-foreground text-lg">
                 Track your progress and start new study sessions
               </p>
               {hasActiveDbSession && (
-                <Badge variant="destructive" className="mt-2">
+                <Badge variant="destructive" className="mt-3 shadow-sm">
                   You have an incomplete session
                 </Badge>
               )}
             </div>
             
-            <div className="flex gap-3">
+            <div className="flex gap-4">
               <Button 
                 variant="outline" 
                 size="lg" 
                 onClick={() => window.location.href = '/dashboard/words'}
-                className="gap-2"
+                className="gap-2 hover:scale-105 transition-all duration-200"
               >
                 <BookOpen className="w-5 h-5" />
                 Manage Words
               </Button>
               <Button 
+                variant="premium"
                 size="lg" 
                 onClick={handleQuickStart}
                 className="gap-2"

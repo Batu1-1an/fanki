@@ -1,11 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
+import { CheckCircle, AlertCircle, Loader2, Sparkles } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import { createWord, checkWordExists, DIFFICULTY_LEVELS, WORD_CATEGORIES } from '@/lib/words'
 import { getUserDesks, addWordToDesk, getDefaultDesk, Desk } from '@/lib/desks'
 import { Word } from '@/types'
@@ -34,9 +37,12 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
   const [defaultDesk, setDefaultDesk] = useState<Desk | null>(null)
   
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [validFields, setValidFields] = useState<Record<string, boolean>>({})
+  const [fieldTouched, setFieldTouched] = useState<Record<string, boolean>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false)
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
+  const [liveValidationTimeout, setLiveValidationTimeout] = useState<NodeJS.Timeout | null>(null)
 
   // Load desks on component mount
   useEffect(() => {
@@ -58,28 +64,102 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
     loadDesks()
   }, [selectedDesk])
 
+  // Real-time validation for individual fields
+  const validateField = useCallback((field: string, value: any) => {
+    let error = ''
+    let isValid = false
+
+    switch (field) {
+      case 'word':
+        if (!value.trim()) {
+          error = 'Word is required'
+        } else if (value.trim().length < 2) {
+          error = 'Word must be at least 2 characters long'
+        } else if (!/^[a-zA-Z\s-']+$/.test(value.trim())) {
+          error = 'Word can only contain letters, spaces, hyphens, and apostrophes'
+        } else {
+          isValid = true
+        }
+        break
+        
+      case 'definition':
+        if (!value.trim()) {
+          error = 'Definition is required'
+        } else if (value.trim().length < 10) {
+          error = `Definition should be at least 10 characters long (${value.trim().length}/10)`
+        } else {
+          isValid = true
+        }
+        break
+        
+      case 'pronunciation':
+        if (value.trim() && !/^[a-zA-Z\s\/\-ˈˌ]+$/.test(value.trim())) {
+          error = 'Invalid pronunciation format'
+        } else {
+          isValid = true
+        }
+        break
+        
+      case 'difficulty':
+        if (value < 1 || value > 5) {
+          error = 'Difficulty must be between 1 and 5'
+        } else {
+          isValid = true
+        }
+        break
+    }
+
+    return { error, isValid }
+  }, [])
+
+  // Debounced validation
+  const handleFieldChange = useCallback((field: string, value: any) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+    setFieldTouched(prev => ({ ...prev, [field]: true }))
+    
+    // Clear existing timeout
+    if (liveValidationTimeout) {
+      clearTimeout(liveValidationTimeout)
+    }
+    
+    // Set new timeout for validation
+    const timeout = setTimeout(() => {
+      const validation = validateField(field, value)
+      
+      setErrors(prev => ({
+        ...prev,
+        [field]: validation.error
+      }))
+      
+      setValidFields(prev => ({
+        ...prev,
+        [field]: validation.isValid
+      }))
+      
+      // Check for duplicates on word field
+      if (field === 'word' && validation.isValid && value.trim()) {
+        checkForDuplicate(value.trim())
+      }
+    }, 500)
+    
+    setLiveValidationTimeout(timeout)
+  }, [liveValidationTimeout, validateField])
+
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
+    const newValidFields: Record<string, boolean> = {}
     
-    if (!formData.word.trim()) {
-      newErrors.word = 'Word is required'
-    } else if (formData.word.trim().length < 2) {
-      newErrors.word = 'Word must be at least 2 characters long'
-    } else if (!/^[a-zA-Z\s-']+$/.test(formData.word.trim())) {
-      newErrors.word = 'Word can only contain letters, spaces, hyphens, and apostrophes'
-    }
-    
-    if (!formData.definition.trim()) {
-      newErrors.definition = 'Definition is required'
-    } else if (formData.definition.trim().length < 10) {
-      newErrors.definition = 'Definition should be at least 10 characters long'
-    }
-    
-    if (formData.difficulty < 1 || formData.difficulty > 5) {
-      newErrors.difficulty = 'Difficulty must be between 1 and 5'
-    }
+    // Validate all fields
+    Object.keys(formData).forEach(field => {
+      const validation = validateField(field, formData[field as keyof typeof formData])
+      if (validation.error) {
+        newErrors[field] = validation.error
+      }
+      newValidFields[field] = validation.isValid
+    })
     
     setErrors(newErrors)
+    setValidFields(newValidFields)
     return Object.keys(newErrors).length === 0
   }
 
@@ -185,6 +265,8 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
           deskId: selectedDesk?.id || defaultDesk?.id || ''
         })
         setErrors({})
+        setValidFields({})
+        setFieldTouched({})
         
         onWordAdded?.(data)
       }
@@ -222,39 +304,85 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
       
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <div className="sm:col-span-2">
-          <Label htmlFor="word">
+          <Label htmlFor="word" className="flex items-center gap-2">
             Word *
             {isCheckingDuplicate && (
-              <span className="ml-2 text-xs text-gray-500">Checking...</span>
+              <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+            )}
+            {!isCheckingDuplicate && validFields.word && (
+              <CheckCircle className="w-3 h-3 text-success-500" />
             )}
           </Label>
-          <Input
-            id="word"
-            type="text"
-            value={formData.word}
-            onChange={(e) => handleWordChange(e.target.value)}
-            placeholder="Enter the word"
-            className={errors.word ? 'border-red-300 focus:border-red-500' : ''}
-            disabled={isLoading}
-          />
+          <div className="relative">
+            <Input
+              id="word"
+              type="text"
+              value={formData.word}
+              onChange={(e) => handleFieldChange('word', e.target.value)}
+              placeholder="Enter the word"
+              className={cn(
+                "pr-8",
+                errors.word ? 'border-error-300 focus:border-error-500' : 
+                validFields.word && fieldTouched.word ? 'border-success-300 focus:border-success-500' : ''
+              )}
+              disabled={isLoading}
+            />
+            {fieldTouched.word && (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                {validFields.word ? (
+                  <CheckCircle className="w-4 h-4 text-success-500" />
+                ) : errors.word ? (
+                  <AlertCircle className="w-4 h-4 text-error-500" />
+                ) : null}
+              </div>
+            )}
+          </div>
           {errors.word && (
-            <p className="mt-1 text-sm text-red-600">{errors.word}</p>
+            <p className="mt-1 text-sm text-error-600 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              {errors.word}
+            </p>
+          )}
+          {validFields.word && fieldTouched.word && !errors.word && (
+            <p className="mt-1 text-sm text-success-600 flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" />
+              Looks good!
+            </p>
           )}
         </div>
         
         <div className="sm:col-span-2">
-          <Label htmlFor="definition">Definition *</Label>
-          <Textarea
-            id="definition"
-            value={formData.definition}
-            onChange={(e) => setFormData(prev => ({ ...prev, definition: e.target.value }))}
-            placeholder="Enter the definition or meaning"
-            rows={3}
-            className={errors.definition ? 'border-red-300 focus:border-red-500' : ''}
-            disabled={isLoading}
-          />
+          <Label htmlFor="definition" className="flex items-center gap-2">
+            Definition *
+            {validFields.definition && fieldTouched.definition && (
+              <CheckCircle className="w-3 h-3 text-success-500" />
+            )}
+          </Label>
+          <div className="relative">
+            <Textarea
+              id="definition"
+              value={formData.definition}
+              onChange={(e) => handleFieldChange('definition', e.target.value)}
+              placeholder="Enter the definition or meaning"
+              rows={3}
+              className={cn(
+                errors.definition ? 'border-error-300 focus:border-error-500' : 
+                validFields.definition && fieldTouched.definition ? 'border-success-300 focus:border-success-500' : ''
+              )}
+              disabled={isLoading}
+            />
+          </div>
           {errors.definition && (
-            <p className="mt-1 text-sm text-red-600">{errors.definition}</p>
+            <p className="mt-1 text-sm text-error-600 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              {errors.definition}
+            </p>
+          )}
+          {validFields.definition && fieldTouched.definition && !errors.definition && (
+            <p className="mt-1 text-sm text-success-600 flex items-center gap-1">
+              <CheckCircle className="w-3 h-3" />
+              Perfect length for a clear definition
+            </p>
           )}
         </div>
         
@@ -262,7 +390,7 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
           <Label htmlFor="difficulty">Difficulty Level</Label>
           <Select
             value={formData.difficulty.toString()}
-            onValueChange={(value) => setFormData(prev => ({ ...prev, difficulty: parseInt(value) }))}
+            onValueChange={(value) => handleFieldChange('difficulty', parseInt(value))}
             disabled={isLoading}
           >
             <SelectTrigger>
@@ -285,7 +413,7 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
           <Label htmlFor="category">Category</Label>
           <Select
             value={formData.category}
-            onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+            onValueChange={(value) => handleFieldChange('category', value)}
             disabled={isLoading}
           >
             <SelectTrigger>
@@ -299,6 +427,45 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
               ))}
             </SelectContent>
           </Select>
+        </div>
+        
+        <div className="sm:col-span-2">
+          <Label htmlFor="pronunciation" className="flex items-center gap-2">
+            Pronunciation (Optional)
+            {validFields.pronunciation && fieldTouched.pronunciation && (
+              <CheckCircle className="w-3 h-3 text-success-500" />
+            )}
+          </Label>
+          <div className="relative">
+            <Input
+              id="pronunciation"
+              type="text"
+              value={formData.pronunciation}
+              onChange={(e) => handleFieldChange('pronunciation', e.target.value)}
+              placeholder="e.g., /həˈloʊ/ or huh-LOH"
+              className={cn(
+                "pr-8",
+                errors.pronunciation ? 'border-error-300 focus:border-error-500' : 
+                validFields.pronunciation && fieldTouched.pronunciation ? 'border-success-300 focus:border-success-500' : ''
+              )}
+              disabled={isLoading}
+            />
+            {fieldTouched.pronunciation && (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                {validFields.pronunciation ? (
+                  <CheckCircle className="w-4 h-4 text-success-500" />
+                ) : errors.pronunciation ? (
+                  <AlertCircle className="w-4 h-4 text-error-500" />
+                ) : null}
+              </div>
+            )}
+          </div>
+          {errors.pronunciation && (
+            <p className="mt-1 text-sm text-error-600 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              {errors.pronunciation}
+            </p>
+          )}
         </div>
         
         <div className="sm:col-span-2">

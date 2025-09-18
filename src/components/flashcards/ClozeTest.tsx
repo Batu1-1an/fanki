@@ -104,8 +104,8 @@ export function ClozeTest({
       transition={{ duration: 0.3 }}
     >
       {/* Sentence with blank */}
-      <div className="text-lg leading-relaxed">
-        <span className="text-foreground">{beforeBlank}</span>
+      <div className="text-sm sm:text-base md:text-lg leading-relaxed px-1">
+        <span className="text-foreground break-words">{beforeBlank}</span>
         
         {/* Input field or revealed answer */}
         <span  className="inline-block mx-1 relative">
@@ -118,7 +118,7 @@ export function ClozeTest({
                 onChange={(e) => setUserInput(e.target.value)}
                 onKeyPress={handleKeyPress}
                 className={cn(
-                  "inline-block w-32 h-8 text-center font-medium focus-ring",
+                  "inline-block w-20 sm:w-24 md:w-32 h-8 text-center text-sm sm:text-base font-medium focus-ring",
                   getInputClassName()
                 )}
                 placeholder="___"
@@ -146,7 +146,7 @@ export function ClozeTest({
           )}
         </span>
         
-        <span className="text-foreground">{afterBlank}</span>
+        <span className="text-foreground break-words">{afterBlank}</span>
       </div>
 
       {/* Answer controls */}

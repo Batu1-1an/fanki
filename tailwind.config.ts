@@ -7,6 +7,14 @@ const config: Config = {
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
+    screens: {
+      'xs': '475px',
+      'sm': '640px',
+      'md': '768px',
+      'lg': '1024px',
+      'xl': '1280px',
+      '2xl': '1536px',
+    },
     extend: {
       colors: {
         background: 'hsl(var(--background))',
@@ -28,6 +36,35 @@ const config: Config = {
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
+        // Fanki Brand Colors
+        brand: {
+          50: 'hsl(220, 70%, 98%)',
+          100: 'hsl(220, 60%, 95%)',
+          200: 'hsl(220, 50%, 88%)',
+          300: 'hsl(220, 45%, 78%)',
+          400: 'hsl(220, 40%, 65%)',
+          500: 'hsl(220, 85%, 55%)', // Primary brand
+          600: 'hsl(220, 85%, 45%)',
+          700: 'hsl(220, 85%, 35%)',
+          800: 'hsl(220, 85%, 25%)',
+          900: 'hsl(220, 85%, 15%)',
+          950: 'hsl(220, 85%, 8%)',
+        },
+        success: {
+          50: 'hsl(142, 76%, 96%)',
+          500: 'hsl(142, 76%, 36%)',
+          600: 'hsl(142, 76%, 30%)',
+        },
+        warning: {
+          50: 'hsl(48, 96%, 96%)',
+          500: 'hsl(48, 96%, 53%)',
+          600: 'hsl(48, 96%, 45%)',
+        },
+        error: {
+          50: 'hsl(0, 93%, 96%)',
+          500: 'hsl(0, 93%, 58%)',
+          600: 'hsl(0, 93%, 50%)',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -37,6 +74,10 @@ const config: Config = {
       animation: {
         'flip': 'flip 0.6s ease-in-out',
         'pulse-slow': 'pulse 3s infinite',
+        'fade-in': 'fadeIn 0.4s ease-out',
+        'slide-up': 'slideUp 0.3s ease-out',
+        'scale-in': 'scaleIn 0.2s ease-out',
+        'shimmer': 'shimmer 2s infinite',
       },
       keyframes: {
         flip: {
@@ -44,6 +85,30 @@ const config: Config = {
           '50%': { transform: 'rotateY(90deg)' },
           '100%': { transform: 'rotateY(0deg)' },
         },
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        slideUp: {
+          '0%': { opacity: '0', transform: 'translateY(20px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+        scaleIn: {
+          '0%': { opacity: '0', transform: 'scale(0.95)' },
+          '100%': { opacity: '1', transform: 'scale(1)' },
+        },
+        shimmer: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
+        },
+      },
+      spacing: {
+        '18': '4.5rem',
+        '88': '22rem',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'Consolas', 'monospace'],
       },
     },
   },

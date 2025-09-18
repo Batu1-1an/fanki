@@ -262,7 +262,7 @@ export function FlashcardComponent({
       {/* Main flashcard */}
       <div 
         ref={cardRef}
-        className="relative h-96 md:h-[500px] cursor-pointer perspective-1000"
+        className="relative h-[500px] sm:h-[480px] md:h-[520px] lg:h-[580px] cursor-pointer perspective-1000"
         onClick={!state.isFlipped ? handleFlip : undefined}
         role="button"
         aria-label={`Flashcard for word ${currentWord.word}. ${state.isFlipped ? 'Back side showing exercises' : 'Front side showing word definition'}`}
@@ -285,7 +285,7 @@ export function FlashcardComponent({
             role="img"
             aria-label={`Word: ${currentWord.word}. Definition: ${currentWord.definition}`}
           >
-            <CardContent className="p-8 h-full flex flex-col justify-between">
+            <CardContent className="p-4 sm:p-6 md:p-8 h-full flex flex-col justify-between">
               {/* Word and metadata */}
               <div className="text-center space-y-4">
                 <div className="flex items-center justify-center gap-2 mb-4">
@@ -300,37 +300,37 @@ export function FlashcardComponent({
                   )}
                 </div>
                 
-                <h2 className="text-4xl md:text-6xl font-bold text-foreground mb-2">
+                <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-6xl font-bold text-foreground mb-2 break-words">
                   {currentWord.word}
                 </h2>
                 
                 {currentWord.pronunciation && (
-                  <p className="text-lg text-muted-foreground font-mono">
+                  <p className="text-sm sm:text-base md:text-lg text-muted-foreground font-mono">
                     /{currentWord.pronunciation}/
                   </p>
                 )}
 
                 {currentWord.definition && (
-                  <p className="text-xl text-muted-foreground max-w-md mx-auto leading-relaxed">
+                  <p className="text-sm sm:text-base md:text-lg lg:text-xl text-muted-foreground max-w-sm sm:max-w-md mx-auto leading-relaxed px-2">
                     {currentWord.definition}
                   </p>
                 )}
               </div>
 
               {/* Dynamic Image display */}
-              <div className="flex-1 my-4">
+              <div className="flex-1 my-4 sm:my-6">
                 {isGeneratingContent ? (
-                  <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                  <div className="h-48 sm:h-56 md:h-64 bg-muted rounded-lg flex items-center justify-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                   </div>
                 ) : imageUrl ? (
                   <FlashcardImage 
                     imageUrl={imageUrl}
                     alt={`Visual representation of ${word.word}`}
-                    className="h-full w-full max-h-48"
+                    className="h-full w-full max-h-48 sm:max-h-56 md:max-h-64"
                   />
                 ) : (
-                  <div className="h-48 bg-muted rounded-lg flex items-center justify-center">
+                  <div className="h-48 sm:h-56 md:h-64 bg-muted rounded-lg flex items-center justify-center">
                     <p className="text-muted-foreground text-sm">No image available</p>
                   </div>
                 )}
@@ -352,11 +352,11 @@ export function FlashcardComponent({
             role="main"
             aria-label="Flashcard exercises - fill in the blanks and rate difficulty"
           >
-            <CardContent className="p-8 h-full flex flex-col">
+            <CardContent className="p-4 sm:p-6 md:p-8 h-full flex flex-col">
               {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-2xl font-semibold">{currentWord.word}</h3>
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <h3 className="text-lg sm:text-xl md:text-2xl font-semibold truncate">{currentWord.word}</h3>
                   <Button
                     variant="outline"
                     size="sm"
@@ -381,7 +381,7 @@ export function FlashcardComponent({
                     )}
                   </Button>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1 sm:gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -389,25 +389,25 @@ export function FlashcardComponent({
                       e.stopPropagation()
                       handleEditWord()
                     }}
-                    className="gap-2"
+                    className="gap-1 sm:gap-2 text-xs sm:text-sm"
                   >
-                    <Edit className="w-4 h-4" />
-                    Edit
+                    <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Edit</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={resetCard}
-                    className="gap-2"
+                    className="gap-1 sm:gap-2 text-xs sm:text-sm"
                   >
-                    <RotateCcw className="w-4 h-4" />
-                    Reset
+                    <RotateCcw className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden sm:inline">Reset</span>
                   </Button>
                 </div>
               </div>
 
               {/* Cloze test sentences - with dynamic loading states */}
-              <div className="flex-1 space-y-6">
+              <div className="flex-1 space-y-4 sm:space-y-4 md:space-y-6 overflow-y-auto">
                 {isGeneratingContent ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-center py-8">
@@ -451,38 +451,44 @@ export function FlashcardComponent({
               </div>
 
               {/* Review buttons */}
-              <div className="grid grid-cols-4 gap-2 mt-6">
+              <div className="grid grid-cols-4 gap-1 sm:gap-2 mt-4 sm:mt-6">
                 <Button
                   variant="destructive"
                   size="sm"
                   onClick={() => handleReview(1)}
-                  className="gap-2"
+                  className="gap-1 text-xs sm:text-sm px-2 sm:px-3"
                 >
-                  <X className="w-4 h-4" />
-                  Again (1)
+                  <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Again </span>
+                  <span>(1)</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleReview(2)}
+                  className="text-xs sm:text-sm px-2 sm:px-3"
                 >
-                  Hard (2)
+                  <span className="hidden xs:inline">Hard </span>
+                  <span>(2)</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleReview(3)}
+                  className="text-xs sm:text-sm px-2 sm:px-3"
                 >
-                  Good (3)
+                  <span className="hidden xs:inline">Good </span>
+                  <span>(3)</span>
                 </Button>
                 <Button
                   variant="default"
                   size="sm"
                   onClick={() => handleReview(4)}
-                  className="gap-2"
+                  className="gap-1 text-xs sm:text-sm px-2 sm:px-3"
                 >
-                  <Check className="w-4 h-4" />
-                  Easy (4)
+                  <Check className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden xs:inline">Easy </span>
+                  <span>(4)</span>
                 </Button>
               </div>
 

@@ -580,57 +580,60 @@ export function StudySession({
 
   // Main study interface
   return (
-    <div className={cn("max-w-4xl mx-auto space-y-6", className)}>
+    <div className={cn("max-w-4xl mx-auto h-screen flex flex-col gap-1 sm:gap-2 md:gap-4 py-1 sm:py-2", className)}>
       {/* Session header */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Badge variant="secondary" className="capitalize">
+      <Card className="border-0 shadow-sm bg-muted/30 flex-shrink-0">
+        <CardContent className="p-1.5 sm:p-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-0">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <Badge variant="secondary" className="capitalize text-xs py-0.5 px-1.5">
                 {sessionType} Session
               </Badge>
               
               {currentlyShowingRelearning && (
-                <Badge variant="destructive" className="animate-pulse">
+                <Badge variant="destructive" className="animate-pulse text-xs py-0.5 px-1.5">
                   Re-learning
                 </Badge>
               )}
               
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Clock className="w-4 h-4" />
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Clock className="w-3 h-3" />
                 {formatTime(sessionDuration)}
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
-                <div className="text-right">
-                <div className="text-sm text-muted-foreground">Progress</div>
-                <div className="font-semibold">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1 sm:gap-2">
+                <div className="text-left sm:text-right">
+                <div className="text-xs text-muted-foreground leading-tight">Progress</div>
+                <div className="text-sm font-semibold leading-tight">
                   {currentIndex + 1} / {words?.length || 0}
                 </div>
                 {relearningQueue.length > 0 && (
-                  <div className="text-xs text-orange-600">
+                  <div className="text-xs text-orange-600 leading-tight">
                     +{relearningQueue.length} re-learning
                   </div>
                 )}
               </div>
               
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handlePauseResume}
                   disabled={isSubmittingReview}
+                  className="text-xs h-6 px-1.5"
                 >
                   {isPaused ? (
                     <>
-                      <Play className="w-4 h-4 mr-1" />
-                      Resume
+                      <Play className="w-3 h-3 mr-0.5" />
+                      <span className="hidden xs:inline">Resume</span>
+                      <span className="xs:hidden">▶</span>
                     </>
                   ) : (
                     <>
-                      <Pause className="w-4 h-4 mr-1" />
-                      Pause
+                      <Pause className="w-3 h-3 mr-0.5" />
+                      <span className="hidden xs:inline">Pause</span>
+                      <span className="xs:hidden">⏸</span>
                     </>
                   )}
                 </Button>
@@ -639,17 +642,19 @@ export function StudySession({
                   variant="outline"
                   size="sm"
                   onClick={handleExitSession}
+                  className="text-xs h-6 px-1.5"
                 >
-                  <StopCircle className="w-4 h-4 mr-1" />
-                  Exit
+                  <StopCircle className="w-3 h-3 mr-0.5" />
+                  <span className="hidden xs:inline">Exit</span>
+                  <span className="xs:hidden">✕</span>
                 </Button>
               </div>
             </div>
           </div>
 
           {/* Progress bar */}
-          <div className="mt-4">
-            <Progress value={progress} className="h-2" />
+          <div className="mt-1 sm:mt-1.5">
+            <Progress value={progress} className="h-1 sm:h-1.5" />
           </div>
         </CardContent>
       </Card>
@@ -657,7 +662,7 @@ export function StudySession({
       {/* Main flashcard */}
       <AnimatePresence mode="wait">
         {currentWord && (
-          <div className="space-y-6">
+          <div className="flex-1 space-y-6 min-h-0">
             <FlashcardComponent
               key={currentWord.id}
               word={currentWord}
@@ -678,32 +683,32 @@ export function StudySession({
       </AnimatePresence>
 
       {/* Session stats sidebar */}
-      <Card className="bg-muted/30">
-        <CardContent className="p-4">
-          <div className="grid grid-cols-4 gap-3 text-center">
+      <Card className="bg-muted/30 border-0 shadow-sm flex-shrink-0">
+        <CardContent className="p-2 sm:p-3">
+          <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center">
             <div>
-              <div className="text-lg font-semibold text-green-600">
+              <div className="text-base sm:text-lg font-semibold text-green-600">
                 {sessionStats.cardsCorrect}
               </div>
               <div className="text-xs text-muted-foreground">Correct</div>
             </div>
             
             <div>
-              <div className="text-lg font-semibold text-red-600">
+              <div className="text-base sm:text-lg font-semibold text-red-600">
                 {sessionStats.cardsStudied - sessionStats.cardsCorrect}
               </div>
               <div className="text-xs text-muted-foreground">Incorrect</div>
             </div>
             
             <div>
-              <div className="text-lg font-semibold text-blue-600">
+              <div className="text-base sm:text-lg font-semibold text-blue-600">
                 {sessionStats.accuracy.toFixed(0)}%
               </div>
               <div className="text-xs text-muted-foreground">Accuracy</div>
             </div>
             
             <div>
-              <div className="text-lg font-semibold text-orange-600">
+              <div className="text-base sm:text-lg font-semibold text-orange-600">
                 {relearningQueue.length}
               </div>
               <div className="text-xs text-muted-foreground">Re-learning</div>

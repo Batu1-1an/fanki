@@ -6,6 +6,8 @@ import { StudySession } from '@/components/flashcards'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { DashboardLayout } from '@/components/layout/DashboardLayout'
+import { useAuth } from '@/hooks/useAuth'
 import { 
   Word, 
   StudySession as StudySessionType,
@@ -22,6 +24,7 @@ import {
 } from 'lucide-react'
 
 export default function StudyClient() {
+  const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [words, setWords] = useState<Word[]>([])
@@ -30,8 +33,23 @@ export default function StudyClient() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadWords()
-  }, [])
+    if (!authLoading && user) {
+      loadWords()
+    }
+  }, [authLoading, user])
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    router.push('/auth/login')
+    return null
+  }
 
   const loadWords = async () => {
     try {
@@ -231,15 +249,23 @@ export default function StudyClient() {
     )
   }
 
-  // Show study session
+  // Show study session with focus mode
   return (
-    <div className="min-h-screen bg-gray-50 py-6 px-4">
-      <StudySession
-        words={words}
-        sessionType={sessionType}
-        onSessionComplete={handleSessionComplete}
-        onExit={handleExit}
-      />
-    </div>
+    <DashboardLayout
+      user={user}
+      currentPath="/study"
+      title="Study Session"
+      description={`${sessionType === 'review' ? 'Review' : 'Learn'} • ${words.length} words`}
+      focusMode={true}
+    >
+      <div className="h-full p-6">
+        <StudySession
+          words={words}
+          sessionType={sessionType}
+          onSessionComplete={handleSessionComplete}
+          onExit={handleExit}
+        />
+      </div>
+    </DashboardLayout>
   )
 }
