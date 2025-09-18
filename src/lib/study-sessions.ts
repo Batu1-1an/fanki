@@ -326,45 +326,70 @@ export async function getStudySessionStats(): Promise<{
       return total + (session.words_studied || 0)
     }, 0) || 0
 
+    // Fetch user timezone (fallback to UTC)
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('timezone')
+      .eq('id', user.id)
+      .single()
+    const userTimeZone = profile?.timezone || 'UTC'
+
+    // Helpers for timezone-safe day math
+    const formatDateInTimeZone = (date: Date, timeZone: string): string => {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(date)
+      const y = parts.find(p => p.type === 'year')?.value || '1970'
+      const m = parts.find(p => p.type === 'month')?.value || '01'
+      const d = parts.find(p => p.type === 'day')?.value || '01'
+      return `${y}-${m}-${d}`
+    }
+    const addDaysISO = (isoDate: string, days: number): string => {
+      const d = new Date(isoDate + 'T00:00:00.000Z')
+      d.setUTCDate(d.getUTCDate() + days)
+      return d.toISOString().split('T')[0]
+    }
+
     // Calculate streaks (consecutive days with completed sessions)
     const completedByDate = new Map<string, boolean>()
     sessions?.forEach(session => {
       if (session.status === 'completed' && session.ended_at) {
-        const date = session.ended_at.split('T')[0]
-        completedByDate.set(date, true)
+        const dateStr = formatDateInTimeZone(new Date(session.ended_at), userTimeZone)
+        completedByDate.set(dateStr, true)
       }
     })
 
-    const sortedDates = Array.from(completedByDate.keys()).sort().reverse()
-    
     let currentStreak = 0
     let longestStreak = 0
-    let tempStreak = 0
-    
-    const today = new Date().toISOString().split('T')[0]
-    let checkDate = new Date()
-    
-    // Calculate current streak
-    for (let i = 0; i < 365; i++) { // Check up to a year back
-      const dateStr = checkDate.toISOString().split('T')[0]
-      if (completedByDate.has(dateStr)) {
-        if (dateStr <= today) {
-          currentStreak++
-        }
+
+    const todayTz = formatDateInTimeZone(new Date(), userTimeZone)
+
+    // Calculate current streak (walk back by day strings)
+    let probe = todayTz
+    for (let i = 0; i < 365; i++) {
+      if (completedByDate.has(probe)) {
+        currentStreak++
+        probe = addDaysISO(probe, -1)
       } else {
         break
       }
-      checkDate.setDate(checkDate.getDate() - 1)
     }
 
-    // Calculate longest streak
-    for (const date of sortedDates) {
-      if (completedByDate.has(date)) {
+    // Calculate longest streak across all completed dates
+    const allDatesAsc = Array.from(completedByDate.keys()).sort()
+    let tempStreak = 0
+    let prevStr: string | null = null
+    for (const dateStr of allDatesAsc) {
+      if (prevStr && dateStr === addDaysISO(prevStr, 1)) {
         tempStreak++
-        longestStreak = Math.max(longestStreak, tempStreak)
       } else {
-        tempStreak = 0
+        tempStreak = 1
       }
+      if (tempStreak > longestStreak) longestStreak = tempStreak
+      prevStr = dateStr
     }
 
     return {

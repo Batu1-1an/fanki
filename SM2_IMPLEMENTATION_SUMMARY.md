@@ -125,9 +125,9 @@ reviews {
 
 ### Quality Mapping
 - **Again (1)**: Quality 0 - Complete blackout, reset progress
-- **Hard (2)**: Quality 2 - Difficult recall, reduce ease factor
-- **Good (3)**: Quality 3 - Normal recall, standard progression
-- **Easy (4)**: Quality 5 - Perfect recall, increase ease factor
+- **Hard (2)**: Quality 3 - Correct but difficult; reduces EF slightly
+- **Good (3)**: Quality 4 - Correct with minor difficulty; standard progression
+- **Easy (4)**: Quality 5 - Perfect recall; increase EF
 
 ## Usage Examples
 

@@ -190,15 +190,15 @@ export async function getUserStatistics(): Promise<{
     .select('*', { count: 'exact', head: true })
     .eq('user_id', user.id)
 
-  // Get recent study sessions for streak calculation
+  // Get recent completed study sessions for streak calculation
   const { data: sessions } = await supabase
     .from('study_sessions')
-    .select('started_at, words_correct, words_studied')
+    .select('ended_at, status, words_correct, words_studied')
     .eq('user_id', user.id)
-    .order('started_at', { ascending: false })
+    .order('ended_at', { ascending: false })
 
-  // Calculate study streak (consecutive days with study sessions)
-  const studyStreak = calculateStudyStreak(sessions || [])
+  // Calculate study streak (consecutive days with completed study sessions)
+  const studyStreak = await calculateStudyStreak(sessions || [])
 
   // Calculate average accuracy
   const totalCorrect = sessions?.reduce((sum, session) => sum + (session.words_correct || 0), 0) || 0
@@ -214,32 +214,60 @@ export async function getUserStatistics(): Promise<{
 }
 
 /**
- * Calculate study streak based on study sessions
+ * Calculate study streak based on study sessions (completed only)
  */
-function calculateStudyStreak(sessions: Array<{ started_at: string }>): number {
+async function calculateStudyStreak(sessions: Array<{ ended_at?: string; status?: string }>): Promise<number> {
   if (!sessions || sessions.length === 0) return 0
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  
-  let streak = 0
-  let currentDate = new Date(today)
-  
-  // Get unique study days
-  const studyDays = new Set(
-    sessions.map(session => {
-      const date = new Date(session.started_at)
-      date.setHours(0, 0, 0, 0)
-      return date.getTime()
-    })
-  )
-  
-  // Count consecutive days backwards from today
-  while (studyDays.has(currentDate.getTime())) {
-    streak++
-    currentDate.setDate(currentDate.getDate() - 1)
+  const supabase = createClientComponentClient()
+  const user = await getCurrentUser()
+  // Get timezone
+  let timeZone = 'UTC'
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('timezone')
+      .eq('id', user.id)
+      .single()
+    timeZone = profile?.timezone || 'UTC'
   }
-  
+
+  const formatDateInTimeZone = (date: Date, tz: string): string => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(date)
+    const y = parts.find(p => p.type === 'year')?.value || '1970'
+    const m = parts.find(p => p.type === 'month')?.value || '01'
+    const d = parts.find(p => p.type === 'day')?.value || '01'
+    return `${y}-${m}-${d}`
+  }
+  const addDaysISO = (isoDate: string, days: number): string => {
+    const d = new Date(isoDate + 'T00:00:00.000Z')
+    d.setUTCDate(d.getUTCDate() + days)
+    return d.toISOString().split('T')[0]
+  }
+
+  // Index completed session days in user's timezone
+  const completedDays = new Set(
+    sessions
+      .filter(s => s.status === 'completed' && s.ended_at)
+      .map(s => formatDateInTimeZone(new Date(s.ended_at as string), timeZone))
+  )
+
+  // Walk back from today while dates exist
+  let streak = 0
+  let probe = formatDateInTimeZone(new Date(), timeZone)
+  for (let i = 0; i < 365; i++) {
+    if (completedDays.has(probe)) {
+      streak++
+      probe = addDaysISO(probe, -1)
+    } else {
+      break
+    }
+  }
   return streak
 }
 

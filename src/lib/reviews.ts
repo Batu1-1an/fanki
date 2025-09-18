@@ -480,7 +480,8 @@ export async function getReviewStats(): Promise<{
         .order('reviewed_at', { ascending: false })
     ])
 
-    const wordsDueToday = dueWords?.length || 0
+    // Only count reviewed words that are due today (exclude brand-new/unreviewed)
+    const wordsDueToday = (dueWords || []).filter((w: any) => !!w.lastReview).length
     const retentionRate = (totalReviews || 0) > 0 ? Math.round(((correctReviews || 0) / (totalReviews || 1)) * 100) : 0
     
     // Calculate average ease factor from recent reviews
@@ -488,20 +489,44 @@ export async function getReviewStats(): Promise<{
     const averageEaseFactor = easeFactors.length > 0 ? 
       easeFactors.reduce((sum, ef) => sum + ef, 0) / easeFactors.length : 2.5
 
-    // Calculate streak efficiently using dates only
+    // Timezone-aware current streak (reviews-per-day)
+    // Fetch user timezone
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('timezone')
+      .eq('id', user.id)
+      .single()
+    const userTimeZone = profile?.timezone || 'UTC'
+
+    const formatDateInTimeZone = (date: Date, timeZone: string): string => {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(date)
+      const y = parts.find(p => p.type === 'year')?.value || '1970'
+      const m = parts.find(p => p.type === 'month')?.value || '01'
+      const d = parts.find(p => p.type === 'day')?.value || '01'
+      return `${y}-${m}-${d}`
+    }
+    const addDaysISO = (isoDate: string, days: number): string => {
+      const d = new Date(isoDate + 'T00:00:00.000Z')
+      d.setUTCDate(d.getUTCDate() + days)
+      return d.toISOString().split('T')[0]
+    }
+
     let currentStreak = 0
     if (streakData && streakData.length > 0) {
-      const reviewDates = Array.from(new Set(streakData.map(r => r.reviewed_at.split('T')[0])))
-      reviewDates.sort((a, b) => b.localeCompare(a))
-      
-      const today = new Date()
-      for (let i = 0; i < reviewDates.length; i++) {
-        const reviewDate = new Date(reviewDates[i])
-        const expectedDate = new Date(today)
-        expectedDate.setDate(today.getDate() - i)
-        
-        if (reviewDate.toDateString() === expectedDate.toDateString()) {
+      const reviewDays = new Set(
+        streakData.map(r => formatDateInTimeZone(new Date(r.reviewed_at), userTimeZone))
+      )
+      const todayTz = formatDateInTimeZone(new Date(), userTimeZone)
+      let probe = todayTz
+      for (let i = 0; i < 365; i++) {
+        if (reviewDays.has(probe)) {
           currentStreak++
+          probe = addDaysISO(probe, -1)
         } else {
           break
         }

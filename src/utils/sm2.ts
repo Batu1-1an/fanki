@@ -38,7 +38,8 @@ export function calculateSM2({
     } else if (newRepetitions === 1) {
       newInterval = 6
     } else {
-      newInterval = Math.round(interval_days * ease_factor)
+      // Use Math.ceil to avoid underscheduling due to rounding down
+      newInterval = Math.ceil(interval_days * ease_factor)
     }
     newRepetitions += 1
   } else {
@@ -55,7 +56,8 @@ export function calculateSM2({
 
   // Calculate due date
   const due_date = new Date()
-  due_date.setDate(due_date.getDate() + newInterval)
+  // Standardize to ceil to ensure at-least-this-many-days semantics
+  due_date.setDate(due_date.getDate() + Math.ceil(newInterval))
 
   return {
     ease_factor: Math.round(newEaseFactor * 100) / 100, // Round to 2 decimal places
@@ -74,10 +76,10 @@ export function buttonToQuality(button: 'again' | 'hard' | 'good' | 'easy'): num
   switch (button) {
     case 'again':
       return 0 // Complete blackout
-    case 'hard':
-      return 2 // Incorrect response; correct one remembered
-    case 'good':
-      return 3 // Correct response recalled with serious difficulty
+    case 'hard': // Hard must be a passing grade (>=3)
+      return 3 // Correct response recalled with difficulty
+    case 'good': // Good recall, but not perfect
+      return 4 // Correct response recalled with minor difficulty
     case 'easy':
       return 5 // Perfect response
     default:

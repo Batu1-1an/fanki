@@ -5,6 +5,8 @@ import { User } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { signOut } from '@/lib/auth'
 import { getWordStats } from '@/lib/words'
+import { getStudySessionStats } from '@/lib/study-sessions'
+import { getReviewStats } from '@/lib/reviews'
 import { DashboardSidebar } from './DashboardSidebar'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -49,6 +51,8 @@ export function DashboardLayout({
     byCategory: {},
     recentCount: 0
   })
+  const [streakCount, setStreakCount] = useState(0)
+  const [dueCount, setDueCount] = useState(0)
 
   useEffect(() => {
     loadStats()
@@ -56,8 +60,14 @@ export function DashboardLayout({
 
   const loadStats = async () => {
     try {
-      const wordStats = await getWordStats()
+      const [wordStats, sessionStats, reviewStats] = await Promise.all([
+        getWordStats(),
+        getStudySessionStats(),
+        getReviewStats()
+      ])
       setStats(wordStats)
+      setStreakCount(sessionStats.currentStreak || 0)
+      setDueCount(reviewStats.wordsDueToday || 0)
     } catch (error) {
       console.error('Failed to load stats:', error)
     }
@@ -96,8 +106,8 @@ export function DashboardLayout({
         <DashboardSidebar
           currentPath={currentPath}
           wordCount={stats.total}
-          dueCount={0} // TODO: Get actual due count
-          streakCount={5} // TODO: Get actual streak count
+          dueCount={dueCount}
+          streakCount={streakCount}
           isCollapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
