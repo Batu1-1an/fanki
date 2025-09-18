@@ -8,7 +8,7 @@ import { getUserWords } from './words'
 const supabase = createClientComponentClient()
 
 export type QueuePriority = 'learning' | 'overdue' | 'due_today' | 'new' | 'review_soon'
-export type StudyMode = 'mixed' | 'new_only' | 'review_only' | 'overdue_only'
+export type StudyMode = 'mixed' | 'new_only' | 'review_only' | 'overdue_only' | 'due_today_only'
 
 export interface QueuedWord extends Word {
   priority: QueuePriority
@@ -237,6 +237,8 @@ export class ReviewQueueManager {
     switch (mode) {
       case 'new_only':
         return words.filter(word => word.priority === 'new')
+      case 'due_today_only':
+        return words.filter(word => word.priority === 'due_today')
       case 'review_only':
         return words.filter(word => word.priority !== 'new')
       case 'overdue_only':
@@ -349,7 +351,8 @@ export async function generateStudySession(options: QueueOptions = {}): Promise<
 
     // --- FALLBACK LOGIC: Practice Session ---
     // If the main queue is empty, create a practice session with recent words
-    if (queue.length === 0) {
+    // Only for 'mixed' mode to avoid surprising users when they request specific filters
+    if (queue.length === 0 && (!options.studyMode || options.studyMode === 'mixed')) {
       console.log("No due cards found. Generating a practice session as a fallback.");
       
       const { data: recentWords, error: wordsError } = await getUserWords({ limit: 10 });
@@ -425,7 +428,7 @@ export async function getRecommendedStudyMode(): Promise<{
 
     if (stats.dueToday > 20) {
       return {
-        mode: 'review_only',
+        mode: 'due_today_only',
         reasoning: `${stats.dueToday} words are due today. Focus on reviews first.`,
         priority: 'medium'
       }

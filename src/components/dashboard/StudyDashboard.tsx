@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import { ReviewDashboard } from './ReviewDashboard'
 import { getUserDesks, createDesk, Desk } from '@/lib/desks'
-import { generateStudySession } from '@/lib/queue-manager'
+import { generateStudySession, getQueueManager, getRecommendedStudyMode } from '@/lib/queue-manager'
 import { getReviewStats } from '@/lib/reviews'
 import { useToast } from '@/hooks/use-toast'
 
@@ -35,6 +35,20 @@ interface DashboardStats {
   currentStreak: number
 }
 
+interface QueueStats {
+  total: number
+  overdue: number
+  dueToday: number
+  newWords: number
+  averageDifficulty: number
+}
+
+interface RecommendedMode {
+  mode: any
+  reasoning: string
+  priority: 'high' | 'medium' | 'low'
+}
+
 export function StudyDashboard({ onStartSession, className }: StudyDashboardProps) {
   const [desks, setDesks] = useState<Desk[]>([])
   const [selectedDeskId, setSelectedDeskId] = useState<string | null>(null)
@@ -47,6 +61,18 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
     averageEaseFactor: 2.5,
     currentStreak: 0
   })
+  const [queueStats, setQueueStats] = useState<QueueStats>({
+    total: 0,
+    overdue: 0,
+    dueToday: 0,
+    newWords: 0,
+    averageDifficulty: 2.5
+  })
+  const [recommendedMode, setRecommendedMode] = useState<RecommendedMode>({
+    mode: 'mixed',
+    reasoning: 'Balanced study session recommended.',
+    priority: 'low'
+  })
   const [isCreatingDesk, setIsCreatingDesk] = useState(false)
   const [newDeskName, setNewDeskName] = useState('')
   const { toast } = useToast()
@@ -58,9 +84,12 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
   const loadDesks = async () => {
     setIsLoading(true)
     try {
-      const [desksData, statsData] = await Promise.all([
+      const queueManager = getQueueManager()
+      const [desksData, statsData, queueData, recommendation] = await Promise.all([
         getUserDesks(),
-        getReviewStats()
+        getReviewStats(),
+        queueManager.generateQueue({ maxWords: 100 }),
+        getRecommendedStudyMode()
       ])
       
       if (desksData.error) {
@@ -70,6 +99,8 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
       }
       
       setDashboardStats(statsData)
+      setQueueStats(queueData.stats)
+      setRecommendedMode(recommendation)
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {
@@ -150,6 +181,8 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
           <ReviewDashboard 
             onStartSession={onStartSession} 
             stats={dashboardStats}
+            queueStats={queueStats}
+            recommendedMode={recommendedMode}
             isLoading={isLoading}
           />
         </TabsContent>
@@ -297,6 +330,8 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
                   onStartSession(words, sessionId)
                 }}
                 stats={dashboardStats}
+                queueStats={queueStats}
+                recommendedMode={recommendedMode}
                 isLoading={isLoading}
                 className="opacity-75 pointer-events-none"
               />

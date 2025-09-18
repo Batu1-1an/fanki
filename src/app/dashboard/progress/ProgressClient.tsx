@@ -7,6 +7,7 @@ import { StudyStreakTracker } from '@/components/dashboard/StudyStreakTracker'
 import { ReviewDashboard } from '@/components/dashboard/ReviewDashboard'
 import { getWordStats } from '@/lib/words'
 import { getReviewStats } from '@/lib/reviews'
+import { getQueueManager, getRecommendedStudyMode } from '@/lib/queue-manager'
 import { ArrowLeft, TrendingUp, Calendar, Target } from 'lucide-react'
 
 interface ProgressClientProps {
@@ -20,6 +21,20 @@ interface DashboardStats {
   retentionRate: number
   averageEaseFactor: number
   currentStreak: number
+}
+
+interface QueueStats {
+  total: number
+  overdue: number
+  dueToday: number
+  newWords: number
+  averageDifficulty: number
+}
+
+interface RecommendedMode {
+  mode: any
+  reasoning: string
+  priority: 'high' | 'medium' | 'low'
 }
 
 export default function ProgressClient({ user }: ProgressClientProps) {
@@ -37,16 +52,33 @@ export default function ProgressClient({ user }: ProgressClientProps) {
     averageEaseFactor: 2.5,
     currentStreak: 0
   })
+  const [queueStats, setQueueStats] = useState<QueueStats>({
+    total: 0,
+    overdue: 0,
+    dueToday: 0,
+    newWords: 0,
+    averageDifficulty: 2.5
+  })
+  const [recommendedMode, setRecommendedMode] = useState<RecommendedMode>({
+    mode: 'mixed',
+    reasoning: 'Balanced study session recommended.',
+    priority: 'low'
+  })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const loadWordStats = async () => {
-      const [wordStatsData, dashboardStatsData] = await Promise.all([
+      const queueManager = getQueueManager()
+      const [wordStatsData, dashboardStatsData, queueData, recommendation] = await Promise.all([
         getWordStats(),
-        getReviewStats()
+        getReviewStats(),
+        queueManager.generateQueue({ maxWords: 100 }),
+        getRecommendedStudyMode()
       ])
       setWordStats(wordStatsData)
       setDashboardStats(dashboardStatsData)
+      setQueueStats(queueData.stats)
+      setRecommendedMode(recommendation)
       setLoading(false)
     }
     
@@ -198,6 +230,8 @@ export default function ProgressClient({ user }: ProgressClientProps) {
                 window.location.href = `/study?session=${sessionId}`
               }}
               stats={dashboardStats}
+              queueStats={queueStats}
+              recommendedMode={recommendedMode}
               isLoading={loading}
             />
           </div>

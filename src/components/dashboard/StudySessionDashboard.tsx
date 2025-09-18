@@ -19,11 +19,10 @@ import {
 import { TodaysCards } from './TodaysCards'
 import { ReviewDashboard } from './ReviewDashboard'
 import { StudyStreakTracker } from './StudyStreakTracker'
-import { QueuedWord, generateStudySession } from '@/lib/queue-manager'
+import { QueuedWord, generateStudySession, getQueueManager, getRecommendedStudyMode } from '@/lib/queue-manager'
 import { getActiveStudySession } from '@/lib/study-sessions'
 import { StudySession } from '../flashcards/StudySession'
-import { getReviewStats } from '@/lib/reviews'
-import { getDueWords } from '@/lib/reviews'
+import { getReviewStats, getDueWords } from '@/lib/reviews'
 import { Word, Review } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -48,6 +47,20 @@ interface DashboardStats {
   currentStreak: number
 }
 
+interface QueueStats {
+  total: number
+  overdue: number
+  dueToday: number
+  newWords: number
+  averageDifficulty: number
+}
+
+interface RecommendedMode {
+  mode: any
+  reasoning: string
+  priority: 'high' | 'medium' | 'low'
+}
+
 export function StudySessionDashboard({ 
   className,
   activeSession,
@@ -67,6 +80,20 @@ export function StudySessionDashboard({
   })
   const [todaysCards, setTodaysCards] = useState<Array<Word & { lastReview?: Review }>>([])
   const [isDashboardLoading, setIsDashboardLoading] = useState(true)
+  
+  // Centralized queue state
+  const [queueStats, setQueueStats] = useState<QueueStats>({
+    total: 0,
+    overdue: 0,
+    dueToday: 0,
+    newWords: 0,
+    averageDifficulty: 2.5
+  })
+  const [recommendedMode, setRecommendedMode] = useState<RecommendedMode>({
+    mode: 'mixed',
+    reasoning: 'Balanced study session recommended.',
+    priority: 'low'
+  })
 
   useEffect(() => {
     checkForActiveSession()
@@ -89,12 +116,17 @@ export function StudySessionDashboard({
   const loadDashboardData = async () => {
     setIsDashboardLoading(true)
     try {
-      const [stats, dueWordsData] = await Promise.all([
+      const queueManager = getQueueManager()
+      const [stats, dueWordsData, queueData, recommendation] = await Promise.all([
         getReviewStats(),
-        getDueWords(100)
+        getDueWords(100),
+        queueManager.generateQueue({ maxWords: 100 }),
+        getRecommendedStudyMode()
       ])
       setDashboardStats(stats)
       setTodaysCards(dueWordsData.data || [])
+      setQueueStats(queueData.stats)
+      setRecommendedMode(recommendation)
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
     } finally {
@@ -218,8 +250,33 @@ export function StudySessionDashboard({
               <ReviewDashboard 
                 onStartSession={handleStartSession}
                 stats={dashboardStats}
+                queueStats={queueStats}
+                recommendedMode={recommendedMode}
                 isLoading={isDashboardLoading}
                 className="h-full"
+                onDeskChange={async (deskId) => {
+                  try {
+                    const queueManager = getQueueManager()
+                    const options = deskId && deskId !== 'all' ? { maxWords: 100, deskId } : { maxWords: 100 }
+                    const { stats: qs } = await queueManager.generateQueue(options)
+                    setQueueStats(qs)
+
+                    // Derive recommendation from desk-specific stats
+                    let rec: { mode: any; reasoning: string; priority: 'high' | 'medium' | 'low' }
+                    if (qs.overdue > 10) {
+                      rec = { mode: 'overdue_only', reasoning: `You have ${qs.overdue} overdue words. Focus on catching up!`, priority: 'high' }
+                    } else if (qs.dueToday > 20) {
+                      rec = { mode: 'review_only', reasoning: `${qs.dueToday} words are due today. Focus on reviews first.`, priority: 'medium' }
+                    } else if (qs.newWords < 5) {
+                      rec = { mode: 'mixed', reasoning: 'Good balance of new and review words. Keep up the momentum!', priority: 'low' }
+                    } else {
+                      rec = { mode: 'mixed', reasoning: 'Balanced study session recommended.', priority: 'low' }
+                    }
+                    setRecommendedMode(rec)
+                  } catch (e) {
+                    console.error('Failed to refresh queue for desk', e)
+                  }
+                }}
               />
             </div>
           </div>
@@ -312,6 +369,8 @@ export function StudySessionDashboard({
           <ReviewDashboard 
             onStartSession={handleStartSession}
             stats={dashboardStats}
+            queueStats={queueStats}
+            recommendedMode={recommendedMode}
             isLoading={isDashboardLoading}
             className="w-full"
           />

@@ -319,9 +319,10 @@ export async function getDueWords(limit: number = 20): Promise<{
     }
 
     const today = new Date().toISOString().split('T')[0]
+    const endOfToday = new Date(`${today}T23:59:59.999Z`)
 
-    // Get words with reviews due today or earlier
-    const { data: dueReviews, error: reviewError } = await supabase
+    // Fetch latest reviews for each word (no due_date filter here)
+    const { data: allReviews, error: reviewError } = await supabase
       .from('reviews')
       .select(`
         word_id,
@@ -333,21 +334,25 @@ export async function getDueWords(limit: number = 20): Promise<{
         reviewed_at
       `)
       .eq('user_id', user.id)
-      .lte('due_date', `${today}T23:59:59.999Z`)
-      .order('due_date', { ascending: true })
+      .order('reviewed_at', { ascending: false })
 
     if (reviewError) {
       return { data: null, error: reviewError }
     }
 
-    // Get latest review for each word (to avoid duplicates)
+    // Pick the latest review per word
     const latestReviews = new Map<string, Review>()
-    dueReviews?.forEach(review => {
-      const existing = latestReviews.get(review.word_id)
-      if (!existing || new Date(review.reviewed_at) > new Date(existing.reviewed_at)) {
+    ;(allReviews || []).forEach(review => {
+      if (!latestReviews.has(review.word_id)) {
         latestReviews.set(review.word_id, review as Review)
       }
     })
+
+    // Words that are due based on their latest review
+    const dueReviewedWordIds = Array.from(latestReviews.values())
+      .filter(r => new Date(r.due_date) <= endOfToday)
+      .map(r => r.word_id)
+      .slice(0, limit)
 
     // Get words that have never been reviewed
     let unreviewedQuery = supabase
@@ -355,7 +360,6 @@ export async function getDueWords(limit: number = 20): Promise<{
       .select('*')
       .eq('user_id', user.id)
 
-    // Only exclude reviewed words if there are any
     if (latestReviews.size > 0) {
       const reviewedWordIds = Array.from(latestReviews.keys())
       unreviewedQuery = unreviewedQuery.not('id', 'in', `(${reviewedWordIds.join(',')})`)
@@ -367,13 +371,12 @@ export async function getDueWords(limit: number = 20): Promise<{
       return { data: null, error: unreviewedError }
     }
 
-    // Get word details for reviewed words
-    const reviewedWordIds = Array.from(latestReviews.keys()).slice(0, limit)
-    const { data: reviewedWords, error: wordsError } = reviewedWordIds.length > 0 ? 
+    // Get word details for due reviewed words
+    const { data: reviewedWords, error: wordsError } = dueReviewedWordIds.length > 0 ? 
       await supabase
         .from('words')
         .select('*')
-        .in('id', reviewedWordIds) : 
+        .in('id', dueReviewedWordIds) : 
       { data: [], error: null }
 
     if (wordsError) {
@@ -382,7 +385,7 @@ export async function getDueWords(limit: number = 20): Promise<{
 
     // Combine and format results
     const results = [
-      // Add reviewed words with their last review data
+      // Add due reviewed words with their last review data
       ...(reviewedWords || []).map(word => ({
         ...word,
         lastReview: latestReviews.get(word.id)

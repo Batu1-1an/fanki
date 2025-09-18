@@ -28,8 +28,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 interface ReviewDashboardProps {
   onStartSession: (words: any[], sessionId: string) => void
   stats: DashboardStats
+  queueStats: QueueStats
+  recommendedMode: RecommendedMode
   isLoading: boolean
   className?: string
+  onDeskChange?: (deskId: string) => void
 }
 
 interface DashboardStats {
@@ -49,38 +52,32 @@ interface QueueStats {
   averageDifficulty: number
 }
 
-export function ReviewDashboard({ onStartSession, stats, isLoading, className }: ReviewDashboardProps) {
-  const [queueStats, setQueueStats] = useState<QueueStats>({
-    total: 0,
-    overdue: 0,
-    dueToday: 0,
-    newWords: 0,
-    averageDifficulty: 2.5
-  })
-  const [recommendedMode, setRecommendedMode] = useState<{
-    mode: any
-    reasoning: string
-    priority: 'high' | 'medium' | 'low'
-  }>({
-    mode: 'mixed',
-    reasoning: 'Balanced study session recommended.',
-    priority: 'low'
-  })
+interface RecommendedMode {
+  mode: any
+  reasoning: string
+  priority: 'high' | 'medium' | 'low'
+}
+
+export function ReviewDashboard({ 
+  onStartSession, 
+  stats,
+  queueStats,
+  recommendedMode,
+  isLoading, 
+  className,
+  onDeskChange
+}: ReviewDashboardProps) {
   const [desks, setDesks] = useState<Desk[]>([])
   const [selectedDeskId, setSelectedDeskId] = useState<string>('all')
   const [isStartingSession, setIsStartingSession] = useState(false)
-  const [queueIsLoading, setQueueIsLoading] = useState(true)
 
   useEffect(() => {
     loadDesks()
-    loadQueueStats()
   }, [])
 
   useEffect(() => {
-    // Reload queue stats when desk selection changes
-    if (!queueIsLoading) {
-      loadQueueStats()
-    }
+    // This component no longer fetches queue stats, but we might 
+    // want to perform actions when the selected desk changes in the future.
   }, [selectedDeskId])
 
   const loadDesks = async () => {
@@ -93,26 +90,6 @@ export function ReviewDashboard({ onStartSession, stats, isLoading, className }:
       console.error('Failed to load desks:', error)
     }
   }
-
-  const loadQueueStats = async () => {
-    setQueueIsLoading(true)
-    try {
-      const queueManager = getQueueManager()
-      const options = (selectedDeskId && selectedDeskId !== 'all') ? { maxWords: 100, deskId: selectedDeskId } : { maxWords: 100 }
-      const { stats: queueData } = await queueManager.generateQueue(options)
-      setQueueStats(queueData)
-
-      // Load recommended study mode for selected desk
-      const recommendation = await getRecommendedStudyMode()
-      setRecommendedMode(recommendation)
-    } catch (error) {
-      console.error('Failed to load queue stats:', error)
-    } finally {
-      setQueueIsLoading(false)
-    }
-  }
-
-  // Removed loadDashboardData - now handled by parent component
 
   const handleStartSession = async (mode: any = recommendedMode.mode, maxWords: number = 20) => {
     setIsStartingSession(true)
@@ -247,7 +224,7 @@ export function ReviewDashboard({ onStartSession, stats, isLoading, className }:
           <div className="space-y-4">
             <div>
               <label className="text-sm font-medium mb-2 block">Choose a deck to study:</label>
-              <Select value={selectedDeskId} onValueChange={setSelectedDeskId}>
+              <Select value={selectedDeskId} onValueChange={(v) => { setSelectedDeskId(v); onDeskChange?.(v) }}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="All decks (default)" />
                 </SelectTrigger>
@@ -255,7 +232,7 @@ export function ReviewDashboard({ onStartSession, stats, isLoading, className }:
                   <SelectItem value="all">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-gray-400" />
-                      All Decks
+                      All Desks
                     </div>
                   </SelectItem>
                   {desks.map(desk => (
@@ -275,7 +252,7 @@ export function ReviewDashboard({ onStartSession, stats, isLoading, className }:
                 <div className="flex items-center gap-2 mb-1">
                   <div 
                     className="w-3 h-3 rounded-full" 
-                    style={{ backgroundColor: getSelectedDeskInfo()!.color }} 
+                    style={{ backgroundColor: getSelectedDeskInfo()!.color || '#808080' }} 
                   />
                   <span className="font-medium">{getSelectedDeskInfo()!.name}</span>
                 </div>
@@ -294,7 +271,7 @@ export function ReviewDashboard({ onStartSession, stats, isLoading, className }:
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Award className="w-5 h-5" />
-              Study Recommendation {selectedDeskId && `(${getSelectedDeskInfo()?.name})`}
+              Study Recommendation
             </CardTitle>
             <Badge variant="outline" className={getPriorityColor(recommendedMode.priority)}>
               {recommendedMode.priority} priority
@@ -303,10 +280,7 @@ export function ReviewDashboard({ onStartSession, stats, isLoading, className }:
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground mb-4">
-            {selectedDeskId 
-              ? `${recommendedMode.reasoning} - Studying from "${getSelectedDeskInfo()?.name}" deck.`
-              : recommendedMode.reasoning
-            }
+            {recommendedMode.reasoning}
           </p>
           <div className="flex gap-3">
             <Button
@@ -373,17 +347,17 @@ export function ReviewDashboard({ onStartSession, stats, isLoading, className }:
                   variant={queueStats.overdue > 0 ? "destructive" : "outline"}
                   className="w-full justify-between"
                 >
-                  <span>Focus on Overdue Cards {selectedDeskId && `(${getSelectedDeskInfo()?.name})`}</span>
+                  <span>Focus on Overdue Cards</span>
                   <Badge variant="secondary">{queueStats.overdue}</Badge>
                 </Button>
 
                 <Button
-                  onClick={() => handleStartSession('review_only')}
+                  onClick={() => handleStartSession('due_today_only')}
                   disabled={queueStats.dueToday === 0 || isStartingSession}
                   variant="outline"
                   className="w-full justify-between"
                 >
-                  <span>Review Due Cards {selectedDeskId && `(${getSelectedDeskInfo()?.name})`}</span>
+                  <span>Review Due Cards</span>
                   <Badge variant="secondary">{queueStats.dueToday}</Badge>
                 </Button>
 
@@ -393,7 +367,7 @@ export function ReviewDashboard({ onStartSession, stats, isLoading, className }:
                   variant="outline"
                   className="w-full justify-between"
                 >
-                  <span>Learn New Words {selectedDeskId && `(${getSelectedDeskInfo()?.name})`}</span>
+                  <span>Learn New Words</span>
                   <Badge variant="secondary">{queueStats.newWords}</Badge>
                 </Button>
               </div>
