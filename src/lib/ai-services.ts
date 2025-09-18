@@ -53,12 +53,12 @@ export class AIService {
     } catch (error) {
       console.error('AI Service - generateSentences error:', error)
       
-      // Fallback sentences if API fails
+      // Fallback sentences if API fails (keep blanks for active recall)
       const fallbackSentences = [
-        `The situation was quite ____ for everyone involved.`,
-        `I found the book to be very ____ and engaging.`,
-        `Her performance was absolutely ____ last night.`
-      ].map(sentence => sentence.replace('____', word))
+        `The situation was quite ___ for everyone involved.`,
+        `I found the book to be very ___ and engaging.`,
+        `Her performance was absolutely ___ last night.`
+      ]
 
       return {
         sentences: fallbackSentences,

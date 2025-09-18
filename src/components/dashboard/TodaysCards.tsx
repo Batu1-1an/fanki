@@ -29,6 +29,8 @@ import { formatInterval } from '@/utils/sm2'
 
 interface TodaysCardsProps {
   onStartSession: (words: QueuedWord[], sessionId: string) => void
+  cards: Array<Word & { lastReview?: Review }>
+  isLoading: boolean
   className?: string
 }
 
@@ -38,8 +40,7 @@ interface GroupedCards {
   newWords: Array<Word & { lastReview?: Review }>
 }
 
-export function TodaysCards({ onStartSession, className }: TodaysCardsProps) {
-  const [cards, setCards] = useState<Array<Word & { lastReview?: Review }>>([])
+export function TodaysCards({ onStartSession, cards, isLoading, className }: TodaysCardsProps) {
   const [groupedCards, setGroupedCards] = useState<GroupedCards>({
     overdue: [],
     dueToday: [],
@@ -47,35 +48,17 @@ export function TodaysCards({ onStartSession, className }: TodaysCardsProps) {
   })
   const [searchTerm, setSearchTerm] = useState('')
   const [difficultyFilter, setDifficultyFilter] = useState<string>('all')
-  const [isLoading, setIsLoading] = useState(true)
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set())
 
+  // Update grouped cards when cards prop changes
   useEffect(() => {
-    loadTodaysCards()
-  }, [])
-
-  const loadTodaysCards = async () => {
-    setIsLoading(true)
-    try {
-      const { data: dueWords, error } = await getDueWords(50)
-      
-      if (error) {
-        console.error('Failed to load due words:', error)
-        return
-      }
-
-      const allCards = dueWords || []
-      setCards(allCards)
-
-      // Group cards by priority
-      const grouped = groupCardsByPriority(allCards)
+    if (cards) {
+      const grouped = groupCardsByPriority(cards)
       setGroupedCards(grouped)
-    } catch (error) {
-      console.error('Error loading today\'s cards:', error)
-    } finally {
-      setIsLoading(false)
     }
-  }
+  }, [cards])
+
+  // Removed loadTodaysCards - now handled by parent component
 
   const groupCardsByPriority = (cards: Array<Word & { lastReview?: Review }>): GroupedCards => {
     const today = new Date()

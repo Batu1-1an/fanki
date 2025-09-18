@@ -6,10 +6,20 @@ import { Button } from '@/components/ui/button'
 import { StudyStreakTracker } from '@/components/dashboard/StudyStreakTracker'
 import { ReviewDashboard } from '@/components/dashboard/ReviewDashboard'
 import { getWordStats } from '@/lib/words'
+import { getReviewStats } from '@/lib/reviews'
 import { ArrowLeft, TrendingUp, Calendar, Target } from 'lucide-react'
 
 interface ProgressClientProps {
   user: User
+}
+
+interface DashboardStats {
+  totalReviews: number
+  todaysReviews: number
+  wordsDueToday: number
+  retentionRate: number
+  averageEaseFactor: number
+  currentStreak: number
 }
 
 export default function ProgressClient({ user }: ProgressClientProps) {
@@ -19,12 +29,24 @@ export default function ProgressClient({ user }: ProgressClientProps) {
     byCategory: {} as Record<string, number>,
     recentCount: 0
   })
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    totalReviews: 0,
+    todaysReviews: 0,
+    wordsDueToday: 0,
+    retentionRate: 0,
+    averageEaseFactor: 2.5,
+    currentStreak: 0
+  })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const loadWordStats = async () => {
-      const stats = await getWordStats()
-      setWordStats(stats)
+      const [wordStatsData, dashboardStatsData] = await Promise.all([
+        getWordStats(),
+        getReviewStats()
+      ])
+      setWordStats(wordStatsData)
+      setDashboardStats(dashboardStatsData)
       setLoading(false)
     }
     
@@ -175,6 +197,8 @@ export default function ProgressClient({ user }: ProgressClientProps) {
                 // Navigate to study session
                 window.location.href = `/study?session=${sessionId}`
               }}
+              stats={dashboardStats}
+              isLoading={loading}
             />
           </div>
 

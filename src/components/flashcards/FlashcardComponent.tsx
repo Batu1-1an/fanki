@@ -102,6 +102,14 @@ export function FlashcardComponent({
     setIsLoadingAudio(false)
   }, [word.id])
 
+  const handleFlip = useCallback(() => {
+    setState(prev => ({
+      ...prev,
+      isFlipped: !prev.isFlipped,
+      responseTime: Date.now() - startTime
+    }))
+  }, [startTime])
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -110,7 +118,10 @@ export function FlashcardComponent({
       switch (e.key) {
         case ' ':
           e.preventDefault()
-          handleFlip()
+          // In new flow, Space shows answer (flips from front to back)
+          if (!state.isFlipped) {
+            handleFlip()
+          }
           break
         case 'ArrowLeft':
           e.preventDefault()
@@ -134,15 +145,14 @@ export function FlashcardComponent({
 
     document.addEventListener('keydown', handleKeyPress)
     return () => document.removeEventListener('keydown', handleKeyPress)
-  }, [state.isFlipped, onNext, onPrevious])
+  }, [state.isFlipped, onNext, onPrevious, handleFlip])
 
-  const handleFlip = useCallback(() => {
-    setState(prev => ({
-      ...prev,
-      isFlipped: !prev.isFlipped,
-      responseTime: Date.now() - startTime
-    }))
-  }, [startTime])
+  const handleShowAnswer = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!state.isFlipped) {
+      handleFlip()
+    }
+  }, [state.isFlipped, handleFlip])
 
   const handleClozeAnswer = useCallback((answer: FlashcardAnswer) => {
     setState(prev => ({
@@ -152,13 +162,11 @@ export function FlashcardComponent({
       responseTime: answer.responseTimeMs
     }))
 
-    // Auto-flip after showing feedback
+    // Auto-flip immediately after answer submission (new active recall flow)
     setTimeout(() => {
-      if (autoFlip) {
-        setState(prev => ({ ...prev, isFlipped: true }))
-      }
-    }, 1500)
-  }, [autoFlip])
+      setState(prev => ({ ...prev, isFlipped: true }))
+    }, 800)
+  }, [])
 
   const handleReview = useCallback((quality: ReviewQuality) => {
     onReview({
@@ -262,33 +270,27 @@ export function FlashcardComponent({
       {/* Main flashcard */}
       <div 
         ref={cardRef}
-        className="relative h-[500px] sm:h-[480px] md:h-[520px] lg:h-[580px] cursor-pointer perspective-1000"
-        onClick={!state.isFlipped ? handleFlip : undefined}
+        className="relative h-[500px] sm:h-[480px] md:h-[520px] lg:h-[580px] perspective-1000"
         role="button"
-        aria-label={`Flashcard for word ${currentWord.word}. ${state.isFlipped ? 'Back side showing exercises' : 'Front side showing word definition'}`}
+        aria-label={`Flashcard for word ${currentWord.word}. ${state.isFlipped ? 'Back side showing word and definition' : 'Front side showing practice exercises'}`}
         tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === ' ' || e.key === 'Enter') {
-            e.preventDefault()
-            if (!state.isFlipped) handleFlip()
-          }
-        }}
       >
         <motion.div
           className="relative w-full h-full preserve-3d"
           animate={{ rotateY: state.isFlipped ? 180 : 0 }}
           transition={{ duration: 0.6, ease: "easeInOut" }}
         >
-          {/* Front of card */}
+          {/* Front of card - Now shows cloze test exercises */}
           <Card 
-            className="absolute inset-0 backface-hidden border-2 border-border/50 hover:border-primary/20 transition-colors"
-            role="img"
-            aria-label={`Word: ${currentWord.word}. Definition: ${currentWord.definition}`}
+            className="absolute inset-0 backface-hidden border-2 border-primary/20"
+            role="main"
+            aria-label="Flashcard exercises - fill in the blanks to practice active recall"
           >
-            <CardContent className="p-4 sm:p-6 md:p-8 h-full flex flex-col justify-between">
-              {/* Word and metadata */}
-              <div className="text-center space-y-4">
-                <div className="flex items-center justify-center gap-2 mb-4">
+            <CardContent className="p-4 sm:p-6 md:p-8 h-full flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <h3 className="text-lg sm:text-xl md:text-2xl font-semibold truncate">Practice</h3>
                   <Badge 
                     variant="secondary"
                     className={DIFFICULTY_LEVELS[currentWord.difficulty as keyof typeof DIFFICULTY_LEVELS]?.color}
@@ -299,64 +301,89 @@ export function FlashcardComponent({
                     <Badge variant="outline">{currentWord.category}</Badge>
                   )}
                 </div>
-                
-                <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-6xl font-bold text-foreground mb-2 break-words">
-                  {currentWord.word}
-                </h2>
-                
-                {currentWord.pronunciation && (
-                  <p className="text-sm sm:text-base md:text-lg text-muted-foreground font-mono">
-                    /{currentWord.pronunciation}/
-                  </p>
-                )}
-
-                {currentWord.definition && (
-                  <p className="text-sm sm:text-base md:text-lg lg:text-xl text-muted-foreground max-w-sm sm:max-w-md mx-auto leading-relaxed px-2">
-                    {currentWord.definition}
-                  </p>
-                )}
-              </div>
-
-              {/* Dynamic Image display */}
-              <div className="flex-1 my-4 sm:my-6">
-                {isGeneratingContent ? (
-                  <div className="h-48 sm:h-56 md:h-64 bg-muted rounded-lg flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                  </div>
-                ) : imageUrl ? (
-                  <FlashcardImage 
-                    imageUrl={imageUrl}
-                    alt={`Visual representation of ${word.word}`}
-                    className="h-full w-full max-h-48 sm:max-h-56 md:max-h-64"
-                  />
-                ) : (
-                  <div className="h-48 sm:h-56 md:h-64 bg-muted rounded-lg flex items-center justify-center">
-                    <p className="text-muted-foreground text-sm">No image available</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Front controls */}
-              <div className="flex items-center justify-center">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <Clock className="w-4 h-4" />
-                  Tap to flip
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleShowAnswer}
+                  className="gap-1 sm:gap-2 text-xs sm:text-sm"
+                  title="Reveal the answer without guessing"
+                >
+                  <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
+                  <span className="hidden sm:inline">Show Answer</span>
+                  <span className="sm:hidden">Show</span>
                 </Button>
+              </div>
+
+              {/* Cloze test sentences - with dynamic loading states */}
+              <div className="flex-1 space-y-4 sm:space-y-4 md:space-y-6 overflow-y-auto">
+                {isGeneratingContent ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                    </div>
+                    <p className="text-center text-muted-foreground">
+                      Generating fresh content for practice...
+                    </p>
+                  </div>
+                ) : contentGenerationError ? (
+                  <div className="space-y-4">
+                    <div className="text-center py-8">
+                      <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <X className="w-8 h-8 text-red-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-red-800 mb-2">
+                        Generation Failed
+                      </h3>
+                      <p className="text-red-600 mb-4">{contentGenerationError}</p>
+                      {onRegenerateContent && (
+                        <Button onClick={onRegenerateContent} variant="outline" size="sm">
+                          Try Again
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ) : sentences && sentences.length > 0 ? (
+                  <>
+                    <div className="text-center mb-6">
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Fill in the blanks with the correct word:
+                      </p>
+                    </div>
+                    {sentences.map((sentence, index) => (
+                      <ClozeTest
+                        key={index}
+                        sentence={sentence}
+                        onAnswer={handleClozeAnswer}
+                        isRevealed={state.showFeedback}
+                      />
+                    ))}
+                  </>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No sentences available
+                  </div>
+                )}
+              </div>
+
+              {/* Instructions */}
+              <div className="mt-4 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Think about the context, then type your answer and press Enter
+                </p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Back of card */}
+          {/* Back of card - Now shows word, definition, image, and review buttons */}
           <Card 
-            className="absolute inset-0 backface-hidden rotate-y-180 border-2 border-primary/20"
-            role="main"
-            aria-label="Flashcard exercises - fill in the blanks and rate difficulty"
+            className="absolute inset-0 backface-hidden rotate-y-180 border-2 border-border/50 hover:border-primary/20 transition-colors"
+            role="img"
+            aria-label={`Answer revealed - Word: ${currentWord.word}. Definition: ${currentWord.definition}`}
           >
             <CardContent className="p-4 sm:p-6 md:p-8 h-full flex flex-col">
-              {/* Header */}
+              {/* Header with controls */}
               <div className="flex items-center justify-between mb-4 sm:mb-6">
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <h3 className="text-lg sm:text-xl md:text-2xl font-semibold truncate">{currentWord.word}</h3>
                   <Button
                     variant="outline"
                     size="sm"
@@ -406,90 +433,94 @@ export function FlashcardComponent({
                 </div>
               </div>
 
-              {/* Cloze test sentences - with dynamic loading states */}
-              <div className="flex-1 space-y-4 sm:space-y-4 md:space-y-6 overflow-y-auto">
-                {isGeneratingContent ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-center py-8">
+              {/* Answer content */}
+              <div className="flex-1 flex flex-col justify-center items-center space-y-6">
+                {/* Word and metadata */}
+                <div className="text-center space-y-4">
+                  <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-6xl font-bold text-foreground break-words">
+                    {currentWord.word}
+                  </h2>
+                  
+                  {currentWord.pronunciation && (
+                    <p className="text-sm sm:text-base md:text-lg text-muted-foreground font-mono">
+                      /{currentWord.pronunciation}/
+                    </p>
+                  )}
+
+                  {currentWord.definition && (
+                    <p className="text-sm sm:text-base md:text-lg lg:text-xl text-muted-foreground max-w-sm sm:max-w-md mx-auto leading-relaxed px-2">
+                      {currentWord.definition}
+                    </p>
+                  )}
+                </div>
+
+                {/* Dynamic Image display */}
+                <div className="w-full max-w-md">
+                  {isGeneratingContent ? (
+                    <div className="h-32 sm:h-40 md:h-48 bg-muted rounded-lg flex items-center justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
                     </div>
-                    <p className="text-center text-muted-foreground">
-                      Generating fresh content for "{word.word}"...
-                    </p>
-                  </div>
-                ) : contentGenerationError ? (
-                  <div className="space-y-4">
-                    <div className="text-center py-8">
-                      <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <X className="w-8 h-8 text-red-600" />
-                      </div>
-                      <h3 className="text-lg font-semibold text-red-800 mb-2">
-                        Generation Failed
-                      </h3>
-                      <p className="text-red-600 mb-4">{contentGenerationError}</p>
-                      {onRegenerateContent && (
-                        <Button onClick={onRegenerateContent} variant="outline" size="sm">
-                          Try Again
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ) : sentences && sentences.length > 0 ? (
-                  sentences.map((sentence, index) => (
-                    <ClozeTest
-                      key={index}
-                      sentence={sentence}
-                      onAnswer={handleClozeAnswer}
-                      isRevealed={state.showFeedback}
+                  ) : imageUrl ? (
+                    <FlashcardImage 
+                      imageUrl={imageUrl}
+                      alt={`Visual representation of ${currentWord.word}`}
+                      className="h-32 sm:h-40 md:h-48 w-full"
                     />
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No sentences available
-                  </div>
-                )}
+                  ) : (
+                    <div className="h-32 sm:h-40 md:h-48 bg-muted rounded-lg flex items-center justify-center">
+                      <p className="text-muted-foreground text-sm">No image available</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Review buttons */}
-              <div className="grid grid-cols-4 gap-1 sm:gap-2 mt-4 sm:mt-6">
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => handleReview(1)}
-                  className="gap-1 text-xs sm:text-sm px-2 sm:px-3"
-                >
-                  <X className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span className="hidden xs:inline">Again </span>
-                  <span>(1)</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleReview(2)}
-                  className="text-xs sm:text-sm px-2 sm:px-3"
-                >
-                  <span className="hidden xs:inline">Hard </span>
-                  <span>(2)</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleReview(3)}
-                  className="text-xs sm:text-sm px-2 sm:px-3"
-                >
-                  <span className="hidden xs:inline">Good </span>
-                  <span>(3)</span>
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => handleReview(4)}
-                  className="gap-1 text-xs sm:text-sm px-2 sm:px-3"
-                >
-                  <Check className="w-3 h-3 sm:w-4 sm:h-4" />
-                  <span className="hidden xs:inline">Easy </span>
-                  <span>(4)</span>
-                </Button>
+              <div className="space-y-3">
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">
+                    How well did you recall this word?
+                  </p>
+                </div>
+                <div className="grid grid-cols-4 gap-1 sm:gap-2">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleReview(1)}
+                    className="gap-1 text-xs sm:text-sm px-2 sm:px-3"
+                  >
+                    <X className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden xs:inline">Again </span>
+                    <span>(1)</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleReview(2)}
+                    className="text-xs sm:text-sm px-2 sm:px-3"
+                  >
+                    <span className="hidden xs:inline">Hard </span>
+                    <span>(2)</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleReview(3)}
+                    className="text-xs sm:text-sm px-2 sm:px-3"
+                  >
+                    <span className="hidden xs:inline">Good </span>
+                    <span>(3)</span>
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => handleReview(4)}
+                    className="gap-1 text-xs sm:text-sm px-2 sm:px-3"
+                  >
+                    <Check className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <span className="hidden xs:inline">Easy </span>
+                    <span>(4)</span>
+                  </Button>
+                </div>
               </div>
 
             </CardContent>
@@ -510,8 +541,8 @@ export function FlashcardComponent({
       {/* Keyboard shortcuts help */}
       <div className="mt-4 text-center text-sm text-muted-foreground">
         <p>
-          <kbd className="px-2 py-1 bg-muted rounded text-xs">Space</kbd> to flip • 
-          <kbd className="px-2 py-1 bg-muted rounded text-xs ml-2">←→</kbd> navigate • 
+          <kbd className="px-2 py-1 bg-muted rounded text-xs">Enter</kbd> submit answer • 
+          <kbd className="px-2 py-1 bg-muted rounded text-xs ml-2">Space</kbd> show answer • 
           <kbd className="px-2 py-1 bg-muted rounded text-xs ml-2">1-4</kbd> rate difficulty
         </p>
       </div>

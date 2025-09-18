@@ -18,6 +18,7 @@ import {
 import { ReviewDashboard } from './ReviewDashboard'
 import { getUserDesks, createDesk, Desk } from '@/lib/desks'
 import { generateStudySession } from '@/lib/queue-manager'
+import { getReviewStats } from '@/lib/reviews'
 import { useToast } from '@/hooks/use-toast'
 
 interface StudyDashboardProps {
@@ -25,10 +26,27 @@ interface StudyDashboardProps {
   className?: string
 }
 
+interface DashboardStats {
+  totalReviews: number
+  todaysReviews: number
+  wordsDueToday: number
+  retentionRate: number
+  averageEaseFactor: number
+  currentStreak: number
+}
+
 export function StudyDashboard({ onStartSession, className }: StudyDashboardProps) {
   const [desks, setDesks] = useState<Desk[]>([])
   const [selectedDeskId, setSelectedDeskId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    totalReviews: 0,
+    todaysReviews: 0,
+    wordsDueToday: 0,
+    retentionRate: 0,
+    averageEaseFactor: 2.5,
+    currentStreak: 0
+  })
   const [isCreatingDesk, setIsCreatingDesk] = useState(false)
   const [newDeskName, setNewDeskName] = useState('')
   const { toast } = useToast()
@@ -40,14 +58,20 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
   const loadDesks = async () => {
     setIsLoading(true)
     try {
-      const { data, error } = await getUserDesks()
-      if (error) {
-        console.error('Failed to load desks:', error)
+      const [desksData, statsData] = await Promise.all([
+        getUserDesks(),
+        getReviewStats()
+      ])
+      
+      if (desksData.error) {
+        console.error('Failed to load desks:', desksData.error)
       } else {
-        setDesks(data || [])
+        setDesks(desksData.data || [])
       }
+      
+      setDashboardStats(statsData)
     } catch (error) {
-      console.error('Failed to load desks:', error)
+      console.error('Failed to load data:', error)
     } finally {
       setIsLoading(false)
     }
@@ -123,7 +147,11 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <ReviewDashboard onStartSession={onStartSession} />
+          <ReviewDashboard 
+            onStartSession={onStartSession} 
+            stats={dashboardStats}
+            isLoading={isLoading}
+          />
         </TabsContent>
 
         <TabsContent value="desks" className="space-y-6">
@@ -268,6 +296,8 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
                   // Pass desk filter to the session
                   onStartSession(words, sessionId)
                 }}
+                stats={dashboardStats}
+                isLoading={isLoading}
                 className="opacity-75 pointer-events-none"
               />
               <div className="text-center">

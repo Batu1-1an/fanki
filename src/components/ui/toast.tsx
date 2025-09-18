@@ -25,7 +25,8 @@ const toastVariants = cva(
   }
 )
 
-interface ToastProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof toastVariants> {
+interface ToastProps extends VariantProps<typeof toastVariants> {
+  className?: string
   title?: React.ReactNode
   description?: React.ReactNode
   action?: React.ReactNode

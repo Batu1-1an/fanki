@@ -101,7 +101,7 @@ export default function AddFromImageModal({ isOpen, onClose, onWordsAdded, selec
     // Create a fake input event to reuse the file validation logic
     const fakeEvent = {
       target: { files: [file] }
-    } as React.ChangeEvent<HTMLInputElement>
+    } as unknown as React.ChangeEvent<HTMLInputElement>
     handleFileSelect(fakeEvent)
   }, [handleFileSelect])
 
@@ -185,7 +185,7 @@ export default function AddFromImageModal({ isOpen, onClose, onWordsAdded, selec
       let targetDeskId = selectedDeskId
       if (!targetDeskId) {
         const defaultDesk = await getDefaultDesk()
-        targetDeskId = defaultDesk?.id || null
+        targetDeskId = defaultDesk?.data?.id || null
       }
 
       for (let i = 0; i < selectedWordsList.length; i++) {

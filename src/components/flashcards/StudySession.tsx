@@ -182,7 +182,22 @@ export function StudySession({
         aiService.generateImage(currentWord.word, user.id)
       ])
       
-      setCurrentSentences(sentenceResult.sentences as FlashcardSentence[])
+      // Transform sentences to FlashcardSentence objects
+      console.log('Raw sentence data:', sentenceResult.sentences)
+      const transformedSentences: FlashcardSentence[] = sentenceResult.sentences.map((sentence: any) => {
+        // Handle both string and object sentence formats
+        const sentenceText = typeof sentence === 'string' ? sentence : sentence.sentence || sentence.text || ''
+        const blankMarker = '___'
+        
+        console.log('Processing sentence:', sentence, 'as text:', sentenceText)
+        
+        return {
+          sentence: sentenceText,
+          blank_position: sentenceText.indexOf(blankMarker) >= 0 ? sentenceText.indexOf(blankMarker) : 0,
+          correct_word: currentWord.word
+        }
+      })
+      setCurrentSentences(transformedSentences)
       setCurrentImageUrl(imageResult.imageUrl)
       setCurrentImageDescription(imageResult.description || null)
     } catch (error) {

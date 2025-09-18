@@ -22,6 +22,9 @@ import { StudyStreakTracker } from './StudyStreakTracker'
 import { QueuedWord, generateStudySession } from '@/lib/queue-manager'
 import { getActiveStudySession } from '@/lib/study-sessions'
 import { StudySession } from '../flashcards/StudySession'
+import { getReviewStats } from '@/lib/reviews'
+import { getDueWords } from '@/lib/reviews'
+import { Word, Review } from '@/types'
 import { cn } from '@/lib/utils'
 
 interface StudySessionDashboardProps {
@@ -36,6 +39,15 @@ interface StudySessionDashboardProps {
   } | null) => void
 }
 
+interface DashboardStats {
+  totalReviews: number
+  todaysReviews: number
+  wordsDueToday: number
+  retentionRate: number
+  averageEaseFactor: number
+  currentStreak: number
+}
+
 export function StudySessionDashboard({ 
   className,
   activeSession,
@@ -43,9 +55,22 @@ export function StudySessionDashboard({
 }: StudySessionDashboardProps) {
   const [hasActiveDbSession, setHasActiveDbSession] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  
+  // Centralized dashboard state
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>({
+    totalReviews: 0,
+    todaysReviews: 0,
+    wordsDueToday: 0,
+    retentionRate: 0,
+    averageEaseFactor: 2.5,
+    currentStreak: 0
+  })
+  const [todaysCards, setTodaysCards] = useState<Array<Word & { lastReview?: Review }>>([])
+  const [isDashboardLoading, setIsDashboardLoading] = useState(true)
 
   useEffect(() => {
     checkForActiveSession()
+    loadDashboardData()
   }, [])
 
   const checkForActiveSession = async () => {
@@ -60,6 +85,23 @@ export function StudySessionDashboard({
     }
   }
 
+  // Unified dashboard data loading function
+  const loadDashboardData = async () => {
+    setIsDashboardLoading(true)
+    try {
+      const [stats, dueWordsData] = await Promise.all([
+        getReviewStats(),
+        getDueWords(100)
+      ])
+      setDashboardStats(stats)
+      setTodaysCards(dueWordsData.data || [])
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error)
+    } finally {
+      setIsDashboardLoading(false)
+    }
+  }
+
   const handleStartSession = (words: QueuedWord[], sessionId: string) => {
     onActiveSessionChange?.({ words, sessionId })
   }
@@ -68,13 +110,15 @@ export function StudySessionDashboard({
     console.log('Session completed:', sessionData)
     onActiveSessionChange?.(null)
     setHasActiveDbSession(false)
-    // Refresh dashboard data by re-checking for active session
+    // Refresh dashboard data by re-checking for active session and reloading dashboard data
     checkForActiveSession()
+    loadDashboardData()
   }
 
   const handleExitSession = () => {
     onActiveSessionChange?.(null)
     checkForActiveSession()
+    loadDashboardData()
   }
 
   // Quick start session function
@@ -173,6 +217,8 @@ export function StudySessionDashboard({
             <div className="lg:col-span-2 space-y-6">
               <ReviewDashboard 
                 onStartSession={handleStartSession}
+                stats={dashboardStats}
+                isLoading={isDashboardLoading}
                 className="h-full"
               />
             </div>
@@ -180,7 +226,11 @@ export function StudySessionDashboard({
         </TabsContent>
 
         <TabsContent value="today" className="space-y-6">
-          <TodaysCards onStartSession={handleStartSession} />
+          <TodaysCards 
+            onStartSession={handleStartSession} 
+            cards={todaysCards}
+            isLoading={isDashboardLoading}
+          />
         </TabsContent>
 
         <TabsContent value="streak" className="space-y-6">
@@ -261,6 +311,8 @@ export function StudySessionDashboard({
         <TabsContent value="analytics" className="space-y-6">
           <ReviewDashboard 
             onStartSession={handleStartSession}
+            stats={dashboardStats}
+            isLoading={isDashboardLoading}
             className="w-full"
           />
         </TabsContent>

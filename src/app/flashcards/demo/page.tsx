@@ -252,7 +252,9 @@ export default function FlashcardDemo() {
 
             <FlashcardComponent
               word={currentCard.word}
-              flashcard={currentCard.flashcard}
+              sentences={currentCard.flashcard.sentences}
+              imageUrl={currentCard.flashcard.image_url}
+              isGeneratingContent={false}
               onReview={handleReview}
               onNext={currentCardIndex < mockFlashcards.length - 1 ? handleNext : undefined}
               onPrevious={currentCardIndex > 0 ? handlePrevious : undefined}
@@ -262,8 +264,8 @@ export default function FlashcardDemo() {
 
             <div className="text-center">
               <p className="text-muted-foreground">
-                Use <kbd className="px-2 py-1 bg-muted rounded">Space</kbd> to flip • 
-                <kbd className="px-2 py-1 bg-muted rounded ml-2">←→</kbd> to navigate • 
+                Use <kbd className="px-2 py-1 bg-muted rounded">Enter</kbd> to submit • 
+                <kbd className="px-2 py-1 bg-muted rounded ml-2">Space</kbd> to show answer • 
                 <kbd className="px-2 py-1 bg-muted rounded ml-2">1-4</kbd> to rate
               </p>
             </div>
@@ -283,7 +285,7 @@ export default function FlashcardDemo() {
             </div>
 
             <StudySession
-              flashcards={mockFlashcards}
+              words={mockFlashcards.map(fc => fc.word)}
               sessionType="review"
               onSessionComplete={handleSessionComplete}
               onExit={() => setDemoMode('showcase')}

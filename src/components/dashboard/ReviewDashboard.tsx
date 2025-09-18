@@ -27,6 +27,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 interface ReviewDashboardProps {
   onStartSession: (words: any[], sessionId: string) => void
+  stats: DashboardStats
+  isLoading: boolean
   className?: string
 }
 
@@ -47,15 +49,7 @@ interface QueueStats {
   averageDifficulty: number
 }
 
-export function ReviewDashboard({ onStartSession, className }: ReviewDashboardProps) {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalReviews: 0,
-    todaysReviews: 0,
-    wordsDueToday: 0,
-    retentionRate: 0,
-    averageEaseFactor: 2.5,
-    currentStreak: 0
-  })
+export function ReviewDashboard({ onStartSession, stats, isLoading, className }: ReviewDashboardProps) {
   const [queueStats, setQueueStats] = useState<QueueStats>({
     total: 0,
     overdue: 0,
@@ -74,17 +68,17 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
   })
   const [desks, setDesks] = useState<Desk[]>([])
   const [selectedDeskId, setSelectedDeskId] = useState<string>('all')
-  const [isLoading, setIsLoading] = useState(true)
   const [isStartingSession, setIsStartingSession] = useState(false)
+  const [queueIsLoading, setQueueIsLoading] = useState(true)
 
   useEffect(() => {
-    loadDashboardData()
     loadDesks()
+    loadQueueStats()
   }, [])
 
   useEffect(() => {
     // Reload queue stats when desk selection changes
-    if (!isLoading) {
+    if (!queueIsLoading) {
       loadQueueStats()
     }
   }, [selectedDeskId])
@@ -101,6 +95,7 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
   }
 
   const loadQueueStats = async () => {
+    setQueueIsLoading(true)
     try {
       const queueManager = getQueueManager()
       const options = (selectedDeskId && selectedDeskId !== 'all') ? { maxWords: 100, deskId: selectedDeskId } : { maxWords: 100 }
@@ -112,23 +107,12 @@ export function ReviewDashboard({ onStartSession, className }: ReviewDashboardPr
       setRecommendedMode(recommendation)
     } catch (error) {
       console.error('Failed to load queue stats:', error)
-    }
-  }
-
-  const loadDashboardData = async () => {
-    setIsLoading(true)
-    try {
-      // Load review statistics
-      const reviewStats = await getReviewStats()
-      setStats(reviewStats)
-
-      await loadQueueStats()
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error)
     } finally {
-      setIsLoading(false)
+      setQueueIsLoading(false)
     }
   }
+
+  // Removed loadDashboardData - now handled by parent component
 
   const handleStartSession = async (mode: any = recommendedMode.mode, maxWords: number = 20) => {
     setIsStartingSession(true)
