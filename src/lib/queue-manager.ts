@@ -201,22 +201,13 @@ export class ReviewQueueManager {
       return 'new'
     }
 
-    // For review cards, check daily schedule
-    const dueDate = new Date(word.lastReview.due_date)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const dueDateOnly = new Date(dueDate)
-    dueDateOnly.setHours(0, 0, 0, 0)
-    
-    const daysDifference = Math.floor((today.getTime() - dueDateOnly.getTime()) / (1000 * 60 * 60 * 24))
+    // For review cards, compare by UTC date-only strings (aligns with getDueWords)
+    const dueDateStr = new Date(word.lastReview.due_date).toISOString().split('T')[0]
+    const todayStr = new Date().toISOString().split('T')[0]
 
-    if (daysDifference > 0) {
-      return 'overdue'
-    } else if (daysDifference === 0) {
-      return 'due_today'
-    } else {
-      return 'review_soon'
-    }
+    if (dueDateStr < todayStr) return 'overdue'
+    if (dueDateStr === todayStr) return 'due_today'
+    return 'review_soon'
   }
 
   /**
@@ -238,7 +229,7 @@ export class ReviewQueueManager {
       case 'new_only':
         return words.filter(word => word.priority === 'new')
       case 'due_today_only':
-        return words.filter(word => word.priority === 'due_today')
+        return words.filter(word => word.priority === 'due_today' || word.priority === 'learning')
       case 'review_only':
         return words.filter(word => word.priority !== 'new')
       case 'overdue_only':
@@ -300,7 +291,8 @@ export class ReviewQueueManager {
   private calculateQueueStats(queue: QueuedWord[]) {
     const total = queue.length
     const overdue = queue.filter(w => w.priority === 'overdue').length
-    const dueToday = queue.filter(w => w.priority === 'due_today').length
+    // Treat learning items as due today for UI parity with Today's Cards
+    const dueToday = queue.filter(w => w.priority === 'due_today' || w.priority === 'learning').length
     const newWords = queue.filter(w => w.priority === 'new').length
     
     const easeFactors = queue

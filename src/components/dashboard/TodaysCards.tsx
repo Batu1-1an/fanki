@@ -61,8 +61,8 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
   // Removed loadTodaysCards - now handled by parent component
 
   const groupCardsByPriority = (cards: Array<Word & { lastReview?: Review }>): GroupedCards => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
+    // Use UTC date-only strings to avoid timezone skew and match server logic
+    const todayStr = new Date().toISOString().split('T')[0]
 
     const overdue: Array<Word & { lastReview?: Review }> = []
     const dueToday: Array<Word & { lastReview?: Review }> = []
@@ -72,14 +72,9 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
       if (!card.lastReview) {
         newWords.push(card)
       } else {
-        const dueDate = new Date(card.lastReview.due_date)
-        dueDate.setHours(0, 0, 0, 0)
-        
-        if (dueDate < today) {
-          overdue.push(card)
-        } else if (dueDate.getTime() === today.getTime()) {
-          dueToday.push(card)
-        }
+        const dueDateStr = new Date(card.lastReview.due_date).toISOString().split('T')[0]
+        if (dueDateStr < todayStr) overdue.push(card)
+        else if (dueDateStr === todayStr) dueToday.push(card)
       }
     })
 
