@@ -182,7 +182,7 @@ export default function StudyClient() {
               Choose Your Study Mode
             </h1>
             <p className="text-lg text-gray-600">
-              Select how you'd like to study your {words.length} available word{words.length !== 1 ? 's' : ''}
+              Select how you&apos;d like to study your {words.length} available word{words.length !== 1 ? 's' : ''}
             </p>
           </div>
 

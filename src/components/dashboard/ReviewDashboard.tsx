@@ -440,7 +440,7 @@ export function ReviewDashboard({
                     <SelectItem value="oldest">
                       <div className="flex flex-col">
                         <span className="font-medium">⏰ Oldest First</span>
-                        <span className="text-xs text-muted-foreground">Review cards by how long they've been overdue</span>
+                        <span className="text-xs text-muted-foreground">Review cards by how long they&apos;ve been overdue</span>
                       </div>
                     </SelectItem>
                     <SelectItem value="easiest">

@@ -312,7 +312,7 @@ export default function FlashcardDemo() {
             </div>
             <h2 className="text-3xl font-bold text-gray-900">Demo Complete!</h2>
             <p className="text-lg text-gray-600">
-              You've successfully tested the flashcard system. Great job!
+              You&apos;ve successfully tested the flashcard system. Great job!
             </p>
             <div className="flex gap-4 justify-center">
               <Button onClick={resetDemo} className="gap-2">

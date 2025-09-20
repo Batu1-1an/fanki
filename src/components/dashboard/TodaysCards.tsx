@@ -185,7 +185,7 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Calendar className="w-5 h-5" />
-              Today's Cards
+              Today&apos;s Cards
             </CardTitle>
             <Badge variant="outline" className="text-lg px-3 py-1">
               {cards.length} cards available

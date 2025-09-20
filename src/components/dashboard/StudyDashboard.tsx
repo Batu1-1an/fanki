@@ -369,7 +369,7 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
               />
               <div className="text-center">
                 <p className="text-sm text-muted-foreground mb-4">
-                  Use the "Study {selectedDesk.name}" button in the Desks tab to start a filtered session
+                  Use the &quot;Study {selectedDesk.name}&quot; button in the Desks tab to start a filtered session
                 </p>
                 <Button 
                   onClick={() => handleStartDeskSession(selectedDesk.id)}

@@ -100,7 +100,7 @@ export default function RegisterPage() {
               <div className="space-y-2">
                 <h1 className="text-3xl font-bold text-gray-900">Check your email</h1>
                 <p className="text-gray-600 leading-relaxed">
-                  We've sent a confirmation link to{' '}
+                  We&apos;ve sent a confirmation link to{' '}
                   <span className="font-semibold text-blue-600">{formData.email}</span>
                 </p>
               </div>

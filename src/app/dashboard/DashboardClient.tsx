@@ -131,7 +131,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               <div className="text-center py-12">
                 <h2 className="text-2xl font-bold mb-4">Welcome to Fanki! 🎉</h2>
                 <p className="text-muted-foreground mb-8">
-                  Let's get you set up to start your learning journey
+                  Let&apos;s get you set up to start your learning journey
                 </p>
                 <Button 
                   onClick={() => {

@@ -109,7 +109,7 @@ export default function OnboardingPreferences({ isOpen, onComplete, onSkip }: On
           {currentStep === 1 && (
             <div className="space-y-6">
               <div className="text-center">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome! Let's personalize your experience 👋</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome! Let&apos;s personalize your experience 👋</h2>
                 <p className="text-gray-600">Help us customize Fanki for your learning journey</p>
               </div>
 
@@ -163,7 +163,7 @@ export default function OnboardingPreferences({ isOpen, onComplete, onSkip }: On
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">
-                    What's your current level?
+                    What&apos;s your current level?
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
@@ -195,7 +195,7 @@ export default function OnboardingPreferences({ isOpen, onComplete, onSkip }: On
             <div className="space-y-6">
               <div className="text-center">
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Set your goals 🚀</h2>
-                <p className="text-gray-600">Let's create a personalized study plan</p>
+                <p className="text-gray-600">Let&apos;s create a personalized study plan</p>
               </div>
 
               <div className="space-y-6">

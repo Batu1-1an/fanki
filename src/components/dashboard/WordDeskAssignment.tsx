@@ -127,7 +127,7 @@ export function WordDeskAssignment({ wordId, wordText, trigger }: WordDeskAssign
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Manage Desks for "{wordText}"</DialogTitle>
+          <DialogTitle>Manage Desks for &quot;{wordText}&quot;</DialogTitle>
         </DialogHeader>
         
         {isLoading ? (

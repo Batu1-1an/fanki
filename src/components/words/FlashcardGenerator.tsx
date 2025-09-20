@@ -102,7 +102,7 @@ export function FlashcardGenerator({ word, difficulty, onContentGenerated }: Fla
               </div>
             </div>
             <p className="text-muted-foreground">
-              Generate AI-powered flashcard content for "<strong>{word}</strong>"
+              Generate AI-powered flashcard content for &quot;<strong>{word}</strong>&quot;
             </p>
             <Button 
               onClick={handleGenerate}
@@ -122,7 +122,7 @@ export function FlashcardGenerator({ word, difficulty, onContentGenerated }: Fla
             <div className="text-center">
               <p className="font-medium">Generating AI Content...</p>
               <p className="text-sm text-muted-foreground">
-                Creating sentences and image for "{word}"
+                Creating sentences and image for &quot;{word}&quot;
               </p>
             </div>
           </div>
