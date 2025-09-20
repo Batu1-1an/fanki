@@ -24,7 +24,8 @@ import {
   ChevronLeft, 
   ChevronRight,
   Clock,
-  Edit
+  Edit,
+  Lightbulb
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DIFFICULTY_LEVELS } from '@/lib/words'
@@ -451,6 +452,21 @@ export function FlashcardComponent({
                     <p className="text-sm sm:text-base md:text-lg lg:text-xl text-muted-foreground max-w-sm sm:max-w-md mx-auto leading-relaxed px-2">
                       {currentWord.definition}
                     </p>
+                  )}
+
+                  {/* Memory Hook (Mnemonic) - RFC-004 */}
+                  {currentWord.memory_hook && (
+                    <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3 max-w-sm sm:max-w-md mx-auto">
+                      <div className="flex items-start gap-2">
+                        <Lightbulb className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <p className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">Memory Hook</p>
+                          <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
+                            {currentWord.memory_hook}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
 

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { FlashcardComponent } from './FlashcardComponent'
 import { ReviewButtons } from './ReviewButtons'
@@ -15,6 +15,7 @@ import {
   StudySession as StudySessionType,
   SessionType 
 } from '@/types'
+import { QueuedWord } from '@/lib/queue-manager'
 import { submitReview, getWordProgress } from '@/lib/reviews'
 import { getQueueManager } from '@/lib/queue-manager'
 import { aiService } from '@/lib/ai-services'
@@ -42,8 +43,11 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+const PREFETCH_THRESHOLD = 1 // Start fetching the next chunk when on the second card (1 card left)
+const CHUNK_SIZE = 2 // Fetch next 2 cards in the background
+
 interface StudySessionProps {
-  words: Word[]
+  words: QueuedWord[]
   sessionType: SessionType
   sessionId?: string
   onSessionComplete: (session: Partial<StudySessionType>) => void
@@ -61,7 +65,7 @@ interface SessionStats {
   averageResponseTime: number
 }
 
-interface RelearningCard extends Word {
+interface RelearningCard extends QueuedWord {
   originalIndex: number
   timesRelearned: number
   addedToRelearningAt: Date
@@ -84,6 +88,10 @@ export function StudySession({
 }: StudySessionProps) {
   const { user } = useAuth()
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [enrichedWords, setEnrichedWords] = useState<QueuedWord[]>(words)
+  const [isFetchingNextChunk, setIsFetchingNextChunk] = useState(false)
+  const fetchedChunks = useRef(new Set([0])) // Keep track of which chunks are fetched (chunk 0 is initial)
+  
   const [sessionStats, setSessionStats] = useState<SessionStats>({
     cardsStudied: 0,
     cardsCorrect: 0,
@@ -93,12 +101,7 @@ export function StudySession({
     averageResponseTime: 0
   })
   
-  // Dynamic content generation state
-  const [currentSentences, setCurrentSentences] = useState<FlashcardSentence[] | null>(null)
-  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null)
-  const [currentImageDescription, setCurrentImageDescription] = useState<string | null>(null)
-  const [isGeneratingContent, setIsGeneratingContent] = useState(true)
-  const [contentGenerationError, setContentGenerationError] = useState<string | null>(null)
+  // Chunked pre-fetching system manages AI content in background
   const [isSessionComplete, setIsSessionComplete] = useState(false)
   const [responseTimes, setResponseTimes] = useState<number[]>([])
   const [cardReviews, setCardReviews] = useState<CardReview[]>([])
@@ -116,9 +119,9 @@ export function StudySession({
   // Get current word from either main queue or re-learning queue
   const currentWord = currentlyShowingRelearning && relearningQueue.length > 0
     ? relearningQueue[0] // Show first word from re-learning queue
-    : (words && words[currentIndex]) // Show word from main queue (with bounds check)
+    : (enrichedWords && enrichedWords[currentIndex]) // Show word from enriched main queue (with bounds check)
   
-  const totalCards = (words?.length || 0) + relearningQueue.length
+  const totalCards = (enrichedWords?.length || 0) + relearningQueue.length
   const completedCards = currentIndex + (relearningQueue.length - (currentlyShowingRelearning ? relearningQueue.length : 0))
   const progress = totalCards > 0 ? ((completedCards + 1) / totalCards) * 100 : 0
 
@@ -162,63 +165,99 @@ export function StudySession({
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  // Generate dynamic content (sentences + image) for the current word
-  const generateDynamicContent = useCallback(async () => {
-    if (!currentWord || !user?.id) return
+  // Predictive chunk fetching - loads next chunk in background
+  useEffect(() => {
+    if (!user || isPaused || currentlyShowingRelearning) return
 
-    setIsGeneratingContent(true)
-    setContentGenerationError(null)
-    setCurrentSentences(null)
-    setCurrentImageUrl(null)
-    setCurrentImageDescription(null)
+    const currentChunkIndex = Math.floor(currentIndex / CHUNK_SIZE)
+    const nextChunkIndex = currentChunkIndex + 1
+    const cardsLeftInChunk = (currentChunkIndex + 1) * CHUNK_SIZE - (currentIndex + 1)
+
+    // Check if we should pre-fetch the next chunk
+    if (
+      cardsLeftInChunk <= PREFETCH_THRESHOLD &&
+      !isFetchingNextChunk &&
+      !fetchedChunks.current.has(nextChunkIndex) &&
+      (nextChunkIndex * CHUNK_SIZE) < enrichedWords.length
+    ) {
+      fetchNextChunk(nextChunkIndex)
+    }
+  }, [currentIndex, enrichedWords, isFetchingNextChunk, user, isPaused, currentlyShowingRelearning])
+
+  const fetchNextChunk = async (chunkIndex: number) => {
+    if (!user) return
+    setIsFetchingNextChunk(true)
+    fetchedChunks.current.add(chunkIndex)
+    
+    const startIndex = chunkIndex * CHUNK_SIZE
+    const endIndex = Math.min(startIndex + CHUNK_SIZE, enrichedWords.length)
+    const chunkToFetch = enrichedWords.slice(startIndex, endIndex)
+
+    console.log(`Pre-fetching content for next 2 cards (${startIndex + 1} to ${endIndex})...`)
 
     try {
-      const difficulty = currentWord.difficulty <= 2 ? 'beginner' : 
-                       currentWord.difficulty <= 4 ? 'intermediate' : 'advanced'
-      
-      // Fetch sentences and image in parallel for better performance
-      const [sentenceResult, imageResult] = await Promise.all([
-        aiService.generateSentences(currentWord.word, difficulty, user.id),
-        aiService.generateImage(currentWord.word, user.id)
-      ])
-      
-      // Transform sentences to FlashcardSentence objects
-      console.log('Raw sentence data:', sentenceResult.sentences)
-      const transformedSentences: FlashcardSentence[] = sentenceResult.sentences.map((sentence: any) => {
-        // Handle both string and object sentence formats
-        const sentenceText = typeof sentence === 'string' ? sentence : sentence.sentence || sentence.text || ''
-        const blankMarker = '___'
+      const contentPromises = chunkToFetch.map(async (word) => {
+        // Skip if already has content
+        if (word.sentences && word.imageUrl) return null
         
-        console.log('Processing sentence:', sentence, 'as text:', sentenceText)
+        const difficulty = word.difficulty <= 2 ? 'beginner' : 
+                          word.difficulty <= 4 ? 'intermediate' : 'advanced'
         
-        return {
-          sentence: sentenceText,
-          blank_position: sentenceText.indexOf(blankMarker) >= 0 ? sentenceText.indexOf(blankMarker) : 0,
-          correct_word: currentWord.word
-        }
+        return aiService.generateFlashcardContent(word.word, difficulty, user.id)
       })
-      setCurrentSentences(transformedSentences)
-      setCurrentImageUrl(imageResult.imageUrl)
-      setCurrentImageDescription(imageResult.description || null)
-    } catch (error) {
-      console.error('Failed to generate dynamic content:', error)
-      setContentGenerationError('Failed to generate content. Click to retry.')
-    } finally {
-      setIsGeneratingContent(false)
-    }
-  }, [currentWord, user?.id])
+      
+      const contentResults = await Promise.all(contentPromises)
 
-  // Generate dynamic content when current word changes
-  useEffect(() => {
-    if (currentWord) {
-      generateDynamicContent()
+      // Update the enriched words array
+      setEnrichedWords(prevWords => {
+        const newWords = [...prevWords]
+        contentResults.forEach((content, index) => {
+          if (!content) return // Skip if content was already there
+          
+          const originalIndex = startIndex + index
+          const transformedSentences = content.sentences.map((sentence: any) => {
+            const sentenceText = typeof sentence === 'string' ? sentence : sentence.sentence || sentence.text || ''
+            const blankMarker = '___'
+            
+            return {
+              sentence: sentenceText,
+              blank_position: sentenceText.indexOf(blankMarker) >= 0 ? sentenceText.indexOf(blankMarker) : 0,
+              correct_word: newWords[originalIndex].word
+            }
+          })
+          
+          newWords[originalIndex] = {
+            ...newWords[originalIndex],
+            sentences: transformedSentences,
+            imageUrl: content.imageUrl,
+            imageDescription: content.imageDescription || null,
+          }
+        })
+        return newWords
+      })
+      
+      console.log(`Content for next 2 cards (${startIndex + 1} to ${endIndex}) is ready.`)
+    } catch (error) {
+      console.error(`Failed to pre-fetch chunk ${chunkIndex}:`, error)
+      fetchedChunks.current.delete(chunkIndex) // Allow re-fetching on next trigger
+    } finally {
+      setIsFetchingNextChunk(false)
     }
-  }, [generateDynamicContent])
+  }
 
   // Helper functions for re-learning queue management
-  const addToRelearningQueue = useCallback((word: Word, originalIndex: number) => {
+  const addToRelearningQueue = useCallback((word: Word | QueuedWord, originalIndex: number) => {
     const relearningCard: RelearningCard = {
       ...word,
+      priority: (word as QueuedWord).priority || 'review_soon',
+      daysSinceLastReview: (word as QueuedWord).daysSinceLastReview,
+      currentEaseFactor: (word as QueuedWord).currentEaseFactor,
+      timesReviewed: (word as QueuedWord).timesReviewed,
+      lastReview: (word as QueuedWord).lastReview,
+      flashcard: (word as QueuedWord).flashcard,
+      sentences: (word as QueuedWord).sentences,
+      imageUrl: (word as QueuedWord).imageUrl,
+      imageDescription: (word as QueuedWord).imageDescription,
       originalIndex,
       timesRelearned: 1,
       addedToRelearningAt: new Date()
@@ -403,7 +442,7 @@ export function StudySession({
       }
       
       // Continue with main queue
-      if (currentIndex < (words?.length || 0) - 1) {
+      if (currentIndex < (enrichedWords?.length || 0) - 1) {
         setCurrentIndex(prev => prev + 1)
       } else {
         // Main queue completed
@@ -621,7 +660,7 @@ export function StudySession({
                 <div className="text-left sm:text-right">
                 <div className="text-xs text-muted-foreground leading-tight">Progress</div>
                 <div className="text-sm font-semibold leading-tight">
-                  {currentIndex + 1} / {words?.length || 0}
+                  {currentIndex + 1} / {enrichedWords?.length || 0}
                 </div>
                 {relearningQueue.length > 0 && (
                   <div className="text-xs text-orange-600 leading-tight">
@@ -681,12 +720,12 @@ export function StudySession({
             <FlashcardComponent
               key={currentWord.id}
               word={currentWord}
-              sentences={currentSentences}
-              imageUrl={currentImageUrl}
-              imageDescription={currentImageDescription}
-              isGeneratingContent={isGeneratingContent}
-              contentGenerationError={contentGenerationError}
-              onRegenerateContent={generateDynamicContent}
+              sentences={currentWord.sentences || null}
+              imageUrl={currentWord.imageUrl || null}
+              imageDescription={currentWord.imageDescription || null}
+              isGeneratingContent={!currentWord.sentences || !currentWord.imageUrl} // Show loader only if content not ready
+              contentGenerationError={null} // Handled by background fetching
+              onRegenerateContent={undefined} // Background system handles fetching
               onReview={handleReview}
               onNext={currentIndex < totalCards - 1 ? handleNext : undefined}
               onPrevious={currentIndex > 0 ? handlePrevious : undefined}

@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { generateStudySession, getRecommendedStudyMode } from '@/lib/queue-manager'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { StudySessionLoader } from '@/components/ui/StudySessionLoader'
 import { 
   Calendar, 
   Clock, 
@@ -16,10 +19,8 @@ import {
   Award,
   CheckCircle2
 } from 'lucide-react'
-import { generateStudySession } from '@/lib/queue-manager'
 import { cn } from '@/lib/utils'
 import { getUserDesks, Desk } from '@/lib/desks'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface ReviewDashboardProps {
   onStartSession: (words: any[], sessionId: string) => void
@@ -287,7 +288,7 @@ export function ReviewDashboard({
               size="lg"
               className="flex-1"
             >
-              {isStartingSession ? 'Starting...' : 'Start Recommended Session'}
+              {isStartingSession ? 'Preparing Your Session...' : 'Start Recommended Session'}
             </Button>
             <Button
               variant="outline"
@@ -461,6 +462,11 @@ export function ReviewDashboard({
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Engaging loading overlay */}
+      <StudySessionLoader 
+        isVisible={isStartingSession}
+      />
     </div>
   )
 }
