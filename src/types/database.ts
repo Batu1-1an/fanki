@@ -95,6 +95,61 @@ export interface Database {
           updated_at?: string
         }
       }
+      desks: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          description: string | null
+          color: string
+          icon: string
+          is_default: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          description?: string | null
+          color?: string
+          icon?: string
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          name?: string
+          description?: string | null
+          color?: string
+          icon?: string
+          is_default?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      word_desks: {
+        Row: {
+          id: string
+          word_id: string
+          desk_id: string
+          added_at: string
+        }
+        Insert: {
+          id?: string
+          word_id: string
+          desk_id: string
+          added_at?: string
+        }
+        Update: {
+          id?: string
+          word_id?: string
+          desk_id?: string
+          added_at?: string
+        }
+      }
       flashcards: {
         Row: {
           id: string

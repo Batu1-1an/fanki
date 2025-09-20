@@ -39,9 +39,9 @@ const FLIP_ANIMATION = {
 }
 
 const CARD_VARIANTS = {
-  enter: { scale: 0.9, opacity: 0, x: 100 },
+  enter: { scale: 0.95, opacity: 0, x: 50 },
   center: { scale: 1, opacity: 1, x: 0 },
-  exit: { scale: 0.9, opacity: 0, x: -100 }
+  exit: { scale: 0.95, opacity: 0, x: -50 }
 }
 
 interface FlashcardComponentProps {

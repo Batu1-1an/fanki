@@ -106,6 +106,7 @@ export function StudySession({
   const [responseTimes, setResponseTimes] = useState<number[]>([])
   const [cardReviews, setCardReviews] = useState<CardReview[]>([])
   const [isSubmittingReview, setIsSubmittingReview] = useState(false)
+  const [reviewCompleted, setReviewCompleted] = useState(false)
   const [dbSessionId, setDbSessionId] = useState<string | null>(propSessionId || null)
   const [isPaused, setIsPaused] = useState(false)
   const [pauseStartTime, setPauseStartTime] = useState<Date | null>(null)
@@ -374,10 +375,8 @@ export function StudySession({
     } finally {
       setIsSubmittingReview(false)
       
-      // Move to next card after a short delay
-      setTimeout(() => {
-        handleNext()
-      }, 1000)
+      // Immediately trigger next card with minimal delay for smooth animation
+      setReviewCompleted(true)
     }
   }, [currentWord, isSubmittingReview, sessionStats.startTime, currentlyShowingRelearning, relearningQueue, currentIndex, addToRelearningQueue, removeFromRelearningQueue])
   
@@ -463,6 +462,19 @@ export function StudySession({
       completeSession()
     }
   }, [currentIndex, words?.length, currentlyShowingRelearning, shouldShowRelearningCard, mainQueueCompleted, relearningQueue.length, completeSession])
+
+  // Handle review completion with fast animation-driven transition
+  useEffect(() => {
+    if (reviewCompleted) {
+      const timeoutId = setTimeout(() => {
+        handleNext()
+        setReviewCompleted(false) // Reset flag
+      }, 300) // Reduced from 1000ms to 300ms for responsive experience
+
+      // Cleanup timeout on unmount or if reviewCompleted changes
+      return () => clearTimeout(timeoutId)
+    }
+  }, [reviewCompleted, handleNext])
 
   const handlePrevious = useCallback(() => {
     if (currentIndex > 0) {

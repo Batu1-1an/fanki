@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
 import { StudySessionLoader } from '@/components/ui/StudySessionLoader'
 import { 
   Calendar, 
@@ -67,6 +68,7 @@ export function ReviewDashboard({
   const [desks, setDesks] = useState<Desk[]>([])
   const [selectedDeskId, setSelectedDeskId] = useState<string>('all')
   const [isStartingSession, setIsStartingSession] = useState(false)
+  const [sortOrder, setSortOrder] = useState<'recommended' | 'oldest' | 'easiest' | 'hardest'>('recommended')
 
   useEffect(() => {
     loadDesks()
@@ -94,7 +96,8 @@ export function ReviewDashboard({
       const options: any = {
         maxWords,
         studyMode: mode,
-        prioritizeWeakWords: true
+        prioritizeWeakWords: true,
+        sortOrder: sortOrder // RFC-006: Pass selected sort order
       }
 
       // Add desk filter if specific desk is selected
@@ -415,48 +418,95 @@ export function ReviewDashboard({
         <TabsContent value="settings" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Study Session Options</CardTitle>
+              <CardTitle>Advanced Study Options</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button
-                  onClick={() => handleStartSession('mixed', 15)}
-                  variant="outline"
-                  className="h-20 flex-col gap-2"
-                  disabled={isStartingSession}
-                >
-                  <span className="font-semibold">Balanced Session</span>
-                  <span className="text-sm text-muted-foreground">15 mixed cards</span>
-                </Button>
+            <CardContent className="space-y-6">
+              {/* RFC-006: Overdue Card Order Selection */}
+              <div className="space-y-3">
+                <Label htmlFor="sort-order" className="text-sm font-medium">
+                  Overdue Card Order
+                </Label>
+                <Select value={sortOrder} onValueChange={(value: any) => setSortOrder(value)}>
+                  <SelectTrigger id="sort-order">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="recommended">
+                      <div className="flex flex-col">
+                        <span className="font-medium">🎯 Recommended (Shuffled)</span>
+                        <span className="text-xs text-muted-foreground">Random variety to break the overdue pile-up</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="oldest">
+                      <div className="flex flex-col">
+                        <span className="font-medium">⏰ Oldest First</span>
+                        <span className="text-xs text-muted-foreground">Review cards by how long they've been overdue</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="easiest">
+                      <div className="flex flex-col">
+                        <span className="font-medium">😊 Easiest First</span>
+                        <span className="text-xs text-muted-foreground">Build confidence with easier cards first</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="hardest">
+                      <div className="flex flex-col">
+                        <span className="font-medium">💪 Hardest First</span>
+                        <span className="text-xs text-muted-foreground">Tackle difficult cards head-on (classic mode)</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {sortOrder === 'recommended' && "✨ Shuffled sampling ensures you see different overdue cards each session"}
+                  {sortOrder === 'oldest' && "📅 Cards are shown in order of due date (oldest overdue cards first)"}
+                  {sortOrder === 'easiest' && "📈 Cards are shown in order of ease factor (highest ease factor first)"}
+                  {sortOrder === 'hardest' && "⚡ Cards are shown in order of difficulty (lowest ease factor first)"}
+                </p>
+              </div>
 
-                <Button
-                  onClick={() => handleStartSession('mixed', 30)}
-                  variant="outline"
-                  className="h-20 flex-col gap-2"
-                  disabled={isStartingSession}
-                >
-                  <span className="font-semibold">Extended Session</span>
-                  <span className="text-sm text-muted-foreground">30 mixed cards</span>
-                </Button>
+              <div className="border-t pt-4">
+                <Label className="text-sm font-medium mb-3 block">Quick Session Options</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Button
+                    onClick={() => handleStartSession('mixed', 15)}
+                    variant="outline"
+                    className="h-20 flex-col gap-2"
+                    disabled={isStartingSession}
+                  >
+                    <span className="font-semibold">Balanced Session</span>
+                    <span className="text-sm text-muted-foreground">15 mixed cards</span>
+                  </Button>
 
-                <Button
-                  onClick={() => handleStartSession('mixed', 5)}
-                  variant="outline"
-                  className="h-20 flex-col gap-2"
-                  disabled={isStartingSession}
-                >
-                  <span className="font-semibold">Quick Session</span>
-                  <span className="text-sm text-muted-foreground">5 cards only</span>
-                </Button>
+                  <Button
+                    onClick={() => handleStartSession('mixed', 30)}
+                    variant="outline"
+                    className="h-20 flex-col gap-2"
+                    disabled={isStartingSession}
+                  >
+                    <span className="font-semibold">Extended Session</span>
+                    <span className="text-sm text-muted-foreground">30 mixed cards</span>
+                  </Button>
 
-                <Button
-                  onClick={() => window.location.href = '/dashboard/words'}
-                  variant="outline"
-                  className="h-20 flex-col gap-2"
-                >
-                  <span className="font-semibold">Manage Decks</span>
-                  <span className="text-sm text-muted-foreground">Edit flashcards</span>
-                </Button>
+                  <Button
+                    onClick={() => handleStartSession('mixed', 5)}
+                    variant="outline"
+                    className="h-20 flex-col gap-2"
+                    disabled={isStartingSession}
+                  >
+                    <span className="font-semibold">Quick Session</span>
+                    <span className="text-sm text-muted-foreground">5 cards only</span>
+                  </Button>
+
+                  <Button
+                    onClick={() => window.location.href = '/dashboard/words'}
+                    variant="outline"
+                    className="h-20 flex-col gap-2"
+                  >
+                    <span className="font-semibold">Manage Decks</span>
+                    <span className="text-sm text-muted-foreground">Edit flashcards</span>
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

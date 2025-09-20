@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { FolderPlus, Check, X } from 'lucide-react'
 import { getUserDesks, getWordDesks, addWordToDesk, removeWordFromDesk, Desk } from '@/lib/desks'
-import { useToast } from '@/hooks/use-toast'
+import { useToast } from '@/components/ui/toast'
 
 interface WordDeskAssignmentProps {
   wordId: string
@@ -22,7 +22,7 @@ export function WordDeskAssignment({ wordId, wordText, trigger }: WordDeskAssign
   const [wordDesks, setWordDesks] = useState<Desk[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
-  const { toast } = useToast()
+  const { success, error } = useToast()
 
   useEffect(() => {
     if (isOpen) {
@@ -39,20 +39,18 @@ export function WordDeskAssignment({ wordId, wordText, trigger }: WordDeskAssign
       ])
 
       if (desksResult.error) {
-        toast({
+        error({
           title: 'Error',
-          description: 'Failed to load desks',
-          variant: 'destructive'
+          description: 'Failed to load desks'
         })
       } else {
         setAllDesks(desksResult.data || [])
       }
 
       if (wordDesksResult.error) {
-        toast({
+        error({
           title: 'Error',
-          description: 'Failed to load word desks',
-          variant: 'destructive'
+          description: 'Failed to load word desks'
         })
       } else {
         setWordDesks(wordDesksResult.data || [])
@@ -67,20 +65,19 @@ export function WordDeskAssignment({ wordId, wordText, trigger }: WordDeskAssign
   const handleDeskToggle = async (desk: Desk, isCurrentlyAssigned: boolean) => {
     setIsUpdating(true)
     try {
-      let error
+      let apiError
       if (isCurrentlyAssigned) {
         const result = await removeWordFromDesk(wordId, desk.id)
-        error = result.error
+        apiError = result.error
       } else {
         const result = await addWordToDesk(wordId, desk.id)
-        error = result.error
+        apiError = result.error
       }
 
-      if (error) {
-        toast({
+      if (apiError) {
+        error({
           title: 'Error',
-          description: error.message || 'Failed to update desk assignment',
-          variant: 'destructive'
+          description: apiError.message || 'Failed to update desk assignment'
         })
       } else {
         // Update local state
@@ -90,7 +87,7 @@ export function WordDeskAssignment({ wordId, wordText, trigger }: WordDeskAssign
           setWordDesks(prev => [...prev, desk])
         }
         
-        toast({
+        success({
           title: 'Success',
           description: `Word ${isCurrentlyAssigned ? 'removed from' : 'added to'} ${desk.name}`
         })

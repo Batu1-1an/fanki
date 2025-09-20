@@ -24,6 +24,7 @@ export const createClientComponentClient = () => {
 // Server-side Supabase client for Server Components
 export const createServerComponentClient = async () => {
   const { cookies } = await import('next/headers')
+  const cookieStore = await cookies()
   
   return createServerClient(
     supabaseUrl,
@@ -31,7 +32,13 @@ export const createServerComponentClient = async () => {
     {
       cookies: {
         get(name: string) {
-          return cookies().get(name)?.value
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set({ name, value, ...options })
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set({ name, value: '', ...options })
         },
       },
     }

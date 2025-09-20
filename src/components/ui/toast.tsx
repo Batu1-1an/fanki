@@ -50,8 +50,8 @@ const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
     ...props 
   }, ref) => {
     const [progress, setProgress] = React.useState(100)
-    const startTimeRef = React.useRef<number>()
-    const animationRef = React.useRef<number>()
+    const startTimeRef = React.useRef<number>(undefined)
+    const animationRef = React.useRef<number>(undefined)
 
     React.useEffect(() => {
       if (!showProgress || !duration) return

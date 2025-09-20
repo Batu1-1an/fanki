@@ -19,7 +19,7 @@ import { ReviewDashboard } from './ReviewDashboard'
 import { getUserDesks, createDesk, Desk } from '@/lib/desks'
 import { generateStudySession } from '@/lib/queue-manager'
 import { getReviewStats, getDueWords } from '@/lib/reviews'
-import { useToast } from '@/hooks/use-toast'
+import { useToast } from '@/components/ui/toast'
 
 interface StudyDashboardProps {
   onStartSession: (words: any[], sessionId: string) => void
@@ -75,7 +75,7 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
   })
   const [isCreatingDesk, setIsCreatingDesk] = useState(false)
   const [newDeskName, setNewDeskName] = useState('')
-  const { toast } = useToast()
+  const { success, error } = useToast()
 
   useEffect(() => {
     loadDesks()
@@ -153,13 +153,12 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
       })
       
       if (error) {
-        toast({
+        error({
           title: 'Error',
-          description: 'Failed to create desk',
-          variant: 'destructive'
+          description: 'Failed to create desk'
         })
       } else {
-        toast({
+        success({
           title: 'Success',
           description: 'Desk created successfully'
         })
@@ -183,18 +182,16 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
       if (words.length > 0) {
         onStartSession(words, sessionId)
       } else {
-        toast({
+        error({
           title: 'No words available',
-          description: 'This desk has no words ready for study',
-          variant: 'destructive'
+          description: 'This desk has no words ready for study'
         })
       }
-    } catch (error) {
-      console.error('Failed to start desk session:', error)
-      toast({
+    } catch (err) {
+      console.error('Failed to start desk session:', err)
+      error({
         title: 'Error',
-        description: 'Failed to start study session',
-        variant: 'destructive'
+        description: 'Failed to start study session'
       })
     }
   }

@@ -14,6 +14,7 @@ import {
   ReviewResult,
   StudySession as StudySessionType
 } from '@/types'
+import { QueuedWord } from '@/lib/queue-manager'
 import { 
   Play, 
   BookOpen, 
@@ -24,7 +25,7 @@ import {
 } from 'lucide-react'
 
 // Mock data for demo
-const mockWords: Word[] = [
+const mockWords: QueuedWord[] = [
   {
     id: '1',
     user_id: 'demo-user',
@@ -34,7 +35,9 @@ const mockWords: Word[] = [
     difficulty: 4,
     category: 'Academic',
     pronunciation: 'ser-ən-ˈdi-pə-tē',
+    memory_hook: 'Remember: "Serene dip" - finding something good unexpectedly',
     status: 'new',
+    priority: 'new',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   },
@@ -47,7 +50,9 @@ const mockWords: Word[] = [
     difficulty: 3,
     category: 'Academic',
     pronunciation: 'ə-ˈfem-ər-əl',
+    memory_hook: 'Think of "fem" (feminine) + "era" - beauty that fades with time',
     status: 'learning',
+    priority: 'learning',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   },
@@ -60,7 +65,9 @@ const mockWords: Word[] = [
     difficulty: 4,
     category: 'Academic',
     pronunciation: 'yo͞o-ˈbi-kwə-təs',
+    memory_hook: 'You-bi-quit-us: "You be everywhere, quit following us!"',
     status: 'review',
+    priority: 'due_today',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   }
@@ -285,7 +292,7 @@ export default function FlashcardDemo() {
             </div>
 
             <StudySession
-              words={mockFlashcards.map(fc => fc.word)}
+              words={mockWords}
               sessionType="review"
               onSessionComplete={handleSessionComplete}
               onExit={() => setDemoMode('showcase')}

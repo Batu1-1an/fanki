@@ -24,7 +24,7 @@ import {
   Brain
 } from 'lucide-react'
 import { getUserDesks, createDesk, updateDesk, deleteDesk, Desk } from '@/lib/desks'
-import { useToast } from '@/hooks/use-toast'
+import { useToast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 
 const DESK_COLORS = [
@@ -68,7 +68,7 @@ export function DeskManager({ onDeskSelect, selectedDeskId, className }: DeskMan
     color: '#3B82F6',
     icon: 'book-open'
   })
-  const { toast } = useToast()
+  const { success, error } = useToast()
 
   useEffect(() => {
     loadDesks()
@@ -79,10 +79,9 @@ export function DeskManager({ onDeskSelect, selectedDeskId, className }: DeskMan
     try {
       const { data, error } = await getUserDesks()
       if (error) {
-        toast({
+        error({
           title: 'Error',
-          description: 'Failed to load desks',
-          variant: 'destructive'
+          description: 'Failed to load desks'
         })
       } else {
         setDesks(data || [])
@@ -98,13 +97,12 @@ export function DeskManager({ onDeskSelect, selectedDeskId, className }: DeskMan
     try {
       const { data, error } = await createDesk(formData)
       if (error) {
-        toast({
+        error({
           title: 'Error',
-          description: error.message || 'Failed to create desk',
-          variant: 'destructive'
+          description: error.message || 'Failed to create desk'
         })
       } else {
-        toast({
+        success({
           title: 'Success',
           description: 'Desk created successfully'
         })
@@ -123,13 +121,12 @@ export function DeskManager({ onDeskSelect, selectedDeskId, className }: DeskMan
     try {
       const { data, error } = await updateDesk(editingDesk.id, formData)
       if (error) {
-        toast({
+        error({
           title: 'Error',
-          description: error.message || 'Failed to update desk',
-          variant: 'destructive'
+          description: error.message || 'Failed to update desk'
         })
       } else {
-        toast({
+        success({
           title: 'Success',
           description: 'Desk updated successfully'
         })
@@ -145,10 +142,9 @@ export function DeskManager({ onDeskSelect, selectedDeskId, className }: DeskMan
 
   const handleDeleteDesk = async (desk: Desk) => {
     if (desk.is_default) {
-      toast({
+      error({
         title: 'Error',
-        description: 'Cannot delete the default desk',
-        variant: 'destructive'
+        description: 'Cannot delete the default desk'
       })
       return
     }
@@ -156,13 +152,12 @@ export function DeskManager({ onDeskSelect, selectedDeskId, className }: DeskMan
     try {
       const { error } = await deleteDesk(desk.id)
       if (error) {
-        toast({
+        error({
           title: 'Error',
-          description: error.message || 'Failed to delete desk',
-          variant: 'destructive'
+          description: error.message || 'Failed to delete desk'
         })
       } else {
-        toast({
+        success({
           title: 'Success',
           description: 'Desk deleted successfully'
         })

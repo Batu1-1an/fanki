@@ -1,7 +1,8 @@
 import { createClientComponentClient } from './supabase'
+import { FlashcardSentence } from '@/types'
 
 export interface GenerateSentencesResponse {
-  sentences: string[]
+  sentences: FlashcardSentence[]
   cached: boolean
 }
 
@@ -54,10 +55,22 @@ export class AIService {
       console.error('AI Service - generateSentences error:', error)
       
       // Fallback sentences if API fails (keep blanks for active recall)
-      const fallbackSentences = [
-        `The situation was quite ___ for everyone involved.`,
-        `I found the book to be very ___ and engaging.`,
-        `Her performance was absolutely ___ last night.`
+      const fallbackSentences: FlashcardSentence[] = [
+        {
+          sentence: `The situation was quite ___ for everyone involved.`,
+          blank_position: 19, // Position of "quite"
+          correct_word: word
+        },
+        {
+          sentence: `I found the book to be very ___ and engaging.`,
+          blank_position: 28, // Position of "very"
+          correct_word: word
+        },
+        {
+          sentence: `Her performance was absolutely ___ last night.`,
+          blank_position: 31, // Position of "absolutely"
+          correct_word: word
+        }
       ]
 
       return {
@@ -143,7 +156,7 @@ export class AIService {
     difficulty: 'beginner' | 'intermediate' | 'advanced',
     userId: string
   ): Promise<{
-    sentences: string[]
+    sentences: FlashcardSentence[]
     imageUrl: string
     imageDescription?: string
     cached: { sentences: boolean; image: boolean }
@@ -199,7 +212,7 @@ export class AIService {
   async saveFlashcard(
     word: string,
     userId: string,
-    sentences: string[],
+    sentences: FlashcardSentence[],
     imageUrl?: string,
     imageDescription?: string
   ) {

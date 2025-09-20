@@ -33,6 +33,7 @@ export interface QueueOptions {
   prioritizeWeakWords?: boolean
   includeNewWords?: boolean
   deskId?: string // Filter by specific desk
+  sortOrder?: 'recommended' | 'oldest' | 'easiest' | 'hardest' // RFC-006: Overdue sort order
 }
 
 /**
@@ -75,7 +76,8 @@ export class ReviewQueueManager {
         difficultyRange = [1.3, 3.0],
         prioritizeWeakWords = true,
         includeNewWords = true,
-        deskId
+        deskId,
+        sortOrder = 'recommended'
       } = options
 
       // Get learning words first (highest priority)
@@ -85,7 +87,7 @@ export class ReviewQueueManager {
       }
 
       // Get due words with their review history
-      const { data: dueWords, error: dueError } = await getDueWords(100)
+      const { data: dueWords, error: dueError } = await getDueWords(100, sortOrder)
       if (dueError) {
         return { 
           queue: [], 
@@ -248,7 +250,7 @@ export class ReviewQueueManager {
   }
 
   /**
-   * Sort words by priority and difficulty
+   * Sort words by priority and difficulty with subtle tie-breaking randomization
    */
   private sortByPriority(words: QueuedWord[], prioritizeWeakWords: boolean): QueuedWord[] {
     return words.sort((a, b) => {
@@ -264,13 +266,27 @@ export class ReviewQueueManager {
       if (prioritizeWeakWords) {
         const aEase = a.currentEaseFactor || 2.5
         const bEase = b.currentEaseFactor || 2.5
-        return aEase - bEase // Lower ease factor first (harder words)
+        const easeDiff = aEase - bEase // Lower ease factor first (harder words)
+        
+        // RFC-006: Add subtle tie-breaking randomization for cards with same priority and ease factor
+        if (Math.abs(easeDiff) < 0.1) { // Consider ease factors within 0.1 as "tied"
+          return Math.random() - 0.5 // Random tie-breaker
+        }
+        
+        return easeDiff
       }
 
       // Otherwise sort by days since last review
       const aDays = a.daysSinceLastReview || 0
       const bDays = b.daysSinceLastReview || 0
-      return bDays - aDays // More days since review first
+      const daysDiff = bDays - aDays // More days since review first
+      
+      // RFC-006: Add subtle tie-breaking randomization for same review timing
+      if (daysDiff === 0) {
+        return Math.random() - 0.5 // Random tie-breaker
+      }
+      
+      return daysDiff
     })
   }
 

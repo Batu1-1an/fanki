@@ -305,9 +305,9 @@ export async function getLearningWords(limit: number = 20): Promise<{
 }
 
 /**
- * Get words due for review today
+ * Get words due for review today with configurable sort order
  */
-export async function getDueWords(limit: number = 20): Promise<{
+export async function getDueWords(limit: number = 20, sort: 'recommended' | 'oldest' | 'easiest' | 'hardest' = 'recommended'): Promise<{
   data: Array<Word & { lastReview?: Review }> | null
   error: any
 }> {
@@ -348,11 +348,38 @@ export async function getDueWords(limit: number = 20): Promise<{
       }
     })
 
-    // Words that are due based on their latest review
-    const dueReviewedWordIds = Array.from(latestReviews.values())
+    // Get overdue words based on their latest review
+    const overdueReviews = Array.from(latestReviews.values())
       .filter(r => new Date(r.due_date) <= endOfToday)
-      .map(r => r.word_id)
-      .slice(0, limit)
+
+    let dueReviewedWordIds: string[] = []
+
+    if (sort === 'recommended') {
+      // RFC-006: Shuffled Overdue Sampling
+      // Shuffle overdue word IDs to provide variety in each session
+      const shuffledIds = [...overdueReviews]
+        .map(r => r.word_id)
+        .sort(() => 0.5 - Math.random()) // Simple shuffle
+      
+      dueReviewedWordIds = shuffledIds.slice(0, limit)
+      
+      console.log(`Applied shuffled overdue sampling: ${shuffledIds.length} overdue cards shuffled, selected first ${dueReviewedWordIds.length}`)
+    } else {
+      // Apply specific sort orders for other modes
+      let sortedReviews = [...overdueReviews]
+      
+      if (sort === 'oldest') {
+        sortedReviews.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
+      } else if (sort === 'easiest') {
+        sortedReviews.sort((a, b) => (b.ease_factor || 2.5) - (a.ease_factor || 2.5))
+      } else if (sort === 'hardest') {
+        sortedReviews.sort((a, b) => (a.ease_factor || 2.5) - (b.ease_factor || 2.5))
+      }
+      
+      dueReviewedWordIds = sortedReviews
+        .map(r => r.word_id)
+        .slice(0, limit)
+    }
 
     // Get words that have never been reviewed
     let unreviewedQuery = supabase
@@ -384,7 +411,7 @@ export async function getDueWords(limit: number = 20): Promise<{
     }
 
     // Combine and format results
-    const results = [
+    let results = [
       // Add due reviewed words with their last review data
       ...(reviewedWords || []).map(word => ({
         ...word,
@@ -392,9 +419,27 @@ export async function getDueWords(limit: number = 20): Promise<{
       })),
       // Add unreviewed words
       ...(unreviewed || [])
-    ].slice(0, limit)
+    ]
 
-    return { data: results, error: null }
+    // Apply final sorting to maintain order for sorted modes
+    if (sort !== 'recommended' && dueReviewedWordIds.length > 0) {
+      // Create a map to preserve sort order for reviewed words
+      const orderMap = new Map(dueReviewedWordIds.map((id, index) => [id, index]))
+      
+      const reviewedWordsWithOrder = results.filter(w => w.lastReview)
+      const unreviewedWords = results.filter(w => !w.lastReview)
+      
+      // Sort reviewed words by their original order
+      reviewedWordsWithOrder.sort((a, b) => {
+        const aOrder = orderMap.get(a.id) ?? Infinity
+        const bOrder = orderMap.get(b.id) ?? Infinity
+        return aOrder - bOrder
+      })
+      
+      results = [...reviewedWordsWithOrder, ...unreviewedWords]
+    }
+
+    return { data: results.slice(0, limit), error: null }
   } catch (error) {
     return { data: null, error }
   }

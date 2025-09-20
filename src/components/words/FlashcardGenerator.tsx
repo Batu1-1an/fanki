@@ -7,14 +7,16 @@ import { Badge } from '@/components/ui/badge'
 import { Loader2, Sparkles, Image, Type, RefreshCw } from 'lucide-react'
 import { aiService } from '@/lib/ai-services'
 import { useAuth } from '@/hooks/useAuth'
+import { FlashcardSentence } from '@/types'
 
 interface FlashcardGeneratorProps {
   word: string
   difficulty: 'beginner' | 'intermediate' | 'advanced'
   onContentGenerated?: (content: {
-    sentences: string[]
+    sentences: FlashcardSentence[]
     imageUrl: string
     imageDescription?: string
+    cached: { sentences: boolean; image: boolean }
   }) => void
 }
 
@@ -22,7 +24,7 @@ export function FlashcardGenerator({ word, difficulty, onContentGenerated }: Fla
   const { user } = useAuth()
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatedContent, setGeneratedContent] = useState<{
-    sentences: string[]
+    sentences: FlashcardSentence[]
     imageUrl: string
     imageDescription?: string
     cached: { sentences: boolean; image: boolean }
@@ -153,9 +155,12 @@ export function FlashcardGenerator({ word, difficulty, onContentGenerated }: Fla
               )}
             </div>
             <div className="space-y-2">
-              {generatedContent.sentences.map((sentence, index) => (
+              {generatedContent.sentences.map((sentenceObj, index) => (
                 <div key={index} className="p-3 bg-muted rounded-md">
-                  <p className="text-sm">{sentence}</p>
+                  <p className="text-sm">{sentenceObj.sentence}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Blank at position {sentenceObj.blank_position} • Answer: {sentenceObj.correct_word}
+                  </p>
                 </div>
               ))}
             </div>

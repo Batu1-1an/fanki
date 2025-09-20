@@ -13,6 +13,7 @@ import {
   StudySession as StudySessionType,
   SessionType 
 } from '@/types'
+import { QueuedWord } from '@/lib/queue-manager'
 import { getDueWords } from '@/lib/reviews'
 import { getUserWords } from '@/lib/words'
 import { 
@@ -23,11 +24,17 @@ import {
   AlertCircle 
 } from 'lucide-react'
 
+// Helper function to convert Word to QueuedWord
+const convertToQueuedWord = (word: Word, priority: QueuedWord['priority']): QueuedWord => ({
+  ...word,
+  priority
+})
+
 export default function StudyClient() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [words, setWords] = useState<Word[]>([])
+  const [words, setWords] = useState<QueuedWord[]>([])
   const [sessionType, setSessionType] = useState<SessionType>('review')
   const [showSessionSelection, setShowSessionSelection] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -64,7 +71,7 @@ export default function StudyClient() {
       }
 
       if (dueWords && dueWords.length > 0) {
-        setWords(dueWords)
+        setWords(dueWords.map(word => convertToQueuedWord(word, 'due_today')))
         setSessionType('review')
       } else {
         // If no due words, get all user words for learning session
@@ -77,7 +84,7 @@ export default function StudyClient() {
         }
 
         if (allWords && allWords.length > 0) {
-          setWords(allWords)
+          setWords(allWords.map(word => convertToQueuedWord(word, 'new')))
           setSessionType('learn')
         } else {
           // No words exist at all

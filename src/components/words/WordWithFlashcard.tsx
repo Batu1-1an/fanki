@@ -7,12 +7,12 @@ import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Sparkles, Eye, EyeOff, Image as ImageIcon, Type, Loader2, MoreHorizontal, MoveRight, BookOpen, Lightbulb } from 'lucide-react'
-import { Word } from '@/types'
+import { Word, FlashcardSentence } from '@/types'
 import { getUserDesks, removeWordFromDesk, addWordToDesk, Desk } from '@/lib/desks'
 import { aiService } from '@/lib/ai-services'
 import { useAuth } from '@/hooks/useAuth'
 import { FlashcardGenerator } from './FlashcardGenerator'
-import { useToast } from '@/hooks/use-toast'
+import { useToast } from '@/components/ui/toast'
 
 interface WordWithFlashcardProps {
   word: Word
@@ -27,10 +27,10 @@ interface WordWithFlashcardProps {
 
 export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting, selectedDesk, isSelected = false, onSelectionChange, showSelection = false }: WordWithFlashcardProps) {
   const { user } = useAuth()
-  const { toast } = useToast()
+  const { success, error } = useToast()
   const [showFlashcard, setShowFlashcard] = useState(false)
   const [flashcardContent, setFlashcardContent] = useState<{
-    sentences: string[]
+    sentences: FlashcardSentence[]
     imageUrl: string
     imageDescription?: string
   } | null>(null)
@@ -68,11 +68,11 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting, selected
     try {
       // First check if cached content exists
       const cached = await aiService.getCachedFlashcard(word.word, user.id)
-      if (cached && cached.sentences && cached.sentences.length > 0) {
+      if (cached && cached.sentences && Array.isArray(cached.sentences) && cached.sentences.length > 0) {
         setFlashcardContent({
-          sentences: cached.sentences,
+          sentences: cached.sentences as FlashcardSentence[],
           imageUrl: cached.image_url || `https://placehold.co/300x200/6366F1/FFFFFF?text=${encodeURIComponent(word.word)}`,
-          imageDescription: cached.image_description
+          imageDescription: undefined // Will be added to database schema later
         })
       }
     } catch (error) {
@@ -90,11 +90,16 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting, selected
   }
 
   const handleContentGenerated = (content: {
-    sentences: string[]
+    sentences: FlashcardSentence[]
     imageUrl: string
     imageDescription?: string
+    cached: { sentences: boolean; image: boolean }
   }) => {
-    setFlashcardContent(content)
+    setFlashcardContent({
+      sentences: content.sentences,
+      imageUrl: content.imageUrl,
+      imageDescription: content.imageDescription
+    })
   }
 
   // Load available desks for moving
@@ -119,18 +124,17 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting, selected
       await addWordToDesk(word.id, targetDeskId)
       
       const targetDesk = availableDesks.find(d => d.id === targetDeskId)
-      toast({
+      success({
         title: 'Flashcard moved',
         description: `"${word.word}" moved to ${targetDesk?.name || 'selected deck'}`
       })
       
       // Trigger refresh by calling onEdit with a flag or similar
       window.location.reload() // Simple refresh for now
-    } catch (error) {
-      toast({
+    } catch (err) {
+      error({
         title: 'Error',
-        description: 'Failed to move flashcard',
-        variant: 'destructive'
+        description: 'Failed to move flashcard'
       })
     } finally {
       setMovingToDeskId(null)

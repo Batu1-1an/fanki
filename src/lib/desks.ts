@@ -88,7 +88,7 @@ export async function createDesk({
       return { data: null, error: 'User not authenticated' }
     }
 
-    const deskData: TablesInsert<'desks'> = {
+    const deskData = {
       user_id: user.id,
       name,
       description,
@@ -347,8 +347,13 @@ export async function getWordDesks(wordId: string): Promise<{
       return { data: null, error }
     }
 
-    // Transform the data to flatten the desks
-    const transformedData = (data?.map(item => item.desks) || []) as Desk[]
+    // Transform the data to flatten the desks (handle both object and array shapes)
+    const transformedData = ((data ?? [])
+      .map((item: any) => {
+        const d = Array.isArray(item.desks) ? item.desks?.[0] : item.desks
+        return d as Desk | undefined
+      })
+      .filter((d: Desk | undefined): d is Desk => Boolean(d))) as Desk[]
 
     return { data: transformedData, error: null }
   } catch (error) {

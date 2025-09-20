@@ -499,18 +499,6 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
               : 'Choose which deck to add this flashcard to'}
           </p>
         </div>
-        
-        <div className="sm:col-span-2">
-          <Label htmlFor="pronunciation">Pronunciation (Optional)</Label>
-          <Input
-            id="pronunciation"
-            type="text"
-            value={formData.pronunciation}
-            onChange={(e) => setFormData(prev => ({ ...prev, pronunciation: e.target.value }))}
-            placeholder="e.g., /həˈloʊ/ or huh-LOH"
-            disabled={isLoading}
-          />
-        </div>
       </div>
       
       <div className="flex justify-end space-x-3">

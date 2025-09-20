@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
+import { getSafeRedirectUrl } from '@/lib/redirect-utils'
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url)
@@ -43,5 +44,7 @@ export async function GET(request: NextRequest) {
   }
 
   // URL to redirect to after sign up process completes
-  return NextResponse.redirect(redirectTo || `${origin}/dashboard`)
+  // Use secure redirect validation to prevent open redirect vulnerability
+  const safeRedirectUrl = getSafeRedirectUrl(redirectTo, `${origin}/dashboard`)
+  return NextResponse.redirect(safeRedirectUrl)
 }
