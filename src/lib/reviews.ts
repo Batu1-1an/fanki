@@ -1,6 +1,7 @@
 import { createClientComponentClient } from './supabase'
 import { Review, SM2Result, TablesInsert, Word, WordStatus, LEARNING_STEPS, GRADUATION_INTERVAL } from '@/types'
 import { calculateSM2, buttonToQuality } from '@/utils/sm2'
+import { getStudySessionStats } from '@/lib/study-sessions'
 
 const supabase = createClientComponentClient()
 
@@ -480,8 +481,7 @@ export async function getReviewStats(): Promise<{
       { count: todaysReviews },
       { count: correctReviews },
       { data: avgEaseFactor },
-      { data: dueWords },
-      { data: streakData }
+      { data: dueWords }
     ] = await Promise.all([
       // Total reviews count
       supabase
@@ -514,16 +514,11 @@ export async function getReviewStats(): Promise<{
         .limit(100), // Get last 100 reviews for average
       
       // Words due today
-      getDueWords(100),
-      
-      // Streak calculation - get distinct review dates from last 30 days
-      supabase
-        .from('reviews')
-        .select('reviewed_at')
-        .eq('user_id', user.id)
-        .gte('reviewed_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-        .order('reviewed_at', { ascending: false })
+      getDueWords(100)
     ])
+
+    // RFC-007: Fetch streak data from the authoritative source instead of recalculating it here
+    const { currentStreak: streakFromSessions } = await getStudySessionStats()
 
     // Only count reviewed words that are due today (exclude brand-new/unreviewed)
     const wordsDueToday = (dueWords || []).filter((w: any) => !!w.lastReview).length
@@ -534,49 +529,6 @@ export async function getReviewStats(): Promise<{
     const averageEaseFactor = easeFactors.length > 0 ? 
       easeFactors.reduce((sum, ef) => sum + ef, 0) / easeFactors.length : 2.5
 
-    // Timezone-aware current streak (reviews-per-day)
-    // Fetch user timezone
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('timezone')
-      .eq('id', user.id)
-      .single()
-    const userTimeZone = profile?.timezone || 'UTC'
-
-    const formatDateInTimeZone = (date: Date, timeZone: string): string => {
-      const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).formatToParts(date)
-      const y = parts.find(p => p.type === 'year')?.value || '1970'
-      const m = parts.find(p => p.type === 'month')?.value || '01'
-      const d = parts.find(p => p.type === 'day')?.value || '01'
-      return `${y}-${m}-${d}`
-    }
-    const addDaysISO = (isoDate: string, days: number): string => {
-      const d = new Date(isoDate + 'T00:00:00.000Z')
-      d.setUTCDate(d.getUTCDate() + days)
-      return d.toISOString().split('T')[0]
-    }
-
-    let currentStreak = 0
-    if (streakData && streakData.length > 0) {
-      const reviewDays = new Set(
-        streakData.map(r => formatDateInTimeZone(new Date(r.reviewed_at), userTimeZone))
-      )
-      const todayTz = formatDateInTimeZone(new Date(), userTimeZone)
-      let probe = todayTz
-      for (let i = 0; i < 365; i++) {
-        if (reviewDays.has(probe)) {
-          currentStreak++
-          probe = addDaysISO(probe, -1)
-        } else {
-          break
-        }
-      }
-    }
 
     return {
       totalReviews: totalReviews || 0,
@@ -584,7 +536,7 @@ export async function getReviewStats(): Promise<{
       wordsDueToday,
       retentionRate,
       averageEaseFactor: Math.round(averageEaseFactor * 100) / 100,
-      currentStreak
+      currentStreak: streakFromSessions // RFC-007: Use the unified streak count
     }
   } catch (error) {
     return { 

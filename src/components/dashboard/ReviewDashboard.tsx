@@ -199,7 +199,7 @@ export function ReviewDashboard({
           <CardContent className="p-4 text-center">
             <Zap className="w-6 h-6 mx-auto mb-2 text-orange-600" />
             <div className="text-2xl font-bold">{stats.currentStreak}</div>
-            <div className="text-sm text-muted-foreground">Day Streak</div>
+            <div className="text-sm text-muted-foreground">Study Streak</div>
           </CardContent>
         </Card>
 
@@ -403,7 +403,7 @@ export function ReviewDashboard({
                 <div className="text-center p-4 bg-muted/50 rounded-lg">
                   <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-600" />
                   <div className="text-lg font-semibold">{stats.currentStreak}</div>
-                  <div className="text-sm text-muted-foreground">Day Streak</div>
+                  <div className="text-sm text-muted-foreground">Study Streak</div>
                 </div>
                 <div className="text-center p-4 bg-muted/50 rounded-lg">
                   <Target className="w-8 h-8 mx-auto mb-2 text-blue-600" />
