@@ -10,17 +10,13 @@ import {
   Calendar, 
   Clock, 
   Target, 
-  TrendingUp, 
   Brain, 
   Zap,
   BookOpen,
   Award,
-  AlertCircle,
   CheckCircle2
 } from 'lucide-react'
-import { getReviewStats } from '@/lib/reviews'
-import { getQueueManager, getRecommendedStudyMode, generateStudySession } from '@/lib/queue-manager'
-import { formatInterval } from '@/utils/sm2'
+import { generateStudySession } from '@/lib/queue-manager'
 import { cn } from '@/lib/utils'
 import { getUserDesks, Desk } from '@/lib/desks'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -212,58 +208,60 @@ export function ReviewDashboard({
         </Card>
       </div>
 
-      {/* Deck Selection */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2">
-            <BookOpen className="w-5 h-5" />
-            Study Deck Selection
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-2 block">Choose a deck to study:</label>
-              <Select value={selectedDeskId} onValueChange={(v) => { setSelectedDeskId(v); onDeskChange?.(v) }}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="All decks (default)" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-gray-400" />
-                      All Desks
-                    </div>
-                  </SelectItem>
-                  {desks.map(desk => (
-                    <SelectItem key={desk.id} value={desk.id}>
+      {/* Deck Selection (shown only when a deck change handler is provided) */}
+      {onDeskChange && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5" />
+              Study Deck Selection
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium mb-2 block">Choose a deck to study:</label>
+                <Select value={selectedDeskId} onValueChange={(v) => { setSelectedDeskId(v); onDeskChange?.(v) }}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="All decks (default)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: desk.color }} />
-                        {desk.name}
+                        <div className="w-3 h-3 rounded-full bg-gray-400" />
+                        All Desks
                       </div>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            {getSelectedDeskInfo() && (
-              <div className="p-3 bg-muted/50 rounded-lg">
-                <div className="flex items-center gap-2 mb-1">
-                  <div 
-                    className="w-3 h-3 rounded-full" 
-                    style={{ backgroundColor: getSelectedDeskInfo()!.color || '#808080' }} 
-                  />
-                  <span className="font-medium">{getSelectedDeskInfo()!.name}</span>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Studying from: {getSelectedDeskInfo()!.description || 'Selected deck'}
-                </p>
+                    {desks.map(desk => (
+                      <SelectItem key={desk.id} value={desk.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: desk.color }} />
+                          {desk.name}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              
+              {getSelectedDeskInfo() && (
+                <div className="p-3 bg-muted/50 rounded-lg">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div 
+                      className="w-3 h-3 rounded-full" 
+                      style={{ backgroundColor: getSelectedDeskInfo()!.color || '#808080' }} 
+                    />
+                    <span className="font-medium">{getSelectedDeskInfo()!.name}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Studying from: {getSelectedDeskInfo()!.description || 'Selected deck'}
+                  </p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Study Recommendation */}
       <Card className={cn("border-2", getPriorityColor(recommendedMode.priority))}>

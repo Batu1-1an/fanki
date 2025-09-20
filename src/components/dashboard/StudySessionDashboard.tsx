@@ -19,10 +19,11 @@ import {
 import { TodaysCards } from './TodaysCards'
 import { ReviewDashboard } from './ReviewDashboard'
 import { StudyStreakTracker } from './StudyStreakTracker'
-import { QueuedWord, generateStudySession, getQueueManager, getRecommendedStudyMode } from '@/lib/queue-manager'
+import { QueuedWord, generateStudySession } from '@/lib/queue-manager'
 import { getActiveStudySession } from '@/lib/study-sessions'
 import { StudySession } from '../flashcards/StudySession'
 import { getReviewStats, getDueWords } from '@/lib/reviews'
+import { getDeskWords } from '@/lib/desks'
 import { Word, Review } from '@/types'
 import { cn } from '@/lib/utils'
 
@@ -59,6 +60,26 @@ interface RecommendedMode {
   mode: any
   reasoning: string
   priority: 'high' | 'medium' | 'low'
+}
+
+// Helper: group cards by priority using UTC date-only strings
+function groupCardsByPriority(cards: Array<Word & { lastReview?: Review }>) {
+  const todayStr = new Date().toISOString().split('T')[0]
+  const overdue: Array<Word & { lastReview?: Review }> = []
+  const dueToday: Array<Word & { lastReview?: Review }> = []
+  const newWords: Array<Word & { lastReview?: Review }> = []
+
+  cards.forEach(card => {
+    if (!card.lastReview) {
+      newWords.push(card)
+    } else {
+      const dueDateStr = new Date(card.lastReview.due_date).toISOString().split('T')[0]
+      if (dueDateStr < todayStr) overdue.push(card)
+      else if (dueDateStr === todayStr) dueToday.push(card)
+    }
+  })
+
+  return { overdue, dueToday, newWords }
 }
 
 export function StudySessionDashboard({ 
@@ -112,21 +133,59 @@ export function StudySessionDashboard({
     }
   }
 
-  // Unified dashboard data loading function
-  const loadDashboardData = async () => {
+  // Unified dashboard data loading function (single source of truth for dashboard-level stats)
+  const loadDashboardData = async (deskId: string = 'all') => {
     setIsDashboardLoading(true)
     try {
-      const queueManager = getQueueManager()
-      const [stats, dueWordsData, queueData, recommendation] = await Promise.all([
+      // Fetch stats and all available cards for accurate global counts in parallel
+      const [stats, dueWordsResp, deskWordsResp] = await Promise.all([
         getReviewStats(),
-        getDueWords(100),
-        queueManager.generateQueue({ maxWords: 100 }),
-        getRecommendedStudyMode()
+        getDueWords(5000), // Large limit to approximate "all" without pagination
+        deskId && deskId !== 'all' ? getDeskWords(deskId, 5000) : Promise.resolve({ data: null, error: null })
       ])
+
+      // Prepare cards list and optionally filter by selected desk
+      const allCards = dueWordsResp.data || []
+      let filteredCards = allCards
+      if (deskWordsResp && deskWordsResp.data && deskId !== 'all') {
+        const deskWordIds = new Set(deskWordsResp.data.map((w: any) => w.id))
+        filteredCards = allCards.filter(card => deskWordIds.has(card.id))
+      }
+
+      // Group cards into overdue, dueToday, newWords using UTC date-only strings
+      const grouped = groupCardsByPriority(filteredCards)
+      const easeFactors = filteredCards
+        .map(c => c.lastReview?.ease_factor)
+        .filter((ef): ef is number => typeof ef === 'number')
+
+      const averageDifficulty = easeFactors.length > 0
+        ? Math.round((easeFactors.reduce((s, ef) => s + ef, 0) / easeFactors.length) * 100) / 100
+        : 2.5
+
+      const globalQueueStats = {
+        total: grouped.overdue.length + grouped.dueToday.length + grouped.newWords.length,
+        overdue: grouped.overdue.length,
+        dueToday: grouped.dueToday.length,
+        newWords: grouped.newWords.length,
+        averageDifficulty
+      }
+
       setDashboardStats(stats)
-      setTodaysCards(dueWordsData.data || [])
-      setQueueStats(queueData.stats)
-      setRecommendedMode(recommendation)
+      setTodaysCards(filteredCards)
+      setQueueStats(globalQueueStats)
+
+      // Derive recommendation from global stats (avoid session-limited bias)
+      let rec: { mode: any; reasoning: string; priority: 'high' | 'medium' | 'low' }
+      if (globalQueueStats.overdue > 10) {
+        rec = { mode: 'overdue_only', reasoning: `You have ${globalQueueStats.overdue} overdue words. Focus on catching up!`, priority: 'high' }
+      } else if (globalQueueStats.dueToday > 20) {
+        rec = { mode: 'review_only', reasoning: `${globalQueueStats.dueToday} words are due today. Focus on reviews first.`, priority: 'medium' }
+      } else if (globalQueueStats.newWords < 5) {
+        rec = { mode: 'mixed', reasoning: 'Good balance of new and review words. Keep up the momentum!', priority: 'low' }
+      } else {
+        rec = { mode: 'mixed', reasoning: 'Balanced study session recommended.', priority: 'low' }
+      }
+      setRecommendedMode(rec)
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
     } finally {
@@ -255,27 +314,7 @@ export function StudySessionDashboard({
                 isLoading={isDashboardLoading}
                 className="h-full"
                 onDeskChange={async (deskId) => {
-                  try {
-                    const queueManager = getQueueManager()
-                    const options = deskId && deskId !== 'all' ? { maxWords: 100, deskId } : { maxWords: 100 }
-                    const { stats: qs } = await queueManager.generateQueue(options)
-                    setQueueStats(qs)
-
-                    // Derive recommendation from desk-specific stats
-                    let rec: { mode: any; reasoning: string; priority: 'high' | 'medium' | 'low' }
-                    if (qs.overdue > 10) {
-                      rec = { mode: 'overdue_only', reasoning: `You have ${qs.overdue} overdue words. Focus on catching up!`, priority: 'high' }
-                    } else if (qs.dueToday > 20) {
-                      rec = { mode: 'review_only', reasoning: `${qs.dueToday} words are due today. Focus on reviews first.`, priority: 'medium' }
-                    } else if (qs.newWords < 5) {
-                      rec = { mode: 'mixed', reasoning: 'Good balance of new and review words. Keep up the momentum!', priority: 'low' }
-                    } else {
-                      rec = { mode: 'mixed', reasoning: 'Balanced study session recommended.', priority: 'low' }
-                    }
-                    setRecommendedMode(rec)
-                  } catch (e) {
-                    console.error('Failed to refresh queue for desk', e)
-                  }
+                  await loadDashboardData(deskId)
                 }}
               />
             </div>

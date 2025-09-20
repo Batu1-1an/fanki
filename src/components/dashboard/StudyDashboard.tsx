@@ -17,8 +17,8 @@ import {
 } from 'lucide-react'
 import { ReviewDashboard } from './ReviewDashboard'
 import { getUserDesks, createDesk, Desk } from '@/lib/desks'
-import { generateStudySession, getQueueManager, getRecommendedStudyMode } from '@/lib/queue-manager'
-import { getReviewStats } from '@/lib/reviews'
+import { generateStudySession } from '@/lib/queue-manager'
+import { getReviewStats, getDueWords } from '@/lib/reviews'
 import { useToast } from '@/hooks/use-toast'
 
 interface StudyDashboardProps {
@@ -84,12 +84,10 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
   const loadDesks = async () => {
     setIsLoading(true)
     try {
-      const queueManager = getQueueManager()
-      const [desksData, statsData, queueData, recommendation] = await Promise.all([
+      const [desksData, statsData, dueWordsResp] = await Promise.all([
         getUserDesks(),
         getReviewStats(),
-        queueManager.generateQueue({ maxWords: 100 }),
-        getRecommendedStudyMode()
+        getDueWords(5000)
       ])
       
       if (desksData.error) {
@@ -99,8 +97,45 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
       }
       
       setDashboardStats(statsData)
-      setQueueStats(queueData.stats)
-      setRecommendedMode(recommendation)
+
+      const cards = dueWordsResp.data || []
+      const todayStr = new Date().toISOString().split('T')[0]
+      const counts = cards.reduce((acc, c) => {
+        if (!c.lastReview) acc.newWords++
+        else {
+          const due = new Date(c.lastReview.due_date).toISOString().split('T')[0]
+          if (due < todayStr) acc.overdue++
+          else if (due === todayStr) acc.dueToday++
+        }
+        return acc
+      }, { overdue: 0, dueToday: 0, newWords: 0 })
+      const easeFactors = cards
+        .map(c => c.lastReview?.ease_factor)
+        .filter((ef): ef is number => typeof ef === 'number')
+      const averageDifficulty = easeFactors.length > 0
+        ? Math.round((easeFactors.reduce((s, ef) => s + ef, 0) / easeFactors.length) * 100) / 100
+        : 2.5
+      const globalStats = {
+        total: counts.overdue + counts.dueToday + counts.newWords,
+        overdue: counts.overdue,
+        dueToday: counts.dueToday,
+        newWords: counts.newWords,
+        averageDifficulty
+      }
+      setQueueStats(globalStats)
+
+      // Derive recommendation from global stats
+      let rec: { mode: any; reasoning: string; priority: 'high' | 'medium' | 'low' }
+      if (globalStats.overdue > 10) {
+        rec = { mode: 'overdue_only', reasoning: `You have ${globalStats.overdue} overdue words. Focus on catching up!`, priority: 'high' }
+      } else if (globalStats.dueToday > 20) {
+        rec = { mode: 'review_only', reasoning: `${globalStats.dueToday} words are due today. Focus on reviews first.`, priority: 'medium' }
+      } else if (globalStats.newWords < 5) {
+        rec = { mode: 'mixed', reasoning: 'Good balance of new and review words. Keep up the momentum!', priority: 'low' }
+      } else {
+        rec = { mode: 'mixed', reasoning: 'Balanced study session recommended.', priority: 'low' }
+      }
+      setRecommendedMode(rec)
     } catch (error) {
       console.error('Failed to load data:', error)
     } finally {

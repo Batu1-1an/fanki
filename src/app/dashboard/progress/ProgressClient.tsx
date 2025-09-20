@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button'
 import { StudyStreakTracker } from '@/components/dashboard/StudyStreakTracker'
 import { ReviewDashboard } from '@/components/dashboard/ReviewDashboard'
 import { getWordStats } from '@/lib/words'
-import { getReviewStats } from '@/lib/reviews'
-import { getQueueManager, getRecommendedStudyMode } from '@/lib/queue-manager'
+import { getReviewStats, getDueWords } from '@/lib/reviews'
 import { ArrowLeft, TrendingUp, Calendar, Target } from 'lucide-react'
 
 interface ProgressClientProps {
@@ -68,20 +67,56 @@ export default function ProgressClient({ user }: ProgressClientProps) {
 
   useEffect(() => {
     const loadWordStats = async () => {
-      const queueManager = getQueueManager()
-      const [wordStatsData, dashboardStatsData, queueData, recommendation] = await Promise.all([
+      const [wordStatsData, dashboardStatsData, dueWordsResp] = await Promise.all([
         getWordStats(),
         getReviewStats(),
-        queueManager.generateQueue({ maxWords: 100 }),
-        getRecommendedStudyMode()
+        getDueWords(5000)
       ])
       setWordStats(wordStatsData)
       setDashboardStats(dashboardStatsData)
-      setQueueStats(queueData.stats)
-      setRecommendedMode(recommendation)
+
+      const cards = dueWordsResp.data || []
+      const todayStr = new Date().toISOString().split('T')[0]
+      const counts = cards.reduce((acc, c) => {
+        if (!c.lastReview) acc.newWords++
+        else {
+          const due = new Date(c.lastReview.due_date).toISOString().split('T')[0]
+          if (due < todayStr) acc.overdue++
+          else if (due === todayStr) acc.dueToday++
+        }
+        return acc
+      }, { overdue: 0, dueToday: 0, newWords: 0 })
+
+      const easeFactors = cards
+        .map(c => c.lastReview?.ease_factor)
+        .filter((ef): ef is number => typeof ef === 'number')
+      const averageDifficulty = easeFactors.length > 0
+        ? Math.round((easeFactors.reduce((s, ef) => s + ef, 0) / easeFactors.length) * 100) / 100
+        : 2.5
+      const globalStats = {
+        total: counts.overdue + counts.dueToday + counts.newWords,
+        overdue: counts.overdue,
+        dueToday: counts.dueToday,
+        newWords: counts.newWords,
+        averageDifficulty
+      }
+      setQueueStats(globalStats)
+
+      // Derive recommendation from global stats
+      let rec: { mode: any; reasoning: string; priority: 'high' | 'medium' | 'low' }
+      if (globalStats.overdue > 10) {
+        rec = { mode: 'overdue_only', reasoning: `You have ${globalStats.overdue} overdue words. Focus on catching up!`, priority: 'high' }
+      } else if (globalStats.dueToday > 20) {
+        rec = { mode: 'review_only', reasoning: `${globalStats.dueToday} words are due today. Focus on reviews first.`, priority: 'medium' }
+      } else if (globalStats.newWords < 5) {
+        rec = { mode: 'mixed', reasoning: 'Good balance of new and review words. Keep up the momentum!', priority: 'low' }
+      } else {
+        rec = { mode: 'mixed', reasoning: 'Balanced study session recommended.', priority: 'low' }
+      }
+      setRecommendedMode(rec)
       setLoading(false)
     }
-    
+
     loadWordStats()
   }, [])
 

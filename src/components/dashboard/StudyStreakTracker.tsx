@@ -21,6 +21,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import { getStudySessionStats, getStudySessionHistory } from '@/lib/study-sessions'
 import { cn } from '@/lib/utils'
+import { createClientComponentClient } from '@/lib/supabase'
 
 interface StreakMilestone {
   days: number
@@ -53,6 +54,7 @@ export function StudyStreakTracker({ className, onStreakMilestone }: StudyStreak
   const [weeklyProgress, setWeeklyProgress] = useState<DayStatus[]>([])
   const [milestones, setMilestones] = useState<StreakMilestone[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [userTimeZone, setUserTimeZone] = useState<string>('UTC')
 
   const streakMilestones: StreakMilestone[] = [
     {
@@ -116,9 +118,27 @@ export function StudyStreakTracker({ className, onStreakMilestone }: StudyStreak
       const stats = await getStudySessionStats()
       setStreakData(stats)
 
+      // Determine user's timezone (profile -> system -> UTC)
+      const supabase = createClientComponentClient()
+      let tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('timezone')
+            .eq('id', user.id)
+            .single()
+          if (profile?.timezone) tz = profile.timezone
+        }
+      } catch (_) {
+        // silent fallback to resolved/system timezone
+      }
+      setUserTimeZone(tz)
+
       // Get recent session history for weekly view
       const { data: sessions } = await getStudySessionHistory(30)
-      const weeklyData = generateWeeklyProgress(sessions || [])
+      const weeklyData = generateWeeklyProgress(sessions || [], tz)
       setWeeklyProgress(weeklyData)
 
       // Calculate achieved milestones
@@ -134,19 +154,35 @@ export function StudyStreakTracker({ className, onStreakMilestone }: StudyStreak
     }
   }
 
-  const generateWeeklyProgress = (sessions: any[]): DayStatus[] => {
+  const generateWeeklyProgress = (sessions: any[], timeZone: string): DayStatus[] => {
     const days: DayStatus[] = []
     const today = new Date()
+    
+    // Helpers for timezone-safe day math (mirror study-sessions.ts)
+    const formatDateInTimeZone = (date: Date, tz: string): string => {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(date)
+      const y = parts.find(p => p.type === 'year')?.value || '1970'
+      const m = parts.find(p => p.type === 'month')?.value || '01'
+      const d = parts.find(p => p.type === 'day')?.value || '01'
+      return `${y}-${m}-${d}`
+    }
     
     // Generate last 7 days
     for (let i = 6; i >= 0; i--) {
       const date = new Date(today)
       date.setDate(date.getDate() - i)
-      const dateStr = date.toISOString().split('T')[0]
+      const dateStr = formatDateInTimeZone(date, timeZone)
       
-      const daySessions = sessions.filter(s => 
-        s.ended_at && s.ended_at.startsWith(dateStr)
-      )
+      const daySessions = sessions.filter(s => {
+        if (!s?.ended_at || s?.status !== 'completed') return false
+        const sDate = formatDateInTimeZone(new Date(s.ended_at), timeZone)
+        return sDate === dateStr
+      })
       
       const avgAccuracy = daySessions.length > 0 
         ? daySessions.reduce((sum, s) => sum + (s.accuracy_percentage || 0), 0) / daySessions.length
@@ -178,13 +214,16 @@ export function StudyStreakTracker({ className, onStreakMilestone }: StudyStreak
   }
 
   const getDayName = (dateStr: string) => {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('en', { weekday: 'short' })
+    const [y, m, d] = dateStr.split('-').map(Number)
+    // Construct a UTC date at midnight for the given Y-M-D.
+    // Day-of-week for a calendar date is timezone-independent.
+    const date = new Date(Date.UTC(y, (m || 1) - 1, d || 1))
+    return new Intl.DateTimeFormat('en', { weekday: 'short', timeZone: 'UTC' }).format(date)
   }
 
   const getDayNumber = (dateStr: string) => {
-    const date = new Date(dateStr)
-    return date.getDate()
+    // Day number is simply the D part of YYYY-MM-DD
+    return parseInt(dateStr.split('-')[2] || '1', 10)
   }
 
   const nextMilestone = getNextMilestone()
