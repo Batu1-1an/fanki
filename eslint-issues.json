@@ -1,0 +1,156 @@
+[
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\app\\profile\\ProfileClient.tsx",
+    "line": 48,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useEffect has a missing dependency: 'loadProfileData'. Either include it or remove the dependency array."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\dashboard\\StudyStreakTracker.tsx",
+    "line": 112,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useEffect has a missing dependency: 'loadStreakData'. Either include it or remove the dependency array."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\dashboard\\WordDeskAssignment.tsx",
+    "line": 31,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\flashcards\\FlashcardComponent.tsx",
+    "line": 104,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useEffect has a missing dependency: 'word'. Either include it or remove the dependency array. If 'setCurrentWord' needs the current value of 'word', you can also switch to useReducer instead of useState and read 'word' in the reducer."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\flashcards\\FlashcardComponent.tsx",
+    "line": 149,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useEffect has a missing dependency: 'handleReview'. Either include it or remove the dependency array."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\flashcards\\ReviewButtons.tsx",
+    "line": 94,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useEffect has a missing dependency: 'loadIntervalPredictions'. Either include it or remove the dependency array."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\flashcards\\SessionCompletionFeedback.tsx",
+    "line": 72,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useEffect has a missing dependency: 'loadAchievementsAndStats'. Either include it or remove the dependency array."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\flashcards\\StudySession.tsx",
+    "line": 149,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useEffect has missing dependencies: 'dbSessionId' and 'initializeSession'. Either include them or remove the dependency array."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\flashcards\\StudySession.tsx",
+    "line": 186,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useEffect has a missing dependency: 'fetchNextChunk'. Either include it or remove the dependency array."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\flashcards\\StudySession.tsx",
+    "line": 381,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useCallback has a missing dependency: 'dbSessionId'. Either include it or remove the dependency array. You can also replace multiple useState variables with useReducer if 'setSessionStats' needs the current value of 'dbSessionId'."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\flashcards\\StudySession.tsx",
+    "line": 464,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useCallback has a missing dependency: 'enrichedWords?.length'. Either include it or remove the dependency array."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\ui\\avatar.tsx",
+    "line": 34,
+    "column": 5,
+    "rule": "@next/next/no-img-element",
+    "message": "Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element"
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\ui\\avatar.tsx",
+    "line": 34,
+    "column": 5,
+    "rule": "jsx-a11y/alt-text",
+    "message": "img elements must have an alt prop, either with meaningful text, or an empty string for decorative images."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\words\\AddFromImageModal.tsx",
+    "line": 304,
+    "column": 19,
+    "rule": "@next/next/no-img-element",
+    "message": "Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element"
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\words\\AddWordForm.tsx",
+    "line": 65,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useEffect has a missing dependency: 'formData.deskId'. Either include it or remove the dependency array."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\words\\FlashcardGenerator.tsx",
+    "line": 100,
+    "column": 17,
+    "rule": "jsx-a11y/alt-text",
+    "message": "Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\words\\FlashcardGenerator.tsx",
+    "line": 172,
+    "column": 15,
+    "rule": "jsx-a11y/alt-text",
+    "message": "Image elements must have an alt prop, either with meaningful text, or an empty string for decorative images."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\words\\FlashcardGenerator.tsx",
+    "line": 180,
+    "column": 17,
+    "rule": "@next/next/no-img-element",
+    "message": "Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element"
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\words\\WordManagementDashboard.tsx",
+    "line": 63,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useEffect has a missing dependency: 'loadDeskWords'. Either include it or remove the dependency array."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\words\\WordManagementDashboard.tsx",
+    "line": 67,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useEffect has a missing dependency: 'applyFiltersAndSort'. Either include it or remove the dependency array."
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\components\\words\\WordWithFlashcard.tsx",
+    "line": 308,
+    "column": 21,
+    "rule": "@next/next/no-img-element",
+    "message": "Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element"
+  },
+  {
+    "file": "C:\\Users\\batu\\Desktop\\fanki\\src\\hooks\\useOnboarding.ts",
+    "line": 36,
+    "column": 6,
+    "rule": "react-hooks/exhaustive-deps",
+    "message": "React Hook useEffect has a missing dependency: 'checkOnboardingStatus'. Either include it or remove the dependency array."
+  }
+]

@@ -101,7 +101,7 @@ export function FlashcardComponent({
     setAudioUrl(null)
     setAudioError(null)
     setIsLoadingAudio(false)
-  }, [word.id])
+  }, [word])
 
   const handleFlip = useCallback(() => {
     setState(prev => ({
@@ -110,43 +110,6 @@ export function FlashcardComponent({
       responseTime: Date.now() - startTime
     }))
   }, [startTime])
-
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement) return
-      
-      switch (e.key) {
-        case ' ':
-          e.preventDefault()
-          // In new flow, Space shows answer (flips from front to back)
-          if (!state.isFlipped) {
-            handleFlip()
-          }
-          break
-        case 'ArrowLeft':
-          e.preventDefault()
-          onPrevious?.()
-          break
-        case 'ArrowRight':
-          e.preventDefault()
-          if (state.isFlipped) onNext?.()
-          break
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-          if (state.isFlipped) {
-            handleReview(parseInt(e.key) as ReviewQuality)
-          }
-          break
-      }
-    }
-
-    document.addEventListener('keydown', handleKeyPress)
-    return () => document.removeEventListener('keydown', handleKeyPress)
-  }, [state.isFlipped, onNext, onPrevious, handleFlip])
 
   const handleShowAnswer = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -175,6 +138,42 @@ export function FlashcardComponent({
       response_time_ms: state.responseTime
     })
   }, [onReview, state.responseTime])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement) return
+
+      switch (e.key) {
+        case ' ':
+          e.preventDefault()
+          if (!state.isFlipped) {
+            handleFlip()
+          }
+          break
+        case 'ArrowLeft':
+          e.preventDefault()
+          onPrevious?.()
+          break
+        case 'ArrowRight':
+          e.preventDefault()
+          if (state.isFlipped) onNext?.()
+          break
+        case '1':
+        case '2':
+        case '3':
+        case '4':
+        case '5':
+          if (state.isFlipped) {
+            handleReview(parseInt(e.key) as ReviewQuality)
+          }
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyPress)
+    return () => document.removeEventListener('keydown', handleKeyPress)
+  }, [state.isFlipped, onNext, onPrevious, handleFlip, handleReview])
 
   const fetchAudio = useCallback(async () => {
     if (!currentWord.id) return

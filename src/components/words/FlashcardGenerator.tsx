@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Sparkles, Image, Type, RefreshCw } from 'lucide-react'
+import { Loader2, Sparkles, Image as ImageIcon, Type, RefreshCw } from 'lucide-react'
 import { aiService } from '@/lib/ai-services'
 import { useAuth } from '@/hooks/useAuth'
 import { FlashcardSentence } from '@/types'
+import NextImage from 'next/image'
 
 interface FlashcardGeneratorProps {
   word: string
@@ -30,6 +31,11 @@ export function FlashcardGenerator({ word, difficulty, onContentGenerated }: Fla
     cached: { sentences: boolean; image: boolean }
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [fallbackImageUrl, setFallbackImageUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    setFallbackImageUrl(null)
+  }, [generatedContent?.imageUrl])
 
   const handleGenerate = async () => {
     if (!user) {
@@ -48,6 +54,7 @@ export function FlashcardGenerator({ word, difficulty, onContentGenerated }: Fla
       )
 
       setGeneratedContent(content)
+      setFallbackImageUrl(null)
       onContentGenerated?.(content)
     } catch (err) {
       console.error('Error generating flashcard content:', err)
@@ -97,7 +104,7 @@ export function FlashcardGenerator({ word, difficulty, onContentGenerated }: Fla
                 3 Cloze Sentences
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Image className="h-4 w-4" />
+                <ImageIcon className="h-4 w-4" />
                 Memorable Image
               </div>
             </div>
@@ -169,22 +176,26 @@ export function FlashcardGenerator({ word, difficulty, onContentGenerated }: Fla
           {/* Image Section */}
           <Card className="p-4">
             <div className="flex items-center gap-2 mb-3">
-              <Image className="h-4 w-4 text-green-500" />
+              <ImageIcon className="h-4 w-4 text-green-500" />
               <h4 className="font-medium">Memorable Image</h4>
               {generatedContent.cached.image && (
                 <Badge variant="outline" className="text-xs">cached</Badge>
               )}
             </div>
             <div className="space-y-3">
-              <div className="rounded-md overflow-hidden bg-muted flex items-center justify-center h-48">
-                <img
-                  src={generatedContent.imageUrl}
+              <div className="relative rounded-md overflow-hidden bg-muted flex items-center justify-center h-48">
+                <NextImage
+                  src={fallbackImageUrl ?? generatedContent.imageUrl}
                   alt={`Visual representation of ${word}`}
-                  className="max-h-full max-w-full object-contain"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement
-                    target.src = `https://placehold.co/400x300/6366F1/FFFFFF?text=${encodeURIComponent(word)}`
+                  fill
+                  className="object-contain"
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  onError={() => {
+                    if (!fallbackImageUrl) {
+                      setFallbackImageUrl(`https://placehold.co/400x300/6366F1/FFFFFF?text=${encodeURIComponent(word)}`)
+                    }
                   }}
+                  unoptimized
                 />
               </div>
               {generatedContent.imageDescription && (

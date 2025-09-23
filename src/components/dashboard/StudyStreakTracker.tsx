@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
@@ -44,6 +44,57 @@ interface StudyStreakTrackerProps {
   onStreakMilestone?: (milestone: StreakMilestone) => void
 }
 
+const STREAK_MILESTONES: StreakMilestone[] = [
+  {
+    days: 3,
+    title: 'Getting Started',
+    description: 'Complete 3 consecutive days',
+    icon: <Star className="w-5 h-5" />,
+    color: 'text-blue-600 bg-blue-50',
+    reward: 'Consistency Badge'
+  },
+  {
+    days: 7,
+    title: 'Week Warrior',
+    description: 'Complete a full week',
+    icon: <Target className="w-5 h-5" />,
+    color: 'text-green-600 bg-green-50',
+    reward: 'Weekly Champion Badge'
+  },
+  {
+    days: 14,
+    title: 'Habit Former',
+    description: 'Study for 2 weeks straight',
+    icon: <Zap className="w-5 h-5" />,
+    color: 'text-orange-600 bg-orange-50',
+    reward: 'Habit Master Badge'
+  },
+  {
+    days: 30,
+    title: 'Monthly Master',
+    description: 'Complete 30 consecutive days',
+    icon: <Trophy className="w-5 h-5" />,
+    color: 'text-purple-600 bg-purple-50',
+    reward: 'Monthly Master Badge'
+  },
+  {
+    days: 50,
+    title: 'Dedication Demon',
+    description: 'Study for 50 days straight',
+    icon: <Flame className="w-5 h-5" />,
+    color: 'text-red-600 bg-red-50',
+    reward: 'Dedication Master Badge'
+  },
+  {
+    days: 100,
+    title: 'Centurion',
+    description: 'Reach the legendary 100-day streak',
+    icon: <Crown className="w-5 h-5" />,
+    color: 'text-yellow-600 bg-yellow-50',
+    reward: 'Centurion Crown'
+  }
+]
+
 export function StudyStreakTracker({ className, onStreakMilestone }: StudyStreakTrackerProps) {
   const [streakData, setStreakData] = useState({
     currentStreak: 0,
@@ -56,62 +107,50 @@ export function StudyStreakTracker({ className, onStreakMilestone }: StudyStreak
   const [isLoading, setIsLoading] = useState(true)
   const [userTimeZone, setUserTimeZone] = useState<string>('UTC')
 
-  const streakMilestones: StreakMilestone[] = [
-    {
-      days: 3,
-      title: 'Getting Started',
-      description: 'Complete 3 consecutive days',
-      icon: <Star className="w-5 h-5" />,
-      color: 'text-blue-600 bg-blue-50',
-      reward: 'Consistency Badge'
-    },
-    {
-      days: 7,
-      title: 'Week Warrior',
-      description: 'Complete a full week',
-      icon: <Target className="w-5 h-5" />,
-      color: 'text-green-600 bg-green-50',
-      reward: 'Weekly Champion Badge'
-    },
-    {
-      days: 14,
-      title: 'Habit Former',
-      description: 'Study for 2 weeks straight',
-      icon: <Zap className="w-5 h-5" />,
-      color: 'text-orange-600 bg-orange-50',
-      reward: 'Habit Master Badge'
-    },
-    {
-      days: 30,
-      title: 'Monthly Master',
-      description: 'Complete 30 consecutive days',
-      icon: <Trophy className="w-5 h-5" />,
-      color: 'text-purple-600 bg-purple-50',
-      reward: 'Monthly Master Badge'
-    },
-    {
-      days: 50,
-      title: 'Dedication Demon',
-      description: 'Study for 50 days straight',
-      icon: <Flame className="w-5 h-5" />,
-      color: 'text-red-600 bg-red-50',
-      reward: 'Dedication Master Badge'
-    },
-    {
-      days: 100,
-      title: 'Centurion',
-      description: 'Reach the legendary 100-day streak',
-      icon: <Crown className="w-5 h-5" />,
-      color: 'text-yellow-600 bg-yellow-50',
-      reward: 'Centurion Crown'
-    }
-  ]
+  const generateWeeklyProgress = useCallback((sessions: any[], timeZone: string): DayStatus[] => {
+    const days: DayStatus[] = []
+    const today = new Date()
 
-  useEffect(() => {
-    loadStreakData()
+    const formatDateInTimeZone = (date: Date, tz: string): string => {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: tz,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(date)
+      const y = parts.find(p => p.type === 'year')?.value || '1970'
+      const m = parts.find(p => p.type === 'month')?.value || '01'
+      const d = parts.find(p => p.type === 'day')?.value || '01'
+      return `${y}-${m}-${d}`
+    }
+
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - i)
+      const dateStr = formatDateInTimeZone(date, timeZone)
+
+      const daySessions = sessions.filter(s => {
+        if (!s?.ended_at || s?.status !== 'completed') return false
+        const sDate = formatDateInTimeZone(new Date(s.ended_at), timeZone)
+        return sDate === dateStr
+      })
+
+      const avgAccuracy = daySessions.length > 0
+        ? daySessions.reduce((sum, s) => sum + (s.accuracy_percentage || 0), 0) / daySessions.length
+        : undefined
+
+      days.push({
+        date: dateStr,
+        hasSession: daySessions.length > 0,
+        sessionCount: daySessions.length,
+        accuracy: avgAccuracy
+      })
+    }
+
+    return days
   }, [])
 
-  const loadStreakData = async () => {
+  const loadStreakData = useCallback(async () => {
     setIsLoading(true)
     try {
       // Get overall stats
@@ -142,7 +181,7 @@ export function StudyStreakTracker({ className, onStreakMilestone }: StudyStreak
       setWeeklyProgress(weeklyData)
 
       // Calculate achieved milestones
-      const achievedMilestones = streakMilestones.filter(m => 
+      const achievedMilestones = STREAK_MILESTONES.filter(m => 
         stats.currentStreak >= m.days || stats.longestStreak >= m.days
       )
       setMilestones(achievedMilestones)
@@ -152,55 +191,14 @@ export function StudyStreakTracker({ className, onStreakMilestone }: StudyStreak
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [generateWeeklyProgress])
 
-  const generateWeeklyProgress = (sessions: any[], timeZone: string): DayStatus[] => {
-    const days: DayStatus[] = []
-    const today = new Date()
-    
-    // Helpers for timezone-safe day math (mirror study-sessions.ts)
-    const formatDateInTimeZone = (date: Date, tz: string): string => {
-      const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: tz,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).formatToParts(date)
-      const y = parts.find(p => p.type === 'year')?.value || '1970'
-      const m = parts.find(p => p.type === 'month')?.value || '01'
-      const d = parts.find(p => p.type === 'day')?.value || '01'
-      return `${y}-${m}-${d}`
-    }
-    
-    // Generate last 7 days
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - i)
-      const dateStr = formatDateInTimeZone(date, timeZone)
-      
-      const daySessions = sessions.filter(s => {
-        if (!s?.ended_at || s?.status !== 'completed') return false
-        const sDate = formatDateInTimeZone(new Date(s.ended_at), timeZone)
-        return sDate === dateStr
-      })
-      
-      const avgAccuracy = daySessions.length > 0 
-        ? daySessions.reduce((sum, s) => sum + (s.accuracy_percentage || 0), 0) / daySessions.length
-        : undefined
-
-      days.push({
-        date: dateStr,
-        hasSession: daySessions.length > 0,
-        sessionCount: daySessions.length,
-        accuracy: avgAccuracy
-      })
-    }
-    
-    return days
-  }
+  useEffect(() => {
+    loadStreakData()
+  }, [loadStreakData])
 
   const getNextMilestone = () => {
-    return streakMilestones.find(m => m.days > streakData.currentStreak)
+    return STREAK_MILESTONES.find(m => m.days > streakData.currentStreak)
   }
 
   const getStreakEmoji = (streak: number) => {

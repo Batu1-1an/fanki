@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { User } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -43,11 +43,7 @@ export default function ProfileClient({ user }: ProfileClientProps) {
   const languages = getAvailableLanguages()
   const { toast } = useToast()
 
-  useEffect(() => {
-    loadProfileData()
-  }, [])
-
-  const loadProfileData = async () => {
+  const loadProfileData = useCallback(async () => {
     try {
       setLoading(true)
       const [profileData, stats] = await Promise.all([
@@ -78,7 +74,11 @@ export default function ProfileClient({ user }: ProfileClientProps) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [toast])
+
+  useEffect(() => {
+    loadProfileData()
+  }, [loadProfileData])
 
   const handleSaveProfile = async () => {
     try {

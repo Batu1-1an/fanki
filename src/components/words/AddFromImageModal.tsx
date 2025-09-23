@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import Image from 'next/image'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -301,11 +302,16 @@ export default function AddFromImageModal({ isOpen, onClose, onWordsAdded, selec
               
               {imagePreview ? (
                 <div className="space-y-4">
-                  <img
-                    src={imagePreview}
-                    alt="Preview"
-                    className="max-w-full max-h-64 mx-auto rounded-lg shadow-lg"
-                  />
+                  <div className="relative max-w-full max-h-64 mx-auto rounded-lg shadow-lg overflow-hidden">
+                    <Image
+                      src={imagePreview}
+                      alt="Selected image preview"
+                      fill
+                      className="object-contain"
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                      unoptimized
+                    />
+                  </div>
                   <div className="flex items-center justify-center text-sm text-gray-600">
                     <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
                     Image ready to analyze

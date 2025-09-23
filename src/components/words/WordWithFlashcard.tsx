@@ -13,6 +13,7 @@ import { aiService } from '@/lib/ai-services'
 import { useAuth } from '@/hooks/useAuth'
 import { FlashcardGenerator } from './FlashcardGenerator'
 import { useToast } from '@/components/ui/toast'
+import Image from 'next/image'
 
 interface WordWithFlashcardProps {
   word: Word
@@ -35,6 +36,7 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting, selected
     imageDescription?: string
   } | null>(null)
   const [loadingFlashcard, setLoadingFlashcard] = useState(false)
+  const [fallbackImageUrl, setFallbackImageUrl] = useState<string | null>(null)
   const [availableDesks, setAvailableDesks] = useState<Desk[]>([])
   const [movingToDeskId, setMovingToDeskId] = useState<string | null>(null)
 
@@ -83,8 +85,12 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting, selected
   }
 
   const handleShowFlashcard = () => {
-    setShowFlashcard(!showFlashcard)
-    if (!showFlashcard && !flashcardContent) {
+    const nextShowState = !showFlashcard
+    setShowFlashcard(nextShowState)
+    if (!nextShowState) {
+      setFallbackImageUrl(null)
+    }
+    if (nextShowState && !flashcardContent) {
       loadFlashcardContent()
     }
   }
@@ -100,6 +106,7 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting, selected
       imageUrl: content.imageUrl,
       imageDescription: content.imageDescription
     })
+    setFallbackImageUrl(null)
   }
 
   // Load available desks for moving
@@ -304,15 +311,19 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting, selected
                   Visual Aid
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="w-16 h-12 rounded overflow-hidden bg-gray-100 flex-shrink-0">
-                    <img
-                      src={flashcardContent.imageUrl}
+                  <div className="relative w-16 h-12 rounded overflow-hidden bg-gray-100 flex-shrink-0">
+                    <Image
+                      src={fallbackImageUrl ?? flashcardContent.imageUrl}
                       alt={`Visual for ${word.word}`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement
-                        target.src = `https://placehold.co/64x48/6366F1/FFFFFF?text=${encodeURIComponent(word.word.charAt(0))}`
+                      fill
+                      className="object-cover"
+                      sizes="64px"
+                      onError={() => {
+                        if (!fallbackImageUrl) {
+                          setFallbackImageUrl(`https://placehold.co/64x48/6366F1/FFFFFF?text=${encodeURIComponent(word.word.charAt(0))}`)
+                        }
                       }}
+                      unoptimized
                     />
                   </div>
                   {flashcardContent.imageDescription && (

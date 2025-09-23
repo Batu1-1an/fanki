@@ -32,6 +32,7 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
     pronunciation: '',
     deskId: selectedDesk?.id || ''
   })
+  const deskId = formData.deskId
   
   const [desks, setDesks] = useState<Desk[]>([])
   const [defaultDesk, setDefaultDesk] = useState<Desk | null>(null)
@@ -56,13 +57,13 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
       if (defaultDeskData) {
         setDefaultDesk(defaultDeskData)
         // Set default desk if no desk is pre-selected
-        if (!selectedDesk && !formData.deskId) {
+        if (!selectedDesk && !deskId) {
           setFormData(prev => ({ ...prev, deskId: defaultDeskData.id }))
         }
       }
     }
     loadDesks()
-  }, [selectedDesk])
+  }, [selectedDesk, deskId])
 
   // Real-time validation for individual fields
   const validateField = useCallback((field: string, value: any) => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClientComponentClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
@@ -31,11 +31,7 @@ export function useOnboarding() {
   const router = useRouter()
 
   // Check onboarding status on mount
-  useEffect(() => {
-    checkOnboardingStatus()
-  }, [])
-
-  const checkOnboardingStatus = async () => {
+  const checkOnboardingStatus = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) return
@@ -84,7 +80,11 @@ export function useOnboarding() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    checkOnboardingStatus()
+  }, [checkOnboardingStatus])
 
   const completeTour = async () => {
     localStorage.setItem('fanki-tour-completed', 'true')

@@ -141,14 +141,7 @@ export function StudySession({
     return () => clearInterval(timer)
   }, [sessionStats.startTime, isPaused, totalPauseTime])
 
-  // Initialize database session
-  useEffect(() => {
-    if (!dbSessionId) {
-      initializeSession()
-    }
-  }, [])
-
-  const initializeSession = async () => {
+  const initializeSession = useCallback(async () => {
     const { data, error } = await createStudySession({
       sessionType
     })
@@ -158,7 +151,14 @@ export function StudySession({
     } else {
       console.error('Failed to create session:', error)
     }
-  }
+  }, [sessionType])
+
+  // Initialize database session
+  useEffect(() => {
+    if (!dbSessionId) {
+      initializeSession()
+    }
+  }, [dbSessionId, initializeSession])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -166,33 +166,14 @@ export function StudySession({
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  // Predictive chunk fetching - loads next chunk in background
-  useEffect(() => {
-    if (!user || isPaused || currentlyShowingRelearning) return
-
-    const currentChunkIndex = Math.floor(currentIndex / CHUNK_SIZE)
-    const nextChunkIndex = currentChunkIndex + 1
-    const cardsLeftInChunk = (currentChunkIndex + 1) * CHUNK_SIZE - (currentIndex + 1)
-
-    // Check if we should pre-fetch the next chunk
-    if (
-      cardsLeftInChunk <= PREFETCH_THRESHOLD &&
-      !isFetchingNextChunk &&
-      !fetchedChunks.current.has(nextChunkIndex) &&
-      (nextChunkIndex * CHUNK_SIZE) < enrichedWords.length
-    ) {
-      fetchNextChunk(nextChunkIndex)
-    }
-  }, [currentIndex, enrichedWords, isFetchingNextChunk, user, isPaused, currentlyShowingRelearning])
-
-  const fetchNextChunk = async (chunkIndex: number) => {
+  const fetchNextChunk = useCallback(async (chunkIndex: number, currentWords: QueuedWord[]) => {
     if (!user) return
     setIsFetchingNextChunk(true)
     fetchedChunks.current.add(chunkIndex)
     
     const startIndex = chunkIndex * CHUNK_SIZE
-    const endIndex = Math.min(startIndex + CHUNK_SIZE, enrichedWords.length)
-    const chunkToFetch = enrichedWords.slice(startIndex, endIndex)
+    const endIndex = Math.min(startIndex + CHUNK_SIZE, currentWords.length)
+    const chunkToFetch = currentWords.slice(startIndex, endIndex)
 
     console.log(`Pre-fetching content for next 2 cards (${startIndex + 1} to ${endIndex})...`)
 
@@ -244,7 +225,25 @@ export function StudySession({
     } finally {
       setIsFetchingNextChunk(false)
     }
-  }
+  }, [user])
+
+  // Predictive chunk fetching - loads next chunk in background
+  useEffect(() => {
+    if (!user || isPaused || currentlyShowingRelearning) return
+
+    const currentChunkIndex = Math.floor(currentIndex / CHUNK_SIZE)
+    const nextChunkIndex = currentChunkIndex + 1
+    const cardsLeftInChunk = (currentChunkIndex + 1) * CHUNK_SIZE - (currentIndex + 1)
+
+    if (
+      cardsLeftInChunk <= PREFETCH_THRESHOLD &&
+      !isFetchingNextChunk &&
+      !fetchedChunks.current.has(nextChunkIndex) &&
+      (nextChunkIndex * CHUNK_SIZE) < enrichedWords.length
+    ) {
+      fetchNextChunk(nextChunkIndex, enrichedWords)
+    }
+  }, [currentIndex, enrichedWords, isFetchingNextChunk, user, isPaused, currentlyShowingRelearning, fetchNextChunk])
 
   // Helper functions for re-learning queue management
   const addToRelearningQueue = useCallback((word: Word | QueuedWord, originalIndex: number) => {
@@ -378,7 +377,7 @@ export function StudySession({
       // Immediately trigger next card with minimal delay for smooth animation
       setReviewCompleted(true)
     }
-  }, [currentWord, isSubmittingReview, sessionStats.startTime, currentlyShowingRelearning, relearningQueue, currentIndex, addToRelearningQueue, removeFromRelearningQueue])
+  }, [currentWord, isSubmittingReview, sessionStats.startTime, currentlyShowingRelearning, relearningQueue, currentIndex, addToRelearningQueue, removeFromRelearningQueue, dbSessionId])
   
   const handleReview = useCallback((result: ReviewResult) => {
     // Legacy support for existing ReviewResult interface
@@ -461,7 +460,7 @@ export function StudySession({
     if (mainQueueCompleted && relearningQueue.length === 0) {
       completeSession()
     }
-  }, [currentIndex, words?.length, currentlyShowingRelearning, shouldShowRelearningCard, mainQueueCompleted, relearningQueue.length, completeSession])
+  }, [currentIndex, currentlyShowingRelearning, shouldShowRelearningCard, mainQueueCompleted, completeSession, relearningQueue, enrichedWords])
 
   // Handle review completion with fast animation-driven transition
   useEffect(() => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -48,32 +48,14 @@ export default function WordManagementDashboard() {
   const [bulkOperationLoading, setBulkOperationLoading] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
-  useEffect(() => {
-    loadDesks()
-    loadWords()
-    loadStats()
-  }, [])
-
-  useEffect(() => {
-    if (selectedDesk) {
-      loadDeskWords()
-    } else {
-      loadWords()
-    }
-  }, [selectedDesk])
-
-  useEffect(() => {
-    applyFiltersAndSort()
-  }, [words, searchTerm, selectedCategory, selectedDifficulty, sortBy])
-
-  const loadDesks = async () => {
+  const loadDesks = useCallback(async () => {
     const { data, error } = await getUserDesks()
     if (data && !error) {
       setDesks(data)
     }
-  }
+  }, [])
 
-  const loadWords = async () => {
+  const loadWords = useCallback(async () => {
     setLoading(true)
     const { data, error } = await getUserWords({ limit: 1000 })
     
@@ -81,9 +63,9 @@ export default function WordManagementDashboard() {
       setWords(data)
     }
     setLoading(false)
-  }
+  }, [])
 
-  const loadDeskWords = async () => {
+  const loadDeskWords = useCallback(async () => {
     if (!selectedDesk) return
     
     setLoading(true)
@@ -93,14 +75,14 @@ export default function WordManagementDashboard() {
       setWords(data)
     }
     setLoading(false)
-  }
+  }, [selectedDesk])
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     const statsData = await getWordStats()
     setStats(statsData)
-  }
+  }, [])
 
-  const applyFiltersAndSort = () => {
+  const applyFiltersAndSort = useCallback(() => {
     let filtered = [...words]
 
     // Apply search filter
@@ -139,7 +121,25 @@ export default function WordManagementDashboard() {
     })
 
     setFilteredWords(filtered)
-  }
+  }, [words, searchTerm, selectedCategory, selectedDifficulty, sortBy])
+
+  useEffect(() => {
+    loadDesks()
+    loadWords()
+    loadStats()
+  }, [loadDesks, loadWords, loadStats])
+
+  useEffect(() => {
+    if (selectedDesk) {
+      loadDeskWords()
+    } else {
+      loadWords()
+    }
+  }, [selectedDesk, loadDeskWords, loadWords])
+
+  useEffect(() => {
+    applyFiltersAndSort()
+  }, [applyFiltersAndSort])
 
   const handleWordAdded = (newWord: Word) => {
     setWords(prev => [newWord, ...prev])

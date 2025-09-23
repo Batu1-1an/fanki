@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -24,13 +24,7 @@ export function WordDeskAssignment({ wordId, wordText, trigger }: WordDeskAssign
   const [isUpdating, setIsUpdating] = useState(false)
   const { success, error } = useToast()
 
-  useEffect(() => {
-    if (isOpen) {
-      loadData()
-    }
-  }, [isOpen, wordId])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true)
     try {
       const [desksResult, wordDesksResult] = await Promise.all([
@@ -60,7 +54,13 @@ export function WordDeskAssignment({ wordId, wordText, trigger }: WordDeskAssign
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [wordId, error])
+
+  useEffect(() => {
+    if (isOpen) {
+      loadData()
+    }
+  }, [isOpen, loadData])
 
   const handleDeskToggle = async (desk: Desk, isCurrentlyAssigned: boolean) => {
     setIsUpdating(true)

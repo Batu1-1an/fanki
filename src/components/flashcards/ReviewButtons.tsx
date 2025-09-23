@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatInterval, previewIntervals } from '@/utils/sm2'
@@ -83,17 +83,8 @@ export function ReviewButtons({
   const [isLoading, setIsLoading] = useState(false)
 
   // Load interval predictions
-  useEffect(() => {
-    if (showPreview && wordId) {
-      loadIntervalPredictions()
-    } else {
-      // Use current values for preview
-      const previewData = previewIntervals(currentEaseFactor, currentInterval, currentRepetitions)
-      setIntervals(previewData)
-    }
-  }, [wordId, showPreview, currentEaseFactor, currentInterval, currentRepetitions])
-
-  const loadIntervalPredictions = async () => {
+  const loadIntervalPredictions = useCallback(async () => {
+    if (!wordId) return
     setIsLoading(true)
     try {
       const { intervals: predictedIntervals } = await getNextReviewPrediction(wordId)
@@ -106,7 +97,16 @@ export function ReviewButtons({
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [wordId, currentEaseFactor, currentInterval, currentRepetitions])
+
+  useEffect(() => {
+    if (showPreview && wordId) {
+      loadIntervalPredictions()
+    } else {
+      const previewData = previewIntervals(currentEaseFactor, currentInterval, currentRepetitions)
+      setIntervals(previewData)
+    }
+  }, [showPreview, wordId, currentEaseFactor, currentInterval, currentRepetitions, loadIntervalPredictions])
 
   // Keyboard shortcuts
   useEffect(() => {

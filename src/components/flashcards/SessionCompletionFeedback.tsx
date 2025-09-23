@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -67,25 +67,7 @@ export function SessionCompletionFeedback({
   })
   const [showAchievements, setShowAchievements] = useState(false)
 
-  useEffect(() => {
-    loadAchievementsAndStats()
-  }, [sessionStats])
-
-  const loadAchievementsAndStats = async () => {
-    const stats = await getStudySessionStats()
-    setOverallStats(stats)
-    
-    const newAchievements = calculateAchievements(sessionStats, stats)
-    setAchievements(newAchievements)
-    
-    // Show achievements if any were unlocked
-    const hasNewAchievements = newAchievements.some(a => a.unlocked)
-    if (hasNewAchievements) {
-      setTimeout(() => setShowAchievements(true), 1000)
-    }
-  }
-
-  const calculateAchievements = (session: SessionStats, overall: any): Achievement[] => {
+  const calculateAchievements = useCallback((session: SessionStats, overall: any): Achievement[] => {
     const achievements: Achievement[] = []
 
     // Perfect Session
@@ -156,7 +138,25 @@ export function SessionCompletionFeedback({
     })
 
     return achievements
-  }
+  }, [])
+
+  const loadAchievementsAndStats = useCallback(async () => {
+    const stats = await getStudySessionStats()
+    setOverallStats(stats)
+    
+    const newAchievements = calculateAchievements(sessionStats, stats)
+    setAchievements(newAchievements)
+    
+    // Show achievements if any were unlocked
+    const hasNewAchievements = newAchievements.some(a => a.unlocked)
+    if (hasNewAchievements) {
+      setTimeout(() => setShowAchievements(true), 1000)
+    }
+  }, [calculateAchievements, sessionStats])
+
+  useEffect(() => {
+    loadAchievementsAndStats()
+  }, [loadAchievementsAndStats])
 
   const getPerformanceLevel = (accuracy: number): { level: string; color: string; message: string } => {
     if (accuracy >= 95) return {
