@@ -7,5 +7,6 @@
   "env": {
     "NEXT_PRIVATE_TARGET": "server"
   },
-  "regions": ["iad1"]
+  "regions": ["iad1"],
+  "outputDirectory": ".next"
 }
