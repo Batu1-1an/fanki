@@ -3,6 +3,40 @@ import { Review, SM2Result, TablesInsert, Word, WordStatus, LEARNING_STEPS, GRAD
 import { calculateSM2, buttonToQuality } from '@/utils/sm2'
 import { getStudySessionStats } from '@/lib/study-sessions'
 
+/**
+ * Helper function to properly serialize Supabase errors for logging
+ */
+function serializeError(error: any): string {
+  if (!error) return 'Unknown error'
+  
+  // Handle Supabase error objects
+  if (error.message) {
+    const details = []
+    if (error.message) details.push(`message: ${error.message}`)
+    if (error.code) details.push(`code: ${error.code}`)
+    if (error.details) details.push(`details: ${error.details}`)
+    if (error.hint) details.push(`hint: ${error.hint}`)
+    return details.join(', ')
+  }
+  
+  // Handle regular Error objects
+  if (error instanceof Error) {
+    return error.message
+  }
+  
+  // Handle string errors
+  if (typeof error === 'string') {
+    return error
+  }
+  
+  // Fallback to JSON stringify
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return String(error)
+  }
+}
+
 const supabase = createClientComponentClient()
 
 /**
@@ -260,8 +294,9 @@ export async function getLearningWords(limit: number = 20): Promise<{
       })
 
     if (learningError && Object.keys(learningError).length > 0) {
-      console.error('Error fetching learning words:', learningError)
-      return { data: null, error: learningError }
+      const errorMessage = serializeError(learningError)
+      console.error('Error fetching learning words:', errorMessage)
+      return { data: null, error: errorMessage }
     }
 
     if (!learningWords || learningWords.length === 0) {
@@ -306,8 +341,9 @@ export async function getLearningWords(limit: number = 20): Promise<{
 
     return { data: results, error: null }
   } catch (error) {
-    console.error('Failed to get learning words:', error)
-    return { data: null, error }
+    const errorMessage = serializeError(error)
+    console.error('Failed to get learning words:', errorMessage)
+    return { data: null, error: errorMessage }
   }
 }
 
@@ -334,8 +370,9 @@ export async function getDueWords(limit: number = 20, sort: 'recommended' | 'old
       })
 
     if (dueError && Object.keys(dueError).length > 0) {
-      console.error('Error fetching due words:', dueError)
-      return { data: null, error: dueError }
+      const errorMessage = serializeError(dueError)
+      console.error('Error fetching due words:', errorMessage)
+      return { data: null, error: errorMessage }
     }
 
     if (!dueWords || dueWords.length === 0) {
@@ -390,8 +427,9 @@ export async function getDueWords(limit: number = 20, sort: 'recommended' | 'old
 
     return { data: results, error: null }
   } catch (error) {
-    console.error('Failed to get due words:', error)
-    return { data: null, error }
+    const errorMessage = serializeError(error)
+    console.error('Failed to get due words:', errorMessage)
+    return { data: null, error: errorMessage }
   }
 }
 
@@ -427,8 +465,9 @@ export async function getReviewStats(): Promise<{
       .rpc('get_review_statistics', { p_user_id: user.id })
 
     if (statsError) {
-      console.error('Error fetching review statistics:', statsError)
-      throw statsError
+      const errorMessage = serializeError(statsError)
+      console.error('Error fetching review statistics:', errorMessage)
+      throw new Error(`Failed to fetch review statistics: ${errorMessage}`)
     }
 
     // RFC-007: Fetch streak data from the authoritative source
@@ -458,7 +497,8 @@ export async function getReviewStats(): Promise<{
       currentStreak: streakFromSessions
     }
   } catch (error) {
-    console.error('Failed to get review stats:', error)
+    const errorMessage = serializeError(error)
+    console.error('Failed to get review stats:', errorMessage)
     return { 
       totalReviews: 0, 
       todaysReviews: 0, 
@@ -466,7 +506,7 @@ export async function getReviewStats(): Promise<{
       retentionRate: 0, 
       averageEaseFactor: 2.5, 
       currentStreak: 0,
-      error 
+      error: errorMessage 
     }
   }
 }
@@ -585,8 +625,9 @@ export async function getDueWordCounts(deskId?: string): Promise<{
       })
 
     if (countsError) {
-      console.error('Error fetching due word counts:', countsError)
-      throw countsError
+      const errorMessage = serializeError(countsError)
+      console.error('Error fetching due word counts:', errorMessage)
+      throw new Error(`Failed to fetch due word counts: ${errorMessage}`)
     }
 
     const countRow = counts?.[0]
@@ -606,13 +647,14 @@ export async function getDueWordCounts(deskId?: string): Promise<{
       newWords: Number(countRow.new_words) || 0
     }
   } catch (error) {
-    console.error('Failed to get due word counts:', error)
+    const errorMessage = serializeError(error)
+    console.error('Failed to get due word counts:', errorMessage)
     return { 
       totalDue: 0, 
       overdue: 0, 
       dueToday: 0, 
       newWords: 0, 
-      error 
+      error: errorMessage 
     }
   }
 }

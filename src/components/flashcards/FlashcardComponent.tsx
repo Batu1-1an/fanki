@@ -491,46 +491,46 @@ export function FlashcardComponent({
               </div>
 
               {/* Review buttons */}
-              <div className="space-y-3 px-2">
+              <div className="space-y-4 px-2">
                 <div className="text-center">
-                  <p className="text-xs sm:text-sm text-muted-foreground">
+                  <p className="text-sm sm:text-base text-muted-foreground font-medium">
                     How well did you recall this word?
                   </p>
                 </div>
-                <div className="grid grid-cols-2 xs:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 xs:grid-cols-4 gap-3">
                   <Button
                     variant="destructive"
                     size="sm"
                     onClick={() => handleReview(1)}
-                    className="gap-1 text-xs sm:text-sm px-2 sm:px-3 h-12 xs:h-auto flex-col xs:flex-row"
+                    className="gap-2 text-xs xs:text-sm sm:text-base px-3 sm:px-6 h-11 sm:h-16 rounded-lg sm:rounded-xl shadow-md sm:flex-row flex-col"
                   >
-                    <X className="w-3 h-3 sm:w-4 sm:h-4" />
-                    <span className="text-xs xs:text-xs sm:text-sm">Again (1)</span>
+                    <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="text-xs xs:text-sm sm:text-base font-semibold">Again (1)</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleReview(2)}
-                    className="text-xs sm:text-sm px-2 sm:px-3 h-12 xs:h-auto"
+                    className="text-xs xs:text-sm sm:text-base px-3 sm:px-6 h-11 sm:h-16 rounded-lg sm:rounded-xl shadow-md"
                   >
-                    <span className="text-xs xs:text-xs sm:text-sm">Hard (2)</span>
+                    <span className="text-xs xs:text-sm sm:text-base font-semibold">Hard (2)</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => handleReview(3)}
-                    className="text-xs sm:text-sm px-2 sm:px-3 h-12 xs:h-auto"
+                    className="text-xs xs:text-sm sm:text-base px-3 sm:px-6 h-11 sm:h-16 rounded-lg sm:rounded-xl shadow-md"
                   >
-                    <span className="text-xs xs:text-xs sm:text-sm">Good (3)</span>
+                    <span className="text-xs xs:text-sm sm:text-base font-semibold">Good (3)</span>
                   </Button>
                   <Button
                     variant="default"
                     size="sm"
                     onClick={() => handleReview(4)}
-                    className="gap-1 text-xs sm:text-sm px-2 sm:px-3 h-12 xs:h-auto flex-col xs:flex-row"
+                    className="gap-2 text-xs xs:text-sm sm:text-base px-3 sm:px-6 h-11 sm:h-16 rounded-lg sm:rounded-xl shadow-md sm:flex-row flex-col"
                   >
-                    <Check className="w-3 h-3 sm:w-4 sm:h-4" />
-                    <span className="text-xs xs:text-xs sm:text-sm">Easy (4)</span>
+                    <Check className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="text-xs xs:text-sm sm:text-base font-semibold">Easy (4)</span>
                   </Button>
                 </div>
               </div>
