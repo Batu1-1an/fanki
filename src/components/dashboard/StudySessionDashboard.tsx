@@ -22,7 +22,7 @@ import { StudyStreakTracker } from './StudyStreakTracker'
 import { QueuedWord, generateStudySession } from '@/lib/queue-manager'
 import { getActiveStudySession } from '@/lib/study-sessions'
 import { StudySession } from '../flashcards/StudySession'
-import { getReviewStats, getDueWords } from '@/lib/reviews'
+import { getReviewStats, getDueWordCounts } from '@/lib/reviews'
 import { getDeskWords } from '@/lib/desks'
 import { Word, Review } from '@/types'
 import { cn } from '@/lib/utils'
@@ -133,48 +133,29 @@ export function StudySessionDashboard({
     }
   }
 
-  // Unified dashboard data loading function (single source of truth for dashboard-level stats)
+  // Unified dashboard data loading function (optimized with database aggregation)
   const loadDashboardData = async (deskId: string = 'all') => {
     setIsDashboardLoading(true)
     try {
-      // Fetch stats and all available cards for accurate global counts in parallel
-      const [stats, dueWordsResp, deskWordsResp] = await Promise.all([
+      // Use optimized database functions for accurate counts without heavy payload
+      const [stats, dueWordCounts] = await Promise.all([
         getReviewStats(),
-        getDueWords(5000), // Large limit to approximate "all" without pagination
-        deskId && deskId !== 'all' ? getDeskWords(deskId, 5000) : Promise.resolve({ data: null, error: null })
+        getDueWordCounts(deskId === 'all' ? undefined : deskId)
       ])
 
-      // Prepare cards list and optionally filter by selected desk
-      const allCards = dueWordsResp.data || []
-      let filteredCards = allCards
-      if (deskWordsResp && deskWordsResp.data && deskId !== 'all') {
-        const deskWordIds = new Set(deskWordsResp.data.map((w: any) => w.id))
-        filteredCards = allCards.filter(card => deskWordIds.has(card.id))
-      }
-
-      // Group cards into overdue, dueToday, newWords using UTC date-only strings
-      const grouped = groupCardsByPriority(filteredCards)
-      const easeFactors = filteredCards
-        .map(c => c.lastReview?.ease_factor)
-        .filter((ef): ef is number => typeof ef === 'number')
-
-      const averageDifficulty = easeFactors.length > 0
-        ? Math.round((easeFactors.reduce((s, ef) => s + ef, 0) / easeFactors.length) * 100) / 100
-        : 2.5
-
       const globalQueueStats = {
-        total: grouped.overdue.length + grouped.dueToday.length + grouped.newWords.length,
-        overdue: grouped.overdue.length,
-        dueToday: grouped.dueToday.length,
-        newWords: grouped.newWords.length,
-        averageDifficulty
+        total: dueWordCounts.totalDue,
+        overdue: dueWordCounts.overdue,
+        dueToday: dueWordCounts.dueToday,
+        newWords: dueWordCounts.newWords,
+        averageDifficulty: 2.5 // Default, could be enhanced with separate query if needed
       }
 
       setDashboardStats(stats)
-      setTodaysCards(filteredCards)
+      setTodaysCards([]) // Will be populated separately when needed
       setQueueStats(globalQueueStats)
 
-      // Derive recommendation from global stats (avoid session-limited bias)
+      // Derive recommendation from global stats (no longer biased by sampling)
       let rec: { mode: any; reasoning: string; priority: 'high' | 'medium' | 'low' }
       if (globalQueueStats.overdue > 10) {
         rec = { mode: 'overdue_only', reasoning: `You have ${globalQueueStats.overdue} overdue words. Focus on catching up!`, priority: 'high' }

@@ -47,16 +47,73 @@ export class ReviewQueueManager {
   private static instance: ReviewQueueManager
   private currentQueue: QueuedWord[] = []
   private queueGenerated: Date | null = null
+  private cacheByOptions: Map<string, { queue: QueuedWord[], stats: any, timestamp: Date }> = new Map()
 
   static getInstance(): ReviewQueueManager {
     if (!ReviewQueueManager.instance) {
       ReviewQueueManager.instance = new ReviewQueueManager()
+      // Set up cache invalidation listener
+      ReviewQueueManager.instance.setupCacheInvalidation()
     }
     return ReviewQueueManager.instance
   }
 
   /**
-   * Generate optimized study queue
+   * Set up database cache invalidation listening
+   */
+  private setupCacheInvalidation(): void {
+    try {
+      // Listen for queue cache invalidation notifications from the database
+      supabase
+        .channel('queue_cache_invalidation')
+        .on('postgres_changes', { 
+          event: '*', 
+          schema: 'public', 
+          table: 'reviews' 
+        }, () => {
+          console.log('Queue cache invalidated due to review changes')
+          this.invalidateCache()
+        })
+        .on('postgres_changes', { 
+          event: 'UPDATE', 
+          schema: 'public', 
+          table: 'words' 
+        }, () => {
+          console.log('Queue cache invalidated due to word status changes')
+          this.invalidateCache()
+        })
+        .subscribe()
+    } catch (error) {
+      console.warn('Failed to setup cache invalidation listener:', error)
+    }
+  }
+
+  /**
+   * Invalidate all cached queues
+   */
+  private invalidateCache(): void {
+    this.currentQueue = []
+    this.queueGenerated = null
+    this.cacheByOptions.clear()
+  }
+
+  /**
+   * Generate cache key from options
+   */
+  private getCacheKey(options: QueueOptions): string {
+    return JSON.stringify({
+      maxWords: options.maxWords,
+      studyMode: options.studyMode,
+      difficultyRange: options.difficultyRange,
+      prioritizeWeakWords: options.prioritizeWeakWords,
+      includeNewWords: options.includeNewWords,
+      deskId: options.deskId,
+      sortOrder: options.sortOrder
+    })
+  }
+
+  /**
+   * Generate optimized study queue with caching and desk filtering
    */
   async generateQueue(options: QueueOptions = {}): Promise<{
     queue: QueuedWord[]
@@ -80,45 +137,62 @@ export class ReviewQueueManager {
         sortOrder = 'recommended'
       } = options
 
-      // Get learning words first (highest priority)
-      const { data: learningWords, error: learningError } = await getLearningWords(50)
-      if (learningError) {
-        console.warn('Error fetching learning words:', learningError)
+      // Check cache first
+      const cacheKey = this.getCacheKey(options)
+      const cached = this.cacheByOptions.get(cacheKey)
+      const cacheExpired = !cached || Date.now() - cached.timestamp.getTime() > 5 * 60 * 1000 // 5 minutes
+      
+      if (!cacheExpired) {
+        console.log('Returning cached queue for options:', cacheKey)
+        return { queue: cached.queue, stats: cached.stats }
       }
 
-      // Get due words with their review history
-      const { data: dueWords, error: dueError } = await getDueWords(100, sortOrder)
-      if (dueError) {
+      // Get user for database queries
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        throw new Error('User not authenticated')
+      }
+
+      // Use optimized database functions with desk filtering built-in
+      const [learningResult, dueWordsResult] = await Promise.all([
+        getLearningWords(50),
+        getDueWords(maxWords * 2, sortOrder) // Get extra for filtering
+      ])
+
+      if (learningResult.error) {
+        console.warn('Error fetching learning words:', learningResult.error)
+      }
+      if (dueWordsResult.error) {
         return { 
           queue: [], 
           stats: { total: 0, overdue: 0, dueToday: 0, newWords: 0, averageDifficulty: 2.5 },
-          error: dueError 
+          error: dueWordsResult.error 
         }
       }
 
       // Combine learning and due words, avoiding duplicates
-      const learningWordIds = new Set((learningWords || []).map(w => w.id))
+      const learningWordIds = new Set((learningResult.data || []).map(w => w.id))
       let allWords = [
-        ...(learningWords || []),
-        ...(dueWords || []).filter(word => !learningWordIds.has(word.id))
+        ...(learningResult.data || []),
+        ...(dueWordsResult.data || []).filter(word => !learningWordIds.has(word.id))
       ]
 
-      // Filter by desk if specified
-      if (deskId) {
-        const { data: deskWords } = await getDeskWords(deskId)
+      // Filter by desk if specified - apply to words before enrichment for efficiency
+      if (deskId && deskId !== 'all') {
+        const { data: deskWords } = await getDeskWords(deskId, maxWords * 3)
         if (deskWords) {
           const deskWordIds = new Set(deskWords.map((w: any) => w.id))
           allWords = allWords.filter(word => deskWordIds.has(word.id))
         }
       }
 
-      // Enrich words with queue metadata (optimized - no N+1 queries)
+      // Enrich words with queue metadata
       const enrichedWords = allWords.map((word) => {
         const queuedWord: QueuedWord = {
           ...word,
           priority: this.calculatePriority(word, { 
             currentEaseFactor: word.lastReview?.ease_factor || 2.5,
-            totalReviews: 1 // Will be calculated from existing data
+            totalReviews: 1
           }),
           daysSinceLastReview: this.calculateDaysSinceLastReview(word.lastReview),
           currentEaseFactor: word.lastReview?.ease_factor || 2.5,
@@ -139,7 +213,7 @@ export class ReviewQueueManager {
         )
       }
 
-      // Sort by priority and difficulty
+      // Sort by priority and difficulty (database should handle most sorting, but apply final touches)
       const sortedWords = this.sortByPriority(filteredWords, prioritizeWeakWords)
 
       // Limit to requested number
@@ -151,12 +225,20 @@ export class ReviewQueueManager {
       // Calculate statistics
       const stats = this.calculateQueueStats(queueWithFlashcards)
 
-      // Cache the queue
+      // Cache the results
+      this.cacheByOptions.set(cacheKey, {
+        queue: queueWithFlashcards,
+        stats,
+        timestamp: new Date()
+      })
+
+      // Also update the simple cache for backwards compatibility
       this.currentQueue = queueWithFlashcards
       this.queueGenerated = new Date()
 
       return { queue: queueWithFlashcards, stats }
     } catch (error) {
+      console.error('Failed to generate queue:', error)
       return { 
         queue: [], 
         stats: { total: 0, overdue: 0, dueToday: 0, newWords: 0, averageDifficulty: 2.5 },
@@ -417,6 +499,13 @@ export async function generateStudySession(options: QueueOptions = {}): Promise<
           
           const contentPromises = initialChunk.map(async (word, index) => {
             try {
+              const hasSentences = Array.isArray(word.sentences) && word.sentences.length > 0
+              const hasImage = !!word.imageUrl
+
+              if (hasSentences && hasImage) {
+                return
+              }
+
               const difficulty = word.difficulty <= 2 ? 'beginner' : 
                                word.difficulty <= 4 ? 'intermediate' : 'advanced'
               
@@ -424,7 +513,7 @@ export async function generateStudySession(options: QueueOptions = {}): Promise<
               const content = await aiService.generateFlashcardContent(word.word, difficulty, user.id)
               
               // Transform sentences to the expected format
-              const transformedSentences = content.sentences.map((sentence: any) => {
+              const transformedSentences = Array.isArray(content.sentences) ? content.sentences.map((sentence: any) => {
                 const sentenceText = typeof sentence === 'string' ? sentence : sentence.sentence || sentence.text || ''
                 const blankMarker = '___'
                 
@@ -433,14 +522,14 @@ export async function generateStudySession(options: QueueOptions = {}): Promise<
                   blank_position: sentenceText.indexOf(blankMarker) >= 0 ? sentenceText.indexOf(blankMarker) : 0,
                   correct_word: word.word
                 }
-              })
+              }) : []
               
               // Update the word in the original queue
               queue[index] = {
                 ...queue[index],
-                sentences: transformedSentences,
-                imageUrl: content.imageUrl,
-                imageDescription: content.imageDescription || null
+                sentences: transformedSentences.length > 0 ? transformedSentences : queue[index].sentences,
+                imageUrl: content.imageUrl ?? queue[index].imageUrl,
+                imageDescription: content.imageDescription ?? queue[index].imageDescription ?? null
               }
             } catch (error) {
               console.error(`Failed to pre-fetch content for word "${word.word}":`, error)

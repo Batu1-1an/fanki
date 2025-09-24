@@ -248,65 +248,67 @@ export async function getLearningWords(limit: number = 20): Promise<{
       return { data: null, error: 'User not authenticated' }
     }
 
-    const now = new Date().toISOString()
+    // Use the new optimized database function
+    const { data: learningWords, error: learningError } = await supabase
+      .rpc('get_learning_words_optimized', {
+        p_user_id: user.id,
+        p_limit: limit
+      })
 
-    // Get learning words with reviews due now or in the past
-    const { data: learningReviews, error: reviewError } = await supabase
-      .from('reviews')
-      .select(`
-        word_id,
-        ease_factor,
-        interval_days,
-        repetitions,
-        due_date,
-        quality,
-        reviewed_at
-      `)
-      .eq('user_id', user.id)
-      .lte('due_date', now)
-      .order('due_date', { ascending: true })
-
-    if (reviewError) {
-      return { data: null, error: reviewError }
+    if (learningError) {
+      console.error('Error fetching learning words:', learningError)
+      return { data: null, error: learningError }
     }
 
-    // Get latest review for each word
-    const latestReviews = new Map<string, Review>()
-    learningReviews?.forEach(review => {
-      const existing = latestReviews.get(review.word_id)
-      if (!existing || new Date(review.reviewed_at) > new Date(existing.reviewed_at)) {
-        latestReviews.set(review.word_id, review as Review)
+    if (!learningWords || learningWords.length === 0) {
+      return { data: [], error: null }
+    }
+
+    // Transform the database results to match the expected format
+    const results = learningWords.map((row: any) => {
+      const word: Word & { lastReview?: Review } = {
+        id: row.word_id,
+        user_id: user.id,
+        word: row.word,
+        definition: row.definition,
+        language: 'en', // Default language
+        difficulty: row.difficulty,
+        category: null, // Default category
+        pronunciation: row.pronunciation,
+        status: row.status as WordStatus,
+        memory_hook: null, // Default memory hook
+        created_at: row.created_at,
+        updated_at: row.created_at
       }
+
+      // Add review data (should always exist for learning words)
+      word.lastReview = {
+        id: `${row.word_id}_latest`,
+        user_id: user.id,
+        word_id: row.word_id,
+        flashcard_id: null,
+        quality: row.quality,
+        ease_factor: Number(row.ease_factor),
+        interval_days: row.interval_days,
+        repetitions: row.repetitions,
+        due_date: row.due_date,
+        reviewed_at: row.reviewed_at,
+        response_time_ms: null,
+        created_at: row.reviewed_at
+      }
+
+      return word
     })
-
-    // Get words that are in learning status
-    const reviewedWordIds = Array.from(latestReviews.keys()).slice(0, limit)
-    const { data: learningWords, error: wordsError } = reviewedWordIds.length > 0 ? 
-      await supabase
-        .from('words')
-        .select('*')
-        .in('id', reviewedWordIds)
-        .eq('status', 'learning') : 
-      { data: [], error: null }
-
-    if (wordsError) {
-      return { data: null, error: wordsError }
-    }
-
-    // Format results with review data
-    const results = (learningWords || []).map(word => ({
-      ...word,
-      lastReview: latestReviews.get(word.id)
-    })).slice(0, limit)
 
     return { data: results, error: null }
   } catch (error) {
+    console.error('Failed to get learning words:', error)
     return { data: null, error }
   }
 }
 
 /**
- * Get words due for review today with configurable sort order
+ * Get words due for review today with configurable sort order (optimized database version)
  */
 export async function getDueWords(limit: number = 20, sort: 'recommended' | 'oldest' | 'easiest' | 'hardest' = 'recommended'): Promise<{
   data: Array<Word & { lastReview?: Review }> | null
@@ -319,135 +321,78 @@ export async function getDueWords(limit: number = 20, sort: 'recommended' | 'old
       return { data: null, error: 'User not authenticated' }
     }
 
-    const today = new Date().toISOString().split('T')[0]
-    const endOfToday = new Date(`${today}T23:59:59.999Z`)
+    // Use the new optimized database function
+    const { data: dueWords, error: dueError } = await supabase
+      .rpc('get_due_words_optimized', {
+        p_user_id: user.id,
+        p_limit: limit,
+        p_sort_order: sort
+      })
 
-    // Fetch latest reviews for each word (no due_date filter here)
-    const { data: allReviews, error: reviewError } = await supabase
-      .from('reviews')
-      .select(`
-        word_id,
-        ease_factor,
-        interval_days,
-        repetitions,
-        due_date,
-        quality,
-        reviewed_at
-      `)
-      .eq('user_id', user.id)
-      .order('reviewed_at', { ascending: false })
-
-    if (reviewError) {
-      return { data: null, error: reviewError }
+    if (dueError) {
+      console.error('Error fetching due words:', dueError)
+      return { data: null, error: dueError }
     }
 
-    // Pick the latest review per word
-    const latestReviews = new Map<string, Review>()
-    ;(allReviews || []).forEach(review => {
-      if (!latestReviews.has(review.word_id)) {
-        latestReviews.set(review.word_id, review as Review)
+    if (!dueWords || dueWords.length === 0) {
+      return { data: [], error: null }
+    }
+
+    // Transform the database results to match the expected format
+    const results = dueWords.map((row: any) => {
+      const word: Word & { lastReview?: Review } = {
+        id: row.word_id,
+        user_id: user.id,
+        word: row.word,
+        definition: row.definition,
+        language: 'en', // Default language - should ideally be stored in database
+        difficulty: row.difficulty,
+        category: null, // Default category
+        pronunciation: row.pronunciation,
+        status: row.status as WordStatus,
+        memory_hook: null, // Default memory hook
+        created_at: row.created_at,
+        updated_at: row.created_at // Use created_at as fallback
       }
+
+      // Add review data if it exists
+      if (row.reviewed_at) {
+        word.lastReview = {
+          id: `${row.word_id}_latest`, // Placeholder ID since we don't return it from function
+          user_id: user.id,
+          word_id: row.word_id,
+          flashcard_id: null,
+          quality: row.quality,
+          ease_factor: Number(row.ease_factor),
+          interval_days: row.interval_days,
+          repetitions: row.repetitions,
+          due_date: row.due_date,
+          reviewed_at: row.reviewed_at,
+          response_time_ms: null,
+          created_at: row.reviewed_at // Use reviewed_at as created_at for reviews
+        }
+      }
+
+      return word
     })
 
-    // Get overdue words based on their latest review
-    const overdueReviews = Array.from(latestReviews.values())
-      .filter(r => new Date(r.due_date) <= endOfToday)
-
-    let dueReviewedWordIds: string[] = []
-
-    if (sort === 'recommended') {
-      // RFC-006: Shuffled Overdue Sampling
-      // Shuffle overdue word IDs to provide variety in each session
-      const shuffledIds = [...overdueReviews]
-        .map(r => r.word_id)
-        .sort(() => 0.5 - Math.random()) // Simple shuffle
-      
-      dueReviewedWordIds = shuffledIds.slice(0, limit)
-      
-      console.log(`Applied shuffled overdue sampling: ${shuffledIds.length} overdue cards shuffled, selected first ${dueReviewedWordIds.length}`)
-    } else {
-      // Apply specific sort orders for other modes
-      let sortedReviews = [...overdueReviews]
-      
-      if (sort === 'oldest') {
-        sortedReviews.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime())
-      } else if (sort === 'easiest') {
-        sortedReviews.sort((a, b) => (b.ease_factor || 2.5) - (a.ease_factor || 2.5))
-      } else if (sort === 'hardest') {
-        sortedReviews.sort((a, b) => (a.ease_factor || 2.5) - (b.ease_factor || 2.5))
-      }
-      
-      dueReviewedWordIds = sortedReviews
-        .map(r => r.word_id)
-        .slice(0, limit)
+    // Add logging for recommended mode to track shuffle behavior
+    if (sort === 'recommended' && results.length > 0) {
+      const overdueCount = results.filter((w: Word & { lastReview?: Review }) => 
+        w.lastReview && new Date(w.lastReview.due_date) < new Date()
+      ).length
+      console.log(`Applied optimized shuffled sampling: ${overdueCount} overdue cards in result set of ${results.length}`)
     }
 
-    // Get words that have never been reviewed
-    let unreviewedQuery = supabase
-      .from('words')
-      .select('*')
-      .eq('user_id', user.id)
-
-    if (latestReviews.size > 0) {
-      const reviewedWordIds = Array.from(latestReviews.keys())
-      unreviewedQuery = unreviewedQuery.not('id', 'in', `(${reviewedWordIds.join(',')})`)
-    }
-
-    const { data: unreviewed, error: unreviewedError } = await unreviewedQuery.limit(limit)
-
-    if (unreviewedError) {
-      return { data: null, error: unreviewedError }
-    }
-
-    // Get word details for due reviewed words
-    const { data: reviewedWords, error: wordsError } = dueReviewedWordIds.length > 0 ? 
-      await supabase
-        .from('words')
-        .select('*')
-        .in('id', dueReviewedWordIds) : 
-      { data: [], error: null }
-
-    if (wordsError) {
-      return { data: null, error: wordsError }
-    }
-
-    // Combine and format results
-    let results = [
-      // Add due reviewed words with their last review data
-      ...(reviewedWords || []).map(word => ({
-        ...word,
-        lastReview: latestReviews.get(word.id)
-      })),
-      // Add unreviewed words
-      ...(unreviewed || [])
-    ]
-
-    // Apply final sorting to maintain order for sorted modes
-    if (sort !== 'recommended' && dueReviewedWordIds.length > 0) {
-      // Create a map to preserve sort order for reviewed words
-      const orderMap = new Map(dueReviewedWordIds.map((id, index) => [id, index]))
-      
-      const reviewedWordsWithOrder = results.filter(w => w.lastReview)
-      const unreviewedWords = results.filter(w => !w.lastReview)
-      
-      // Sort reviewed words by their original order
-      reviewedWordsWithOrder.sort((a, b) => {
-        const aOrder = orderMap.get(a.id) ?? Infinity
-        const bOrder = orderMap.get(b.id) ?? Infinity
-        return aOrder - bOrder
-      })
-      
-      results = [...reviewedWordsWithOrder, ...unreviewedWords]
-    }
-
-    return { data: results.slice(0, limit), error: null }
+    return { data: results, error: null }
   } catch (error) {
+    console.error('Failed to get due words:', error)
     return { data: null, error }
   }
 }
 
 /**
- * Get review statistics for a user (optimized with database aggregation)
+ * Get review statistics for a user (optimized with database functions)
  */
 export async function getReviewStats(): Promise<{
   totalReviews: number
@@ -473,72 +418,43 @@ export async function getReviewStats(): Promise<{
       }
     }
 
-    const today = new Date().toISOString().split('T')[0]
+    // Use the new optimized database function for accurate statistics
+    const { data: stats, error: statsError } = await supabase
+      .rpc('get_review_statistics', { p_user_id: user.id })
 
-    // Use database aggregation for better performance
-    const [
-      { count: totalReviews },
-      { count: todaysReviews },
-      { count: correctReviews },
-      { data: avgEaseFactor },
-      { data: dueWords }
-    ] = await Promise.all([
-      // Total reviews count
-      supabase
-        .from('reviews')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id),
-      
-      // Today's reviews count
-      supabase
-        .from('reviews')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .gte('reviewed_at', `${today}T00:00:00.000Z`)
-        .lte('reviewed_at', `${today}T23:59:59.999Z`),
-      
-      // Correct reviews count (quality >= 3)
-      supabase
-        .from('reviews')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .gte('quality', 3),
-      
-      // Average ease factor - get recent reviews for calculation
-      supabase
-        .from('reviews')
-        .select('ease_factor')
-        .eq('user_id', user.id)
-        .gt('ease_factor', 0)
-        .order('reviewed_at', { ascending: false })
-        .limit(100), // Get last 100 reviews for average
-      
-      // Words due today
-      getDueWords(100)
-    ])
+    if (statsError) {
+      console.error('Error fetching review statistics:', statsError)
+      throw statsError
+    }
 
-    // RFC-007: Fetch streak data from the authoritative source instead of recalculating it here
+    // RFC-007: Fetch streak data from the authoritative source
     const { currentStreak: streakFromSessions } = await getStudySessionStats()
 
-    // Only count reviewed words that are due today (exclude brand-new/unreviewed)
-    const wordsDueToday = (dueWords || []).filter((w: any) => !!w.lastReview).length
-    const retentionRate = (totalReviews || 0) > 0 ? Math.round(((correctReviews || 0) / (totalReviews || 1)) * 100) : 0
-    
-    // Calculate average ease factor from recent reviews
-    const easeFactors = avgEaseFactor?.map(r => r.ease_factor).filter(ef => ef > 0) || []
-    const averageEaseFactor = easeFactors.length > 0 ? 
-      easeFactors.reduce((sum, ef) => sum + ef, 0) / easeFactors.length : 2.5
+    const statsRow = stats?.[0]
+    if (!statsRow) {
+      return {
+        totalReviews: 0,
+        todaysReviews: 0,
+        wordsDueToday: 0,
+        retentionRate: 0,
+        averageEaseFactor: 2.5,
+        currentStreak: streakFromSessions
+      }
+    }
 
+    const retentionRate = statsRow.total_reviews > 0 ? 
+      Math.round((statsRow.correct_reviews / statsRow.total_reviews) * 100) : 0
 
     return {
-      totalReviews: totalReviews || 0,
-      todaysReviews: todaysReviews || 0,
-      wordsDueToday,
+      totalReviews: Number(statsRow.total_reviews) || 0,
+      todaysReviews: Number(statsRow.todays_reviews) || 0,
+      wordsDueToday: Number(statsRow.words_due_today) || 0,
       retentionRate,
-      averageEaseFactor: Math.round(averageEaseFactor * 100) / 100,
-      currentStreak: streakFromSessions // RFC-007: Use the unified streak count
+      averageEaseFactor: Math.round(Number(statsRow.avg_ease_factor || 2.5) * 100) / 100,
+      currentStreak: streakFromSessions
     }
   } catch (error) {
+    console.error('Failed to get review stats:', error)
     return { 
       totalReviews: 0, 
       todaysReviews: 0, 
@@ -631,6 +547,69 @@ export async function resetWordProgress(wordId: string): Promise<{ error: any }>
     return { error }
   } catch (error) {
     return { error }
+  }
+}
+
+/**
+ * Get accurate due word counts without limits (using optimized database function)
+ */
+export async function getDueWordCounts(deskId?: string): Promise<{
+  totalDue: number
+  overdue: number
+  dueToday: number
+  newWords: number
+  error?: any
+}> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return { 
+        totalDue: 0, 
+        overdue: 0, 
+        dueToday: 0, 
+        newWords: 0, 
+        error: 'User not authenticated' 
+      }
+    }
+
+    // Use the new optimized database function for accurate counts
+    const { data: counts, error: countsError } = await supabase
+      .rpc('get_due_word_counts', { 
+        p_user_id: user.id,
+        p_desk_id: deskId || null
+      })
+
+    if (countsError) {
+      console.error('Error fetching due word counts:', countsError)
+      throw countsError
+    }
+
+    const countRow = counts?.[0]
+    if (!countRow) {
+      return {
+        totalDue: 0,
+        overdue: 0,
+        dueToday: 0,
+        newWords: 0
+      }
+    }
+
+    return {
+      totalDue: Number(countRow.total_due) || 0,
+      overdue: Number(countRow.overdue) || 0,
+      dueToday: Number(countRow.due_today) || 0,
+      newWords: Number(countRow.new_words) || 0
+    }
+  } catch (error) {
+    console.error('Failed to get due word counts:', error)
+    return { 
+      totalDue: 0, 
+      overdue: 0, 
+      dueToday: 0, 
+      newWords: 0, 
+      error 
+    }
   }
 }
 
