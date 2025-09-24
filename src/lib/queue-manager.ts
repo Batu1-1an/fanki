@@ -34,6 +34,8 @@ export interface QueueOptions {
   includeNewWords?: boolean
   deskId?: string // Filter by specific desk
   sortOrder?: 'recommended' | 'oldest' | 'easiest' | 'hardest' // RFC-006: Overdue sort order
+  wordIds?: string[] // Target specific words (custom sessions, Today tab selections, etc.)
+  includeLearning?: boolean // Include learning-phase (newly graduated) words
 }
 
 /**
@@ -108,7 +110,8 @@ export class ReviewQueueManager {
       prioritizeWeakWords: options.prioritizeWeakWords,
       includeNewWords: options.includeNewWords,
       deskId: options.deskId,
-      sortOrder: options.sortOrder
+      sortOrder: options.sortOrder,
+      includeLearning: options.includeLearning
     })
   }
 
@@ -134,17 +137,23 @@ export class ReviewQueueManager {
         prioritizeWeakWords = true,
         includeNewWords = true,
         deskId,
-        sortOrder = 'recommended'
+        sortOrder = 'recommended',
+        wordIds,
+        includeLearning = true
       } = options
 
-      // Check cache first
-      const cacheKey = this.getCacheKey(options)
-      const cached = this.cacheByOptions.get(cacheKey)
-      const cacheExpired = !cached || Date.now() - cached.timestamp.getTime() > 5 * 60 * 1000 // 5 minutes
-      
-      if (!cacheExpired) {
-        console.log('Returning cached queue for options:', cacheKey)
-        return { queue: cached.queue, stats: cached.stats }
+      const shouldUseCache = !wordIds || wordIds.length === 0
+      let cacheKey: string | null = null
+
+      if (shouldUseCache) {
+        cacheKey = this.getCacheKey(options)
+        const cached = this.cacheByOptions.get(cacheKey)
+        const cacheExpired = !cached || Date.now() - cached.timestamp.getTime() > 5 * 60 * 1000 // 5 minutes
+
+        if (!cacheExpired && cached) {
+          console.log('Returning cached queue for options:', cacheKey)
+          return { queue: cached.queue, stats: cached.stats }
+        }
       }
 
       // Get user for database queries
@@ -155,7 +164,7 @@ export class ReviewQueueManager {
 
       // Use optimized database functions with desk filtering built-in
       const [learningResult, dueWordsResult] = await Promise.all([
-        getLearningWords(50),
+        includeLearning ? getLearningWords(50) : Promise.resolve({ data: [], error: null }),
         getDueWords(maxWords * 2, sortOrder) // Get extra for filtering
       ])
 
@@ -184,6 +193,12 @@ export class ReviewQueueManager {
           const deskWordIds = new Set(deskWords.map((w: any) => w.id))
           allWords = allWords.filter(word => deskWordIds.has(word.id))
         }
+      }
+
+      // Filter to specific word IDs when provided (custom sessions)
+      if (wordIds && wordIds.length > 0) {
+        const wordIdSet = new Set(wordIds)
+        allWords = allWords.filter(word => wordIdSet.has(word.id))
       }
 
       // Enrich words with queue metadata
@@ -226,11 +241,13 @@ export class ReviewQueueManager {
       const stats = this.calculateQueueStats(queueWithFlashcards)
 
       // Cache the results
-      this.cacheByOptions.set(cacheKey, {
-        queue: queueWithFlashcards,
-        stats,
-        timestamp: new Date()
-      })
+      if (shouldUseCache && cacheKey) {
+        this.cacheByOptions.set(cacheKey, {
+          queue: queueWithFlashcards,
+          stats,
+          timestamp: new Date()
+        })
+      }
 
       // Also update the simple cache for backwards compatibility
       this.currentQueue = queueWithFlashcards
@@ -449,7 +466,11 @@ export async function generateStudySession(options: QueueOptions = {}): Promise<
     // --- FALLBACK LOGIC: Practice Session ---
     // If the main queue is empty, create a practice session with recent words
     // Only for 'mixed' mode to avoid surprising users when they request specific filters
-    if (queue.length === 0 && (!options.studyMode || options.studyMode === 'mixed')) {
+    if (
+      queue.length === 0 &&
+      (!options.studyMode || options.studyMode === 'mixed') &&
+      (!options.wordIds || options.wordIds.length === 0)
+    ) {
       console.log("No due cards found. Generating a practice session as a fallback.");
       
       const { data: recentWords, error: wordsError } = await getUserWords({ limit: 10 });

@@ -34,7 +34,7 @@ export async function submitReview({
       .eq('id', wordId)
       .single()
 
-    if (wordError) {
+    if (wordError && Object.keys(wordError).length > 0) {
       return { data: null, error: wordError }
     }
 
@@ -255,7 +255,7 @@ export async function getLearningWords(limit: number = 20): Promise<{
         p_limit: limit
       })
 
-    if (learningError) {
+    if (learningError && Object.keys(learningError).length > 0) {
       console.error('Error fetching learning words:', learningError)
       return { data: null, error: learningError }
     }
@@ -329,7 +329,7 @@ export async function getDueWords(limit: number = 20, sort: 'recommended' | 'old
         p_sort_order: sort
       })
 
-    if (dueError) {
+    if (dueError && Object.keys(dueError).length > 0) {
       console.error('Error fetching due words:', dueError)
       return { data: null, error: dueError }
     }

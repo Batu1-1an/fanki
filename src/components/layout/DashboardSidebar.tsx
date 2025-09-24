@@ -16,7 +16,8 @@ import {
   Flame,
   ChevronLeft,
   ChevronRight,
-  User
+  User,
+  X
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -37,6 +38,7 @@ interface DashboardSidebarProps {
   streakCount?: number
   isCollapsed?: boolean
   onToggle?: () => void
+  isMobile?: boolean
 }
 
 const navigationItems: NavigationItem[] = [
@@ -83,7 +85,8 @@ export function DashboardSidebar({
   dueCount = 0,
   streakCount = 0,
   isCollapsed = false,
-  onToggle
+  onToggle,
+  isMobile = false
 }: DashboardSidebarProps) {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
 
@@ -107,17 +110,20 @@ export function DashboardSidebar({
 
   return (
     <motion.aside
-      initial={{ width: isCollapsed ? 80 : 280 }}
-      animate={{ width: isCollapsed ? 80 : 280 }}
+      initial={{ width: isMobile ? 280 : (isCollapsed ? 80 : 280) }}
+      animate={{ width: isMobile ? 280 : (isCollapsed ? 80 : 280) }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="h-screen border-r border-border bg-card/50 backdrop-blur-sm relative"
+      className={cn(
+        "h-screen border-r border-border bg-card/50 backdrop-blur-sm relative",
+        isMobile && "shadow-2xl"
+      )}
     >
       <div className="flex flex-col h-full">
         {/* Header */}
         <div className="p-6 border-b border-border">
           <div className="flex items-center justify-between">
             <AnimatePresence>
-              {!isCollapsed && (
+              {(!isCollapsed || isMobile) && (
                 <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
@@ -143,7 +149,9 @@ export function DashboardSidebar({
                 onClick={onToggle}
                 className="h-8 w-8 p-0 hover:bg-accent"
               >
-                {isCollapsed ? (
+                {isMobile ? (
+                  <X className="w-4 h-4" />
+                ) : isCollapsed ? (
                   <ChevronRight className="w-4 h-4" />
                 ) : (
                   <ChevronLeft className="w-4 h-4" />
@@ -155,7 +163,7 @@ export function DashboardSidebar({
 
         {/* Quick Stats */}
         <AnimatePresence>
-          {!isCollapsed && (
+          {(!isCollapsed || isMobile) && (
             <motion.div
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -236,7 +244,7 @@ export function DashboardSidebar({
                     <Icon className={cn("w-5 h-5", active && "text-primary-foreground")} />
                     
                     <AnimatePresence>
-                      {!isCollapsed && (
+                      {(!isCollapsed || isMobile) && (
                         <motion.div
                           initial={{ opacity: 0, width: 0 }}
                           animate={{ opacity: 1, width: "auto" }}
@@ -281,7 +289,7 @@ export function DashboardSidebar({
         {/* Quick Action */}
         <div className="p-4 border-t border-border">
           <AnimatePresence>
-            {!isCollapsed ? (
+            {(!isCollapsed || isMobile) ? (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}

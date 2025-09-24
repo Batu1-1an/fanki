@@ -173,6 +173,16 @@ export async function deleteDesk(deskId: string): Promise<{ error: any }> {
       return { error: 'Cannot delete the default desk' }
     }
 
+    // Remove any word associations first to satisfy FK constraints
+    const { error: unlinkError } = await supabase
+      .from('word_desks')
+      .delete()
+      .eq('desk_id', deskId)
+
+    if (unlinkError) {
+      return { error: unlinkError }
+    }
+
     const { error } = await supabase
       .from('desks')
       .delete()

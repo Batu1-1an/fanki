@@ -1,8 +1,4 @@
 {
-  "buildCommand": "next build",
-  "outputDirectory": ".next",
-  "installCommand": "npm install",
-  "framework": "nextjs",
   "functions": {
     "app/**": {
       "maxDuration": 30
@@ -11,11 +7,5 @@
   "env": {
     "NEXT_PRIVATE_TARGET": "server"
   },
-  "regions": ["iad1"],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/"
-    }
-  ]
+  "regions": ["iad1"]
 }

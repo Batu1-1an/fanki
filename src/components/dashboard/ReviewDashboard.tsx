@@ -284,12 +284,12 @@ export function ReviewDashboard({
           <p className="text-muted-foreground mb-4">
             {recommendedMode.reasoning}
           </p>
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <Button
               onClick={() => handleStartSession(recommendedMode.mode)}
               disabled={isStartingSession || queueStats.total === 0}
               size="lg"
-              className="flex-1"
+              className="w-full sm:flex-1"
             >
               {isStartingSession ? 'Preparing Your Session...' : 'Start Recommended Session'}
             </Button>
@@ -297,6 +297,7 @@ export function ReviewDashboard({
               variant="outline"
               onClick={() => handleStartSession('mixed', 10)}
               disabled={isStartingSession || queueStats.total === 0}
+              className="w-full sm:w-auto sm:flex-1"
             >
               Quick Review (10 cards)
             </Button>

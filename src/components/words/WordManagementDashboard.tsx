@@ -275,9 +275,9 @@ export default function WordManagementDashboard() {
     <div className="space-y-6">
       {/* Header with desk selection */}
       <div className="bg-white shadow rounded-lg p-6">
-        <div className="flex justify-between items-start">
-          <div className="flex-1">
-            <div className="flex items-center gap-4 mb-2">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 md:gap-4 mb-2">
               <h2 className="text-2xl font-bold text-gray-900">My Flashcard Decks</h2>
               {selectedDesk && (
                 <Badge variant="outline" className="text-sm">
@@ -292,8 +292,8 @@ export default function WordManagementDashboard() {
               }
             </p>
           </div>
-          <div className="flex gap-3">
-            <div className="flex items-center bg-muted rounded-lg p-1">
+          <div className="flex flex-wrap gap-2 md:gap-3 justify-start">
+            <div className="flex items-center bg-muted rounded-lg p-1 w-full sm:w-auto">
               <Button
                 variant={viewMode === 'grid' ? 'default' : 'ghost'}
                 size="sm"
@@ -316,18 +316,19 @@ export default function WordManagementDashboard() {
             <Button 
               variant="outline" 
               onClick={() => setShowDeskManager(!showDeskManager)}
+              className="w-full sm:w-auto"
             >
               {showDeskManager ? 'Hide Decks' : 'Manage Decks'}
             </Button>
             <Button 
               variant="outline"
               onClick={() => setShowAddFromImageModal(true)}
-              className="gap-2"
+              className="gap-2 w-full sm:w-auto"
             >
               <ImagePlus className="h-4 w-4" />
               Create from Image
             </Button>
-            <Button onClick={() => setShowAddForm(!showAddForm)}>
+            <Button onClick={() => setShowAddForm(!showAddForm)} className="w-full sm:w-auto">
               {showAddForm ? 'Cancel' : 'Add Flashcard'}
             </Button>
           </div>
@@ -367,7 +368,7 @@ export default function WordManagementDashboard() {
         </div>
 
         {/* Quick stats */}
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="bg-blue-50 p-4 rounded-lg">
             <div className="text-sm font-medium text-blue-600">
               {selectedDesk ? 'Cards in Deck' : 'Total Cards'}
@@ -459,8 +460,8 @@ export default function WordManagementDashboard() {
           </div>
         )}
         
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-5">
-          <div className="sm:col-span-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+          <div className="md:col-span-2">
             <Input
               placeholder="Search words or definitions..."
               value={searchTerm}
@@ -468,7 +469,7 @@ export default function WordManagementDashboard() {
             />
           </div>
           <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
@@ -479,7 +480,7 @@ export default function WordManagementDashboard() {
             </SelectContent>
           </Select>
           <Select value={selectedDifficulty} onValueChange={setSelectedDifficulty}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Difficulty" />
             </SelectTrigger>
             <SelectContent>
@@ -490,7 +491,7 @@ export default function WordManagementDashboard() {
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

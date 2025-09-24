@@ -22,7 +22,7 @@ import { StudyStreakTracker } from './StudyStreakTracker'
 import { QueuedWord, generateStudySession } from '@/lib/queue-manager'
 import { getActiveStudySession } from '@/lib/study-sessions'
 import { StudySession } from '../flashcards/StudySession'
-import { getReviewStats, getDueWordCounts } from '@/lib/reviews'
+import { getReviewStats, getDueWordCounts, getDueWords } from '@/lib/reviews'
 import { getDeskWords } from '@/lib/desks'
 import { Word, Review } from '@/types'
 import { cn } from '@/lib/utils'
@@ -151,9 +151,14 @@ export function StudySessionDashboard({
         averageDifficulty: 2.5 // Default, could be enhanced with separate query if needed
       }
 
+      // Also load a sample of cards for the TodaysCards component
+      const { data: sampleCards } = await getDueWords(50, 'recommended')
+
       setDashboardStats(stats)
-      setTodaysCards([]) // Will be populated separately when needed
+      setTodaysCards(sampleCards || [])
       setQueueStats(globalQueueStats)
+
+      console.log('Dashboard data loaded:', { stats, dueWordCounts, globalQueueStats, sampleCardsCount: sampleCards?.length || 0 })
 
       // Derive recommendation from global stats (no longer biased by sampling)
       let rec: { mode: any; reasoning: string; priority: 'high' | 'medium' | 'low' }
@@ -226,17 +231,17 @@ export function StudySessionDashboard({
   }
 
   return (
-    <div className={cn("max-w-6xl mx-auto space-y-6", className)}>
+    <div className={cn("max-w-6xl mx-auto space-y-4 sm:space-y-6 p-4 sm:p-6", className)}>
       {/* Header with quick actions */}
       <Card variant="premium" className="overflow-hidden relative">
         <div className="absolute inset-0 bg-gradient-to-br from-brand-50 via-white to-purple-50/50 pointer-events-none" />
-        <CardContent className="relative p-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2 heading-gradient">
+        <CardContent className="relative p-4 sm:p-6 lg:p-8">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-bold mb-2 heading-gradient">
                 Study Session Center
               </h1>
-              <p className="text-muted-foreground text-lg">
+              <p className="text-muted-foreground text-base sm:text-lg">
                 Track your progress and start new study sessions
               </p>
               {hasActiveDbSession && (
@@ -246,25 +251,25 @@ export function StudySessionDashboard({
               )}
             </div>
             
-            <div className="flex gap-4">
+            <div className="flex flex-col xs:flex-row gap-3 shrink-0">
               <Button 
                 variant="outline" 
                 size="lg" 
                 onClick={() => window.location.href = '/dashboard/words'}
-                className="gap-2 hover:scale-105 transition-all duration-200"
+                className="gap-2 hover:scale-105 transition-all duration-200 w-full xs:w-auto"
               >
                 <BookOpen className="w-5 h-5" />
-                Manage Words
+                <span className="xs:inline">Manage Words</span>
               </Button>
               <Button 
                 variant="premium"
                 size="lg" 
                 onClick={handleQuickStart}
-                className="gap-2"
+                className="gap-2 w-full xs:w-auto"
                 disabled={isLoading}
               >
                 <Play className="w-5 h-5" />
-                Quick Start
+                <span className="xs:inline">Quick Start</span>
               </Button>
             </div>
           </div>
@@ -273,20 +278,22 @@ export function StudySessionDashboard({
 
       {/* Main dashboard tabs */}
       <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList className="grid grid-cols-4 w-full max-w-md mx-auto">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="today">Today</TabsTrigger>
-          <TabsTrigger value="streak">Streak</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        <TabsList className="grid grid-cols-2 xs:grid-cols-4 w-full max-w-md mx-auto">
+          <TabsTrigger value="overview" className="text-xs xs:text-sm">Overview</TabsTrigger>
+          <TabsTrigger value="today" className="text-xs xs:text-sm">Today</TabsTrigger>
+          <TabsTrigger value="streak" className="text-xs xs:text-sm">Streak</TabsTrigger>
+          <TabsTrigger value="analytics" className="text-xs xs:text-sm">Analytics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             {/* Study streak tracker */}
-            <StudyStreakTracker />
+            <div className="order-2 xl:order-1">
+              <StudyStreakTracker />
+            </div>
             
             {/* Quick stats and actions */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="xl:col-span-2 order-1 xl:order-2 space-y-6">
               <ReviewDashboard 
                 onStartSession={handleStartSession}
                 stats={dashboardStats}
@@ -312,7 +319,7 @@ export function StudySessionDashboard({
 
         <TabsContent value="streak" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <StudyStreakTracker className="lg:col-span-2" />
+            <StudyStreakTracker className="col-span-1 lg:col-span-2" />
             
             {/* Additional streak insights */}
             <Card>

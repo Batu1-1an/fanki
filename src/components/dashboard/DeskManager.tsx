@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -68,18 +68,14 @@ export function DeskManager({ onDeskSelect, selectedDeskId, className }: DeskMan
     color: '#3B82F6',
     icon: 'book-open'
   })
-  const { success, error } = useToast()
+  const { success, error: toastError } = useToast()
 
-  useEffect(() => {
-    loadDesks()
-  }, [])
-
-  const loadDesks = async () => {
+  const loadDesks = useCallback(async () => {
     setIsLoading(true)
     try {
       const { data, error } = await getUserDesks()
       if (error) {
-        error({
+        toastError({
           title: 'Error',
           description: 'Failed to load desks'
         })
@@ -91,13 +87,17 @@ export function DeskManager({ onDeskSelect, selectedDeskId, className }: DeskMan
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [toastError])
+
+  useEffect(() => {
+    loadDesks()
+  }, [loadDesks])
 
   const handleCreateDesk = async () => {
     try {
       const { data, error } = await createDesk(formData)
       if (error) {
-        error({
+        toastError({
           title: 'Error',
           description: error.message || 'Failed to create desk'
         })
@@ -121,7 +121,7 @@ export function DeskManager({ onDeskSelect, selectedDeskId, className }: DeskMan
     try {
       const { data, error } = await updateDesk(editingDesk.id, formData)
       if (error) {
-        error({
+        toastError({
           title: 'Error',
           description: error.message || 'Failed to update desk'
         })
@@ -142,7 +142,7 @@ export function DeskManager({ onDeskSelect, selectedDeskId, className }: DeskMan
 
   const handleDeleteDesk = async (desk: Desk) => {
     if (desk.is_default) {
-      error({
+      toastError({
         title: 'Error',
         description: 'Cannot delete the default desk'
       })
@@ -152,7 +152,7 @@ export function DeskManager({ onDeskSelect, selectedDeskId, className }: DeskMan
     try {
       const { error } = await deleteDesk(desk.id)
       if (error) {
-        error({
+        toastError({
           title: 'Error',
           description: error.message || 'Failed to delete desk'
         })

@@ -22,10 +22,11 @@ import {
   Flame
 } from 'lucide-react'
 import { getDueWords } from '@/lib/reviews'
-import { QueuedWord, getQueueManager } from '@/lib/queue-manager'
+import { QueuedWord, getQueueManager, generateStudySession } from '@/lib/queue-manager'
 import { Word, Review } from '@/types'
 import { cn } from '@/lib/utils'
 import { formatInterval } from '@/utils/sm2'
+import { StudySessionLoader } from '@/components/ui/StudySessionLoader'
 
 interface TodaysCardsProps {
   onStartSession: (words: QueuedWord[], sessionId: string) => void
@@ -49,6 +50,8 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
   const [searchTerm, setSearchTerm] = useState('')
   const [difficultyFilter, setDifficultyFilter] = useState<string>('all')
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set())
+  const selectedCardIds = Array.from(selectedCards)
+  const [isStartingSession, setIsStartingSession] = useState(false)
 
   // Update grouped cards when cards prop changes
   useEffect(() => {
@@ -134,15 +137,56 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
   const handleStartSelectedSession = async () => {
     if (selectedCards.size === 0) return
 
-    const queueManager = getQueueManager()
-    const { queue } = await queueManager.generateQueue({
-      maxWords: selectedCards.size
-    })
+    setIsStartingSession(true)
+    try {
+      const queueManager = getQueueManager()
 
-    const selectedQueue = queue.filter(item => selectedCards.has(item.id))
-    
-    // Let the session creation function generate the proper UUID
-    onStartSession(selectedQueue, '')
+      // Generate a queue seeded with the selected word IDs
+      const { queue, error } = await queueManager.generateQueue({
+        maxWords: selectedCards.size,
+        studyMode: 'mixed',
+        prioritizeWeakWords: true,
+        wordIds: selectedCardIds
+      })
+
+      if (error) {
+        console.error('Failed to generate queue for selected cards:', error)
+        return
+      }
+
+      const selectedQueue = queue.filter(item => selectedCards.has(item.id))
+
+      if (selectedQueue.length === 0) {
+        console.warn('No matching cards found in generated queue for selected cards')
+        return
+      }
+
+      // Run standard study session generation to get the initial chunk prefetch
+      const { words, sessionId, error: sessionError } = await generateStudySession({
+        maxWords: selectedQueue.length,
+        studyMode: 'mixed',
+        prioritizeWeakWords: true,
+        wordIds: selectedQueue.map(word => word.id)
+      })
+
+      if (sessionError) {
+        console.error('Failed to generate study session:', sessionError)
+        return
+      }
+
+      const filteredWords = words.filter(word => selectedCards.has(word.id))
+
+      if (filteredWords.length === 0) {
+        console.warn('Selected words were filtered out during study session generation')
+        return
+      }
+
+      onStartSession(filteredWords, sessionId)
+    } catch (error) {
+      console.error('Failed to start custom session from Today dashboard:', error)
+    } finally {
+      setIsStartingSession(false)
+    }
   }
 
   const getDaysOverdue = (dueDate: string): number => {
@@ -401,6 +445,8 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
           )
         })}
       </Tabs>
+
+      <StudySessionLoader isVisible={isStartingSession} />
     </div>
   )
 }

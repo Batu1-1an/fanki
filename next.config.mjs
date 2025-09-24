@@ -6,9 +6,6 @@ const __dirname = path.dirname(__filename);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Explicitly set output for Vercel deployment
-  output: 'standalone',
-  outputFileTracingRoot: __dirname,
   experimental: {
     serverActions: {
       allowedOrigins: ['localhost:3000', '*.vercel.app'],

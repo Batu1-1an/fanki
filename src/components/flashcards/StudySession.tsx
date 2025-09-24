@@ -156,7 +156,7 @@ export function StudySession({
     if (currentWord) {
       setCurrentCardStartTime(Date.now())
     }
-  }, [currentWord?.id])
+  }, [currentWord])
 
   useEffect(() => {
     initialMainCardCount.current = words.length
@@ -343,19 +343,18 @@ export function StudySession({
     })
   }, [])
 
-  const shouldShowRelearningCard = useCallback(() => {
-    // Show re-learning cards after every 3-4 regular cards, or when main queue is done
-    return relearningQueue.length > 0 && (
-      mainQueueCompleted || 
-      (currentIndex > 0 && currentIndex % 3 === 0)
-    )
-  }, [relearningQueue.length, mainQueueCompleted, currentIndex])
+  const shouldTransitionToRelearning = useCallback((mainQueueFinished: boolean) => {
+    if (relearningQueue.length === 0) return false
+    if (mainQueueFinished) return true
+
+    return completedMainCards > 0 && completedMainCards % 3 === 0
+  }, [relearningQueue.length, completedMainCards])
 
   const handleReviewButton = useCallback(async (button: 'again' | 'hard' | 'good' | 'easy') => {
     if (!currentWord || isSubmittingReview) return
     
     setIsSubmittingReview(true)
-    const responseTime = Date.now() - sessionStats.startTime.getTime()
+    const responseTime = Date.now() - currentCardStartTime
     
     try {
       // Submit review to SM-2 system (no flashcard_id needed for dynamic sentences)
@@ -487,38 +486,37 @@ export function StudySession({
 
   const handleNext = useCallback(() => {
     if (currentlyShowingRelearning) {
-      // We just finished a re-learning card, go back to main queue
-      setCurrentlyShowingRelearning(false)
-    } else {
-      // We just finished a main queue card
-      // Check if we should show a re-learning card next
-      if (shouldShowRelearningCard() && !mainQueueCompleted) {
-        setCurrentlyShowingRelearning(true)
-        return
-      }
-      
-      // Continue with main queue
-      if (currentIndex < (enrichedWords?.length || 0) - 1) {
-        setCurrentIndex(prev => prev + 1)
-      } else {
-        // Main queue completed
-        setMainQueueCompleted(true)
-        
-        // If there are re-learning words, start showing them
-        if (relearningQueue.length > 0) {
-          setCurrentlyShowingRelearning(true)
-        } else {
-          // No re-learning words, session complete
+      if (relearningQueue.length === 0) {
+        setCurrentlyShowingRelearning(false)
+
+        if (mainQueueCompleted) {
           completeSession()
         }
       }
+      return
     }
-    
-    // If we're in re-learning mode but no cards left, complete session
-    if (mainQueueCompleted && relearningQueue.length === 0) {
+
+    const totalMainCards = enrichedWords?.length ?? 0
+    const hasMoreMainCards = currentIndex < totalMainCards - 1
+
+    if (hasMoreMainCards) {
+      setCurrentIndex(prev => prev + 1)
+    } else if (!mainQueueCompleted) {
+      setMainQueueCompleted(true)
+    }
+
+    const mainQueueJustFinished = !hasMoreMainCards
+    const routeToRelearning = shouldTransitionToRelearning(mainQueueJustFinished)
+
+    if (routeToRelearning) {
+      setCurrentlyShowingRelearning(true)
+      return
+    }
+
+    if (mainQueueJustFinished && relearningQueue.length === 0) {
       completeSession()
     }
-  }, [currentIndex, currentlyShowingRelearning, shouldShowRelearningCard, mainQueueCompleted, completeSession, relearningQueue, enrichedWords])
+  }, [currentlyShowingRelearning, relearningQueue.length, mainQueueCompleted, completeSession, enrichedWords, currentIndex, shouldTransitionToRelearning])
 
   // Handle review completion with fast animation-driven transition
   useEffect(() => {
@@ -592,7 +590,7 @@ export function StudySession({
     setCompletedRelearningCount(0)
     setCurrentCardStartTime(Date.now())
     initialMainCardCount.current = words.length
-  }, [])
+  }, [words])
 
   // Session completion screen
   if (isSessionComplete) {

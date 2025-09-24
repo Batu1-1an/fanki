@@ -188,7 +188,7 @@ export default function RegisterPage() {
       </div>
 
       {/* Right side - Registration form */}
-      <div className="flex w-full lg:w-1/2 flex-col justify-center px-6 py-12 sm:px-12">
+      <div className="flex w-full lg:w-1/2 flex-col justify-center px-4 py-8 sm:px-6 sm:py-12 lg:px-12">
         <div className="mx-auto w-full max-w-md">
           {/* Mobile header */}
           <div className="lg:hidden mb-8">
@@ -211,10 +211,10 @@ export default function RegisterPage() {
             </div>
 
             {error && (
-              <div className="rounded-lg bg-red-50 border border-red-200 p-4">
+              <div className="rounded-lg bg-red-50 border border-red-200 p-3 sm:p-4">
                 <div className="flex">
                   <div className="ml-3">
-                    <h3 className="text-sm font-medium text-red-800">{error}</h3>
+                    <h3 className="text-xs sm:text-sm font-medium text-red-800 leading-relaxed">{error}</h3>
                   </div>
                 </div>
               </div>
@@ -234,7 +234,7 @@ export default function RegisterPage() {
                     required
                     value={formData.fullName}
                     onChange={handleChange}
-                    className="w-full h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg"
+                    className="w-full h-11 sm:h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg text-base"
                   />
                 </div>
 
@@ -250,7 +250,7 @@ export default function RegisterPage() {
                     required
                     value={formData.email}
                     onChange={handleChange}
-                    className="w-full h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg"
+                    className="w-full h-11 sm:h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg text-base"
                   />
                 </div>
                 
@@ -267,7 +267,7 @@ export default function RegisterPage() {
                       required
                       value={formData.password}
                       onChange={handleChange}
-                      className="w-full h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg pr-12"
+                      className="w-full h-11 sm:h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg pr-12 text-base"
                     />
                     <button
                       type="button"
@@ -296,7 +296,7 @@ export default function RegisterPage() {
                       required
                       value={formData.confirmPassword}
                       onChange={handleChange}
-                      className="w-full h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg pr-12"
+                      className="w-full h-11 sm:h-12 border-gray-300 focus:border-blue-500 focus:ring-blue-500 rounded-lg pr-12 text-base"
                     />
                     <button
                       type="button"
@@ -315,7 +315,7 @@ export default function RegisterPage() {
 
               <Button 
                 type="submit" 
-                className="w-full h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200" 
+                className="w-full h-11 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 text-base" 
                 disabled={loading}
               >
                 {loading ? (
@@ -344,7 +344,7 @@ export default function RegisterPage() {
               type="button"
               variant="outline"
               onClick={handleGoogleSignUp}
-              className="w-full h-12 border-gray-300 hover:bg-gray-50 transition-colors rounded-lg"
+              className="w-full h-11 sm:h-12 border-gray-300 hover:bg-gray-50 transition-colors rounded-lg text-base"
             >
               <svg className="mr-3 h-5 w-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

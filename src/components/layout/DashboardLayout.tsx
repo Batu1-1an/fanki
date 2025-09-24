@@ -10,7 +10,7 @@ import { getReviewStats } from '@/lib/reviews'
 import { DashboardSidebar } from './DashboardSidebar'
 import { cn } from '@/lib/utils'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, Bell, User as UserIcon } from 'lucide-react'
+import { Settings, Bell, User as UserIcon, Menu, X } from 'lucide-react'
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -45,6 +45,7 @@ export function DashboardLayout({
   focusMode = false
 }: DashboardLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(focusMode)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [stats, setStats] = useState<WordStats>({
     total: 0,
     byDifficulty: {},
@@ -101,16 +102,57 @@ export function DashboardLayout({
 
   return (
     <div className="h-screen flex overflow-hidden bg-background">
-      {/* Sidebar - Hidden in focus mode */}
+      {/* Mobile Menu Overlay */}
+      <AnimatePresence>
+        {mobileMenuOpen && !focusMode && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Sidebar - Desktop always visible, Mobile overlay when open */}
       {!focusMode && (
-        <DashboardSidebar
-          currentPath={currentPath}
-          wordCount={stats.total}
-          dueCount={dueCount}
-          streakCount={streakCount}
-          isCollapsed={sidebarCollapsed}
-          onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
+        <>
+          {/* Desktop Sidebar */}
+          <div className="hidden md:block">
+            <DashboardSidebar
+              currentPath={currentPath}
+              wordCount={stats.total}
+              dueCount={dueCount}
+              streakCount={streakCount}
+              isCollapsed={sidebarCollapsed}
+              onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+            />
+          </div>
+          
+          {/* Mobile Sidebar */}
+          <AnimatePresence>
+            {mobileMenuOpen && (
+              <motion.div
+                initial={{ x: -280 }}
+                animate={{ x: 0 }}
+                exit={{ x: -280 }}
+                transition={{ type: "spring", damping: 20, stiffness: 100 }}
+                className="fixed left-0 top-0 bottom-0 z-50 md:hidden"
+              >
+                <DashboardSidebar
+                  currentPath={currentPath}
+                  wordCount={stats.total}
+                  dueCount={dueCount}
+                  streakCount={streakCount}
+                  isCollapsed={false}
+                  onToggle={() => setMobileMenuOpen(false)}
+                  isMobile={true}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </>
       )}
 
       {/* Main Content Area */}
@@ -147,21 +189,35 @@ export function DashboardLayout({
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.3 }}
           >
-            <div className="flex items-center justify-between h-full px-6">
-              <div className="flex items-center gap-4">
+            <div className="flex items-center justify-between h-full px-4 sm:px-6">
+              <div className="flex items-center gap-2 sm:gap-4">
+                {/* Mobile Menu Button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="md:hidden h-8 w-8 p-0"
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                >
+                  {mobileMenuOpen ? (
+                    <X className="w-4 h-4" />
+                  ) : (
+                    <Menu className="w-4 h-4" />
+                  )}
+                </Button>
+                
                 {title && (
-                  <div>
-                    <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+                  <div className="min-w-0">
+                    <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate">{title}</h1>
                     {description && (
-                      <p className="text-sm text-muted-foreground">{description}</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{description}</p>
                     )}
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center gap-3">
-                {/* Notifications */}
-                <Button variant="ghost" size="sm" className="relative">
+              <div className="flex items-center gap-2 sm:gap-3">
+                {/* Notifications - Hidden on very small screens */}
+                <Button variant="ghost" size="sm" className="relative hidden xs:flex">
                   <Bell className="w-4 h-4" />
                   <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full"></span>
                 </Button>
