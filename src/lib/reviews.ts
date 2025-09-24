@@ -38,6 +38,10 @@ export async function submitReview({
       return { data: null, error: wordError }
     }
 
+    if (!word) {
+      return { data: null, error: 'Word not found' }
+    }
+
     // Get the most recent review for this word
     const { data: lastReview } = await supabase
       .from('reviews')
