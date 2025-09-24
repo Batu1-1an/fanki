@@ -29,6 +29,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const [showTour, setShowTour] = useState(false)
   const [showPreferences, setShowPreferences] = useState(false)
   const [showFirstWordTutorial, setShowFirstWordTutorial] = useState(false)
+  const [firstWordTutorialDismissed, setFirstWordTutorialDismissed] = useState(false)
   const [showAddWordModal, setShowAddWordModal] = useState(false)
   const [activeStudySession, setActiveStudySession] = useState<{
     words: QueuedWord[]
@@ -53,6 +54,13 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     }
   }, [loading])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (localStorage.getItem('fanki-first-word-tutorial-dismissed') === 'true') {
+      setFirstWordTutorialDismissed(true)
+    }
+  }, [])
+
   // Show appropriate onboarding step when ready
   useEffect(() => {
     if (!loading && onboardingState.currentStep !== 'complete') {
@@ -65,12 +73,14 @@ export default function DashboardClient({ user }: DashboardClientProps) {
             setShowPreferences(true)
             break
           case 'first-word':
-            setShowFirstWordTutorial(true)
+            if (!firstWordTutorialDismissed) {
+              setShowFirstWordTutorial(true)
+            }
             break
         }
       }, 500) // Small delay for better UX
     }
-  }, [loading, onboardingState.currentStep])
+  }, [loading, onboardingState.currentStep, firstWordTutorialDismissed])
 
 
   const handleTourComplete = () => {
@@ -94,6 +104,14 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const handleFirstWordTutorialComplete = () => {
     setShowFirstWordTutorial(false)
     setShowAddWordModal(true)
+  }
+
+  const handleFirstWordTutorialClose = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('fanki-first-word-tutorial-dismissed', 'true')
+    }
+    setFirstWordTutorialDismissed(true)
+    setShowFirstWordTutorial(false)
   }
 
   const handleWordAdded = () => {
@@ -173,7 +191,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       
       <FirstWordTutorial
         isOpen={showFirstWordTutorial}
-        onClose={() => setShowFirstWordTutorial(false)}
+        onClose={handleFirstWordTutorialClose}
         onComplete={handleFirstWordTutorialComplete}
       />
       
