@@ -54,12 +54,12 @@ export default function FirstWordTutorial({ isOpen, onClose, onComplete }: First
   return (
     <>
       {/* Overlay */}
-      <div className="fixed inset-0 bg-black/60 z-50" />
+      <div className="fixed inset-0 bg-black/60 z-30" />
       
       {/* Highlight spotlight for add word button */}
       {currentStep === 0 && (
         <>
-          <div className="fixed z-55 animate-bounce" style={{
+          <div className="fixed z-40 animate-bounce pointer-events-none" style={{
             top: '20px',
             left: '50%',
             transform: 'translateX(-50%)'
@@ -73,7 +73,7 @@ export default function FirstWordTutorial({ isOpen, onClose, onComplete }: First
           </div>
           
           {/* Pulsing highlight around add word button */}
-          <div className="fixed z-51" style={{
+          <div className="fixed z-40 pointer-events-none" style={{
             top: '140px',
             left: '50%',
             transform: 'translateX(-50%)',
@@ -86,7 +86,7 @@ export default function FirstWordTutorial({ isOpen, onClose, onComplete }: First
       )}
 
       {/* Tutorial modal */}
-      <div className="fixed inset-0 flex items-end sm:items-center justify-center z-60 p-4">
+      <div className="fixed inset-0 flex items-end sm:items-center justify-center z-50 p-4">
         <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full mx-auto">
           <div className="p-6">
             {/* Header */}
