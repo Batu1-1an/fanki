@@ -23,7 +23,12 @@ export async function middleware(request: NextRequest) {
           requestHeaders.set('cookie', response.cookies.toString())
         },
         remove(name: string, options: CookieOptions) {
-          response.cookies.set(name, '', { ...options, maxAge: 0 })
+          response.cookies.set({
+            name,
+            value: '',
+            ...(options ?? {}),
+            maxAge: 0,
+          })
           requestHeaders.set('cookie', response.cookies.toString())
         },
       },
