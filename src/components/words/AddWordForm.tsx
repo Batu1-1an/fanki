@@ -14,6 +14,8 @@ import { getUserDesks, addWordToDesk, getDefaultDesk, Desk } from '@/lib/desks'
 import { Word } from '@/types'
 import { aiService } from '@/lib/ai-services'
 import { useAuth } from '@/hooks/useAuth'
+import { searchUnsplashImages, trackUnsplashDownload, UnsplashPhoto, UnsplashRateLimit } from '@/lib/unsplash'
+import { useToast } from '@/components/ui/toast'
 
 interface AddWordFormProps {
   onWordAdded?: (word: Word) => void
@@ -24,6 +26,7 @@ interface AddWordFormProps {
 
 export default function AddWordForm({ onWordAdded, onCancel, isModal = false, selectedDesk }: AddWordFormProps) {
   const { user } = useAuth()
+  const { success, error: showError } = useToast()
   const [formData, setFormData] = useState({
     word: '',
     definition: '',
@@ -44,16 +47,31 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
   const [isCheckingDuplicate, setIsCheckingDuplicate] = useState(false)
   const [isGeneratingAI, setIsGeneratingAI] = useState(false)
   const [liveValidationTimeout, setLiveValidationTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [imageSource, setImageSource] = useState<'unsplash' | 'gemini'>('unsplash')
+  const [unsplashQuery, setUnsplashQuery] = useState('')
+  const [unsplashResults, setUnsplashResults] = useState<UnsplashPhoto[]>([])
+  const [unsplashRateLimit, setUnsplashRateLimit] = useState<UnsplashRateLimit | null>(null)
+  const [isSearchingUnsplash, setIsSearchingUnsplash] = useState(false)
+  const [imageSelectionError, setImageSelectionError] = useState<string | null>(null)
+  const [selectedImage, setSelectedImage] = useState<{
+    source: 'unsplash' | 'gemini'
+    imageUrl: string
+    description?: string
+    attribution?: { name?: string; username?: string; profileUrl?: string }
+    downloadLocation?: string
+  } | null>(null)
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false)
 
   // Load desks on component mount
   useEffect(() => {
     const loadDesks = async () => {
       const { data: desksData } = await getUserDesks()
       const { data: defaultDeskData } = await getDefaultDesk()
-      
+
       if (desksData) {
         setDesks(desksData)
       }
+
       if (defaultDeskData) {
         setDefaultDesk(defaultDeskData)
         // Set default desk if no desk is pre-selected
@@ -62,8 +80,130 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
         }
       }
     }
+
     loadDesks()
   }, [selectedDesk, deskId])
+
+  const handleUnsplashSearch = async () => {
+    if (!unsplashQuery.trim()) {
+      setImageSelectionError('Enter a search term to find images')
+      showError?.({
+        title: 'Unsplash search',
+        description: 'Enter a keyword before searching Unsplash.'
+      })
+      return
+    }
+
+    setIsSearchingUnsplash(true)
+    setImageSelectionError(null)
+
+    try {
+      const result = await searchUnsplashImages(unsplashQuery.trim(), {
+        perPage: 12,
+        orientation: 'landscape',
+        contentFilter: 'high'
+      })
+
+      setUnsplashResults(result.results)
+      setUnsplashRateLimit(result.rateLimit ?? null)
+
+      if (result.results.length === 0) {
+        setImageSelectionError('No images found. Try a different keyword.')
+      }
+    } catch (error) {
+      console.error('Unsplash search failed:', error)
+      const message = error instanceof Error ? error.message : 'Failed to search Unsplash'
+      setImageSelectionError(message)
+      showError?.({
+        title: 'Unsplash search failed',
+        description: message
+      })
+    } finally {
+      setIsSearchingUnsplash(false)
+    }
+  }
+
+  const handleSelectUnsplashImage = async (photo: UnsplashPhoto) => {
+    try {
+      await trackUnsplashDownload(photo.links.download_location)
+      setSelectedImage({
+        source: 'unsplash',
+        imageUrl: photo.urls.regular,
+        description: photo.alt_description || photo.description || undefined,
+        attribution: {
+          name: photo.user?.name,
+          username: photo.user?.username,
+          profileUrl: photo.user?.links?.html
+        },
+        downloadLocation: photo.links.download_location
+      })
+      setImageSelectionError(null)
+      success?.({
+        title: 'Image selected',
+        description: 'Unsplash image registered successfully.'
+      })
+    } catch (error) {
+      console.error('Failed to register Unsplash download:', error)
+      const message = 'Failed to register download with Unsplash. Please try another image.'
+      setImageSelectionError(message)
+      showError?.({
+        title: 'Unsplash download failed',
+        description: message
+      })
+    }
+  }
+
+  const handleGenerateGeminiImage = async () => {
+    if (!user) {
+      setImageSelectionError('Please log in to generate AI images')
+      showError?.({
+        title: 'Sign in required',
+        description: 'Log in to generate Gemini images.'
+      })
+      return
+    }
+
+    if (!formData.word.trim()) {
+      setImageSelectionError('Enter a word before generating an image')
+      showError?.({
+        title: 'Word required',
+        description: 'Please enter the word first.'
+      })
+      return
+    }
+
+    setIsGeneratingImage(true)
+    setImageSelectionError(null)
+
+    try {
+      const response = await aiService.generateImage(formData.word, user.id, {
+        allowMissingWord: true
+      })
+      setSelectedImage({
+        source: 'gemini',
+        imageUrl: response.imageUrl,
+        description: response.description || undefined
+      })
+      success?.({
+        title: 'Image generated',
+        description: 'Gemini created an image for this word.'
+      })
+    } catch (error) {
+      console.error('Gemini image generation failed:', error)
+      const message = error instanceof Error ? error.message : 'Failed to generate AI image'
+      setImageSelectionError(message)
+      showError?.({
+        title: 'Gemini image error',
+        description: message
+      })
+    } finally {
+      setIsGeneratingImage(false)
+    }
+  }
+
+  useEffect(() => {
+    setUnsplashQuery(formData.word.trim())
+  }, [formData.word])
 
   // Real-time validation for individual fields
   const validateField = useCallback((field: string, value: any) => {
@@ -86,8 +226,6 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
       case 'definition':
         if (!value.trim()) {
           error = 'Definition is required'
-        } else if (value.trim().length < 10) {
-          error = `Definition should be at least 10 characters long (${value.trim().length}/10)`
         } else {
           isValid = true
         }
@@ -187,23 +325,8 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
   }
 
   const handleWordChange = (value: string) => {
-    setFormData(prev => ({ ...prev, word: value }))
-    
-    // Clear previous word errors
-    if (errors.word) {
-      setErrors(prev => {
-        const newErrors = { ...prev }
-        delete newErrors.word
-        return newErrors
-      })
-    }
-    
-    // Debounce duplicate check
-    const timeoutId = setTimeout(() => {
-      checkForDuplicate(value)
-    }, 500)
-    
-    return () => clearTimeout(timeoutId)
+    setSelectedImage(null)
+    handleFieldChange('word', value)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -239,9 +362,23 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
         if (targetDeskId) {
           await addWordToDesk(data.id, targetDeskId)
         }
+
+        if (selectedImage && user) {
+          try {
+            await aiService.saveFlashcard(
+              data.word,
+              user.id,
+              [],
+              selectedImage.imageUrl,
+              selectedImage.description
+            )
+          } catch (error) {
+            console.error('Failed to save selected image to flashcard cache:', error)
+          }
+        }
         
         // Generate AI content in the background
-        if (user) {
+        if (user && !selectedImage) {
           setIsGeneratingAI(true)
           // Generate AI content asynchronously - don't block the UI
           aiService.generateFlashcardContent(
@@ -268,6 +405,9 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
         setErrors({})
         setValidFields({})
         setFieldTouched({})
+        setSelectedImage(null)
+        setUnsplashResults([])
+        setImageSelectionError(null)
         
         onWordAdded?.(data)
       }
@@ -319,7 +459,7 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
               id="word"
               type="text"
               value={formData.word}
-              onChange={(e) => handleFieldChange('word', e.target.value)}
+              onChange={(e) => handleWordChange(e.target.value)}
               placeholder="Enter the word"
               className={cn(
                 "pr-8",
@@ -351,7 +491,187 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
             </p>
           )}
         </div>
-        
+
+        <div className="sm:col-span-2 space-y-3">
+          <Label>Flashcard Image (Optional)</Label>
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant={imageSource === 'unsplash' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => {
+                setImageSource('unsplash')
+                setSelectedImage(null)
+                setImageSelectionError(null)
+              }}
+              disabled={isLoading}
+            >
+              Unsplash Photos
+            </Button>
+            <Button
+              type="button"
+              variant={imageSource === 'gemini' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => {
+                setImageSource('gemini')
+                setImageSelectionError(null)
+              }}
+              disabled={isLoading}
+            >
+              Gemini AI
+            </Button>
+          </div>
+
+          {imageSource === 'unsplash' && (
+            <div className="space-y-3 border rounded-lg p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  value={unsplashQuery}
+                  onChange={(e) => setUnsplashQuery(e.target.value)}
+                  placeholder="Search Unsplash for images"
+                  disabled={isLoading}
+                />
+                <Button
+                  type="button"
+                  onClick={handleUnsplashSearch}
+                  disabled={isLoading || isSearchingUnsplash}
+                  className="sm:w-40"
+                >
+                  {isSearchingUnsplash ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Searching...
+                    </div>
+                  ) : 'Search'}
+                </Button>
+              </div>
+
+              {unsplashRateLimit && (
+                <p className="text-xs text-muted-foreground">
+                  Rate limit: {unsplashRateLimit.remaining ?? '—'} remaining of {unsplashRateLimit.limit ?? '—'} (reset {unsplashRateLimit.reset ?? '—'})
+                </p>
+              )}
+
+              {imageSelectionError && imageSource === 'unsplash' && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded text-sm">
+                  {imageSelectionError}
+                </div>
+              )}
+
+              {selectedImage?.source === 'unsplash' && (
+                <div className="border rounded-md overflow-hidden">
+                  <img
+                    src={selectedImage.imageUrl}
+                    alt={selectedImage.description || 'Selected Unsplash image'}
+                    className="w-full h-48 object-cover"
+                  />
+                  <div className="p-2 text-xs text-muted-foreground flex items-center justify-between">
+                    <span>
+                      {selectedImage.attribution?.name}
+                      {selectedImage.attribution?.username && (
+                        <>
+                          {' '}•{' '}
+                          <a
+                            href={`https://unsplash.com/@${selectedImage.attribution.username}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline"
+                          >
+                            @{selectedImage.attribution.username}
+                          </a>
+                        </>
+                      )}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedImage(null)}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {unsplashResults.map((photo) => (
+                  <button
+                    key={photo.id}
+                    type="button"
+                    className={cn(
+                      'relative group overflow-hidden rounded-md border focus:outline-none focus:ring-2 focus:ring-primary transition',
+                      selectedImage?.imageUrl === photo.urls.regular ? 'border-primary ring-1 ring-primary' : 'border-transparent'
+                    )}
+                    onClick={() => handleSelectUnsplashImage(photo)}
+                  >
+                    <img
+                      src={photo.urls.small}
+                      alt={photo.alt_description || photo.description || 'Unsplash image'}
+                      className="w-full h-32 object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-xs text-white">
+                      Select
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {imageSource === 'gemini' && (
+            <div className="space-y-3 border rounded-lg p-4">
+              <p className="text-sm text-muted-foreground">
+                Generate a custom image using Gemini AI. This might take a few seconds.
+              </p>
+              {imageSelectionError && imageSource === 'gemini' && (
+                <div className="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded text-sm">
+                  {imageSelectionError}
+                </div>
+              )}
+              <Button
+                type="button"
+                onClick={handleGenerateGeminiImage}
+                disabled={isGeneratingImage || isLoading}
+                className="w-full sm:w-40"
+              >
+                {isGeneratingImage ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating...
+                  </div>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Generate Image
+                  </>
+                )}
+              </Button>
+
+              {selectedImage?.source === 'gemini' && (
+                <div className="border rounded-md overflow-hidden">
+                  <img
+                    src={selectedImage.imageUrl}
+                    alt={selectedImage.description || 'Gemini generated image'}
+                    className="w-full h-48 object-cover"
+                  />
+                  <div className="p-2 text-xs text-muted-foreground flex items-center justify-between">
+                    <span>Generated with Gemini AI</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedImage(null)}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="sm:col-span-2">
           <Label htmlFor="definition" className="flex items-center gap-2">
             Definition *
@@ -382,7 +702,7 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
           {validFields.definition && fieldTouched.definition && !errors.definition && (
             <p className="mt-1 text-sm text-success-600 flex items-center gap-1">
               <CheckCircle className="w-3 h-3" />
-              Perfect length for a clear definition
+              Definition looks good
             </p>
           )}
         </div>

@@ -83,12 +83,17 @@ export class AIService {
   /**
    * Generate a memorable image for a word using AI via Supabase Edge Functions
    */
-  async generateImage(word: string, userId: string): Promise<GenerateImageResponse> {
+  async generateImage(
+    word: string,
+    userId: string,
+    options?: { allowMissingWord?: boolean }
+  ): Promise<GenerateImageResponse> {
     try {
       const { data, error } = await this.supabase.functions.invoke('generate-image', {
         body: {
           word: word.trim(),
-          userId
+          userId,
+          allowMissingWord: options?.allowMissingWord ?? false
         }
       })
 

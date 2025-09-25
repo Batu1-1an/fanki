@@ -315,7 +315,6 @@ export async function getLearningWords(limit: number = 20): Promise<{
         category: null, // Default category
         pronunciation: row.pronunciation,
         status: row.status as WordStatus,
-        memory_hook: null, // Default memory hook
         created_at: row.created_at,
         updated_at: row.created_at
       }
@@ -391,7 +390,6 @@ export async function getDueWords(limit: number = 20, sort: 'recommended' | 'old
         category: null, // Default category
         pronunciation: row.pronunciation,
         status: row.status as WordStatus,
-        memory_hook: null, // Default memory hook
         created_at: row.created_at,
         updated_at: row.created_at // Use created_at as fallback
       }

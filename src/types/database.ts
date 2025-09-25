@@ -62,7 +62,6 @@ export interface Database {
           category: string | null
           pronunciation: string | null
           status: 'new' | 'learning' | 'review'
-          memory_hook: string | null
           created_at: string
           updated_at: string
         }
@@ -76,7 +75,6 @@ export interface Database {
           category?: string | null
           pronunciation?: string | null
           status?: 'new' | 'learning' | 'review'
-          memory_hook?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -90,7 +88,6 @@ export interface Database {
           category?: string | null
           pronunciation?: string | null
           status?: 'new' | 'learning' | 'review'
-          memory_hook?: string | null
           created_at?: string
           updated_at?: string
         }

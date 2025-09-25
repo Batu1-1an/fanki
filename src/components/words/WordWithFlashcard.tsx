@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Sparkles, Eye, EyeOff, Image as ImageIcon, Type, Loader2, MoreHorizontal, MoveRight, BookOpen, Lightbulb } from 'lucide-react'
+import { Sparkles, Eye, EyeOff, Image as ImageIcon, Type, Loader2, MoreHorizontal, MoveRight, BookOpen } from 'lucide-react'
 import { Word, FlashcardSentence } from '@/types'
 import { getUserDesks, removeWordFromDesk, addWordToDesk, Desk } from '@/lib/desks'
 import { aiService } from '@/lib/ai-services'
@@ -232,21 +232,6 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting, selected
           </p>
         )}
 
-        {/* Memory Hook (Mnemonic) - RFC-004 */}
-        {word.memory_hook && (
-          <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-2 mb-3">
-            <div className="flex items-start gap-2">
-              <Lightbulb className="w-3 h-3 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">Memory Hook</p>
-                <p className="text-xs text-blue-800 dark:text-blue-200 leading-relaxed">
-                  {word.memory_hook}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-        
         {/* Flashcard toggle */}
         <div className="flex items-center gap-2 mb-3">
           <Button

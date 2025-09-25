@@ -45,11 +45,95 @@ export interface QueueOptions {
  * 3. Time since last review
  * 4. Learning stage (new words vs review words)
  */
+type PrefetchedContentUpdate = {
+  sentences?: { sentence: string; blank_position: number; correct_word: string }[]
+  imageUrl?: string | null
+  imageDescription?: string | null
+}
+
+async function prefetchInitialContentForWords(
+  words: QueuedWord[],
+  userId: string | null
+): Promise<Map<string, PrefetchedContentUpdate>> {
+  const contentMap = new Map<string, PrefetchedContentUpdate>()
+
+  if (!userId || INITIAL_CHUNK_SIZE <= 0 || words.length === 0) {
+    return contentMap
+  }
+
+  const initialChunk = words.slice(0, INITIAL_CHUNK_SIZE)
+
+  const results = await Promise.all(
+    initialChunk.map(async (word) => {
+      const hasSentences = Array.isArray(word.sentences) && word.sentences.length > 0
+      const hasImage = !!word.imageUrl
+
+      if (hasSentences && hasImage) {
+        return null
+      }
+
+      try {
+        const difficulty = word.difficulty <= 2 ? 'beginner' : 
+                         word.difficulty <= 4 ? 'intermediate' : 'advanced'
+
+        const content = await aiService.generateFlashcardContent(word.word, difficulty, userId)
+
+        const transformedSentences = Array.isArray(content.sentences)
+          ? content.sentences.map((sentence: any) => {
+              const sentenceText = typeof sentence === 'string' ? sentence : sentence.sentence || sentence.text || ''
+              const blankMarker = '___'
+
+              return {
+                sentence: sentenceText,
+                blank_position: sentenceText.indexOf(blankMarker) >= 0 ? sentenceText.indexOf(blankMarker) : 0,
+                correct_word: word.word
+              }
+            })
+          : []
+
+        const update: PrefetchedContentUpdate = {}
+
+        if (transformedSentences.length > 0) {
+          update.sentences = transformedSentences
+        }
+
+        if (typeof content.imageUrl === 'string') {
+          update.imageUrl = content.imageUrl
+        }
+
+        if (typeof content.imageDescription === 'string') {
+          update.imageDescription = content.imageDescription
+        }
+
+        if (Object.keys(update).length === 0) {
+          return null
+        }
+
+        return {
+          wordId: word.id,
+          content: update
+        }
+      } catch (error) {
+        console.error(`Failed to pre-fetch content for word "${word.word}":`, error)
+        return null
+      }
+    })
+  )
+
+  results.forEach(result => {
+    if (result?.content) {
+      contentMap.set(result.wordId, result.content)
+    }
+  })
+
+  return contentMap
+}
+
 export class ReviewQueueManager {
   private static instance: ReviewQueueManager
   private currentQueue: QueuedWord[] = []
   private queueGenerated: Date | null = null
-  private cacheByOptions: Map<string, { queue: QueuedWord[], stats: any, timestamp: Date }> = new Map()
+  private cacheByOptions: Map<string, { queue: QueuedWord[], stats: any, timestamp: Date, userId: string | null }> = new Map()
 
   static getInstance(): ReviewQueueManager {
     if (!ReviewQueueManager.instance) {
@@ -127,6 +211,7 @@ export class ReviewQueueManager {
       newWords: number
       averageDifficulty: number
     }
+    userId: string | null
     error?: any
   }> {
     try {
@@ -152,7 +237,7 @@ export class ReviewQueueManager {
 
         if (!cacheExpired && cached) {
           console.log('Returning cached queue for options:', cacheKey)
-          return { queue: cached.queue, stats: cached.stats }
+          return { queue: cached.queue, stats: cached.stats, userId: cached.userId }
         }
       }
 
@@ -161,6 +246,7 @@ export class ReviewQueueManager {
       if (!user) {
         throw new Error('User not authenticated')
       }
+      const userId = user.id
 
       // Use optimized database functions with desk filtering built-in
       const [learningResult, dueWordsResult] = await Promise.all([
@@ -175,6 +261,7 @@ export class ReviewQueueManager {
         return { 
           queue: [], 
           stats: { total: 0, overdue: 0, dueToday: 0, newWords: 0, averageDifficulty: 2.5 },
+          userId,
           error: dueWordsResult.error 
         }
       }
@@ -235,7 +322,39 @@ export class ReviewQueueManager {
       const finalQueue = sortedWords.slice(0, maxWords)
 
       // Attach flashcards to queued words
-      const queueWithFlashcards = await this.attachFlashcards(finalQueue)
+      const [flashcardsResult, aiPrefetchResult] = await Promise.allSettled([
+        this.attachFlashcards(finalQueue),
+        prefetchInitialContentForWords(finalQueue, userId)
+      ])
+
+      let queueWithFlashcards: QueuedWord[] = finalQueue
+
+      if (flashcardsResult.status === 'fulfilled') {
+        queueWithFlashcards = flashcardsResult.value
+      } else {
+        console.error('Failed to attach flashcards to queue:', flashcardsResult.reason)
+      }
+
+      if (aiPrefetchResult.status === 'fulfilled') {
+        const updates = aiPrefetchResult.value
+        if (updates.size > 0) {
+          queueWithFlashcards = queueWithFlashcards.map(word => {
+            const update = updates.get(word.id)
+            if (!update) {
+              return word
+            }
+
+            return {
+              ...word,
+              sentences: update.sentences ?? word.sentences ?? null,
+              imageUrl: update.imageUrl ?? word.imageUrl ?? null,
+              imageDescription: update.imageDescription ?? word.imageDescription ?? null
+            }
+          })
+        }
+      } else {
+        console.error('Failed to pre-fetch initial AI content:', aiPrefetchResult.reason)
+      }
 
       // Calculate statistics
       const stats = this.calculateQueueStats(queueWithFlashcards)
@@ -245,7 +364,8 @@ export class ReviewQueueManager {
         this.cacheByOptions.set(cacheKey, {
           queue: queueWithFlashcards,
           stats,
-          timestamp: new Date()
+          timestamp: new Date(),
+          userId
         })
       }
 
@@ -253,12 +373,13 @@ export class ReviewQueueManager {
       this.currentQueue = queueWithFlashcards
       this.queueGenerated = new Date()
 
-      return { queue: queueWithFlashcards, stats }
+      return { queue: queueWithFlashcards, stats, userId }
     } catch (error) {
       console.error('Failed to generate queue:', error)
       return { 
         queue: [], 
         stats: { total: 0, overdue: 0, dueToday: 0, newWords: 0, averageDifficulty: 2.5 },
+        userId: null,
         error 
       }
     }
@@ -457,7 +578,7 @@ export async function generateStudySession(options: QueueOptions = {}): Promise<
 }> {
   try {
     const queueManager = getQueueManager()
-    let { queue, error } = await queueManager.generateQueue(options)
+    let { queue, error, userId } = await queueManager.generateQueue(options)
 
     if (error) {
       return { words: [], sessionId: '', estimatedTimeMinutes: 0, error }
@@ -508,63 +629,23 @@ export async function generateStudySession(options: QueueOptions = {}): Promise<
     }
     // --- END OF FALLBACK LOGIC ---
 
-    // Pre-fetch AI content for ONLY the initial chunk for fast session start
-    if (queue.length > 0) {
-      try {
-        // Get current user from Supabase Auth
-        const { data: { user }, error: userError } = await supabase.auth.getUser()
-        
-        if (user && !userError) {
-          const initialChunk = queue.slice(0, INITIAL_CHUNK_SIZE)
-          console.log(`Pre-fetching AI content for initial ${initialChunk.length} words...`)
-          
-          const contentPromises = initialChunk.map(async (word, index) => {
-            try {
-              const hasSentences = Array.isArray(word.sentences) && word.sentences.length > 0
-              const hasImage = !!word.imageUrl
+    // Ensure fallback queues get initial content if needed
+    if (queue.length > 0 && userId) {
+      const updates = await prefetchInitialContentForWords(queue, userId)
+      if (updates.size > 0) {
+        queue = queue.map(word => {
+          const update = updates.get(word.id)
+          if (!update) {
+            return word
+          }
 
-              if (hasSentences && hasImage) {
-                return
-              }
-
-              const difficulty = word.difficulty <= 2 ? 'beginner' : 
-                               word.difficulty <= 4 ? 'intermediate' : 'advanced'
-              
-              // Use the existing generateFlashcardContent method for consistency
-              const content = await aiService.generateFlashcardContent(word.word, difficulty, user.id)
-              
-              // Transform sentences to the expected format
-              const transformedSentences = Array.isArray(content.sentences) ? content.sentences.map((sentence: any) => {
-                const sentenceText = typeof sentence === 'string' ? sentence : sentence.sentence || sentence.text || ''
-                const blankMarker = '___'
-                
-                return {
-                  sentence: sentenceText,
-                  blank_position: sentenceText.indexOf(blankMarker) >= 0 ? sentenceText.indexOf(blankMarker) : 0,
-                  correct_word: word.word
-                }
-              }) : []
-              
-              // Update the word in the original queue
-              queue[index] = {
-                ...queue[index],
-                sentences: transformedSentences.length > 0 ? transformedSentences : queue[index].sentences,
-                imageUrl: content.imageUrl ?? queue[index].imageUrl,
-                imageDescription: content.imageDescription ?? queue[index].imageDescription ?? null
-              }
-            } catch (error) {
-              console.error(`Failed to pre-fetch content for word "${word.word}":`, error)
-              // Leave word without AI content if fetching fails - will be fetched later
-            }
-          })
-          
-          // Wait for initial chunk content to be fetched
-          await Promise.all(contentPromises)
-          console.log(`Successfully pre-fetched AI content for initial ${initialChunk.length} words`)
-        }
-      } catch (error) {
-        console.error('Failed to pre-fetch initial chunk, continuing without pre-fetching:', error)
-        // Continue without pre-fetching if there's an error
+          return {
+            ...word,
+            sentences: update.sentences ?? word.sentences ?? null,
+            imageUrl: update.imageUrl ?? word.imageUrl ?? null,
+            imageDescription: update.imageDescription ?? word.imageDescription ?? null
+          }
+        })
       }
     }
 

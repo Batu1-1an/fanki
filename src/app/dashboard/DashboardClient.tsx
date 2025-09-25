@@ -171,6 +171,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
             <StudySessionDashboard 
               activeSession={activeStudySession}
               onActiveSessionChange={setActiveStudySession}
+              userId={user.id}
             />
           )}
         </div>

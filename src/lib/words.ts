@@ -68,22 +68,6 @@ export async function createWord(wordData: TablesInsert<'words'>): Promise<{ dat
       .select()
       .single()
 
-    // RFC-004: Generate memory hook asynchronously after word creation
-    if (data && !error && wordData.definition) {
-      // Call the generate-memory-hook Edge Function in the background
-      supabase.functions.invoke('generate-memory-hook', {
-        body: {
-          word: data.word,
-          definition: wordData.definition,
-          userId: user.id,
-          wordId: data.id
-        }
-      }).catch(memoryHookError => {
-        // Don't let memory hook generation failure affect word creation
-        console.warn('Memory hook generation failed:', memoryHookError)
-      })
-    }
-
     return { data, error }
   } catch (error) {
     return { data: null, error }

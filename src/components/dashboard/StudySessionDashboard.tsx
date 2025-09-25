@@ -46,6 +46,7 @@ interface StudySessionDashboardProps {
     words: QueuedWord[]
     sessionId: string
   } | null) => void
+  userId: string
 }
 
 interface DashboardStats {
@@ -104,7 +105,8 @@ function groupCardsByPriority(cards: Array<Word & { lastReview?: Review }>) {
 export function StudySessionDashboard({ 
   className,
   activeSession,
-  onActiveSessionChange
+  onActiveSessionChange,
+  userId
 }: StudySessionDashboardProps) {
   const [hasActiveDbSession, setHasActiveDbSession] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -362,6 +364,7 @@ export function StudySessionDashboard({
           sessionId={activeSession.sessionId}
           onSessionComplete={handleSessionComplete}
           onExit={handleExitSession}
+          userId={userId}
         />
       </div>
     )

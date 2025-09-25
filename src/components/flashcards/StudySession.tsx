@@ -17,7 +17,6 @@ import { QueuedWord } from '@/lib/queue-manager'
 import { submitReview } from '@/lib/reviews'
 import { getQueueManager } from '@/lib/queue-manager'
 import { aiService } from '@/lib/ai-services'
-import { useAuth } from '@/hooks/useAuth'
 import { 
   createStudySession, 
   updateStudySession, 
@@ -51,6 +50,7 @@ interface StudySessionProps {
   onSessionComplete: (session: Partial<StudySessionType>) => void
   onExit: () => void
   className?: string
+  userId?: string | null
 }
 
 interface SessionStats {
@@ -82,9 +82,9 @@ export function StudySession({
   sessionId: propSessionId,
   onSessionComplete,
   onExit,
-  className
+  className,
+  userId
 }: StudySessionProps) {
-  const { user } = useAuth()
   const [currentIndex, setCurrentIndex] = useState(0)
   const [enrichedWords, setEnrichedWords] = useState<QueuedWord[]>(words)
   const [isFetchingNextChunk, setIsFetchingNextChunk] = useState(false)
@@ -192,7 +192,7 @@ export function StudySession({
   }
 
   const fetchNextChunk = useCallback(async (chunkIndex: number, currentWords: QueuedWord[]) => {
-    if (!user) return
+    if (!userId) return
     setIsFetchingNextChunk(true)
     fetchedChunks.current.add(chunkIndex)
     
@@ -212,7 +212,7 @@ export function StudySession({
         const difficulty = word.difficulty <= 2 ? 'beginner' : 
                           word.difficulty <= 4 ? 'intermediate' : 'advanced'
         
-        return aiService.generateFlashcardContent(word.word, difficulty, user.id)
+        return aiService.generateFlashcardContent(word.word, difficulty, userId)
       })
       
       const contentResults = await Promise.all(contentPromises)
@@ -252,11 +252,11 @@ export function StudySession({
     } finally {
       setIsFetchingNextChunk(false)
     }
-  }, [user])
+  }, [userId])
 
   // Predictive chunk fetching - loads next chunk in background
   useEffect(() => {
-    if (!user || isPaused || currentlyShowingRelearning) return
+    if (!userId || isPaused || currentlyShowingRelearning) return
 
     const currentChunkIndex = Math.floor(currentIndex / CHUNK_SIZE)
     const nextChunkIndex = currentChunkIndex + 1
@@ -270,7 +270,7 @@ export function StudySession({
     ) {
       fetchNextChunk(nextChunkIndex, enrichedWords)
     }
-  }, [currentIndex, enrichedWords, isFetchingNextChunk, user, isPaused, currentlyShowingRelearning, fetchNextChunk])
+  }, [currentIndex, enrichedWords, isFetchingNextChunk, userId, isPaused, currentlyShowingRelearning, fetchNextChunk])
 
   // Helper functions for re-learning queue management
   const addToRelearningQueue = useCallback((word: Word | QueuedWord, originalIndex: number) => {
