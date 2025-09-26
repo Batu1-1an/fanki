@@ -73,13 +73,12 @@ export function ClozeTest({
     setUserInput('')
     setIsAnswered(false)
     setIsCorrect(null)
-    inputRef.current?.focus()
   }, [])
 
-  // Focus input when component mounts
+  // Ensure the input does not stay focused after reveal/answer
   useEffect(() => {
-    if (!isRevealed && !isAnswered) {
-      inputRef.current?.focus()
+    if (isRevealed || isAnswered) {
+      inputRef.current?.blur()
     }
   }, [isRevealed, isAnswered])
 

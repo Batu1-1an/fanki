@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -560,11 +561,15 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
 
               {selectedImage?.source === 'unsplash' && (
                 <div className="border rounded-md overflow-hidden">
-                  <img
-                    src={selectedImage.imageUrl}
-                    alt={selectedImage.description || 'Selected Unsplash image'}
-                    className="w-full h-48 object-cover"
-                  />
+                  <div className="relative h-48 w-full">
+                    <Image
+                      src={selectedImage.imageUrl}
+                      alt={selectedImage.description || 'Selected Unsplash image'}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                    />
+                  </div>
                   <div className="p-2 text-xs text-muted-foreground flex items-center justify-between">
                     <span>
                       {selectedImage.attribution?.name}
@@ -605,11 +610,15 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
                     )}
                     onClick={() => handleSelectUnsplashImage(photo)}
                   >
-                    <img
-                      src={photo.urls.small}
-                      alt={photo.alt_description || photo.description || 'Unsplash image'}
-                      className="w-full h-32 object-cover"
-                    />
+                    <div className="relative h-32 w-full">
+                      <Image
+                        src={photo.urls.small}
+                        alt={photo.alt_description || photo.description || 'Unsplash image'}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 1024px) 50vw, 33vw"
+                      />
+                    </div>
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-xs text-white">
                       Select
                     </div>
@@ -650,11 +659,15 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
 
               {selectedImage?.source === 'gemini' && (
                 <div className="border rounded-md overflow-hidden">
-                  <img
-                    src={selectedImage.imageUrl}
-                    alt={selectedImage.description || 'Gemini generated image'}
-                    className="w-full h-48 object-cover"
-                  />
+                  <div className="relative h-48 w-full">
+                    <Image
+                      src={selectedImage.imageUrl}
+                      alt={selectedImage.description || 'Gemini generated image'}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                    />
+                  </div>
                   <div className="p-2 text-xs text-muted-foreground flex items-center justify-between">
                     <span>Generated with Gemini AI</span>
                     <Button

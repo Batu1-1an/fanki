@@ -31,6 +31,12 @@ export function calculateSM2({
   let newInterval = interval_days
   let newRepetitions = repetitions
 
+  // Update ease factor based on quality before calculating next interval
+  newEaseFactor = ease_factor + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
+
+  // Ensure ease factor doesn't go below 1.3
+  newEaseFactor = Math.max(1.3, newEaseFactor)
+
   if (q >= 3) {
     // Correct response
     if (newRepetitions === 0) {
@@ -39,7 +45,7 @@ export function calculateSM2({
       newInterval = 6
     } else {
       // Use Math.ceil to avoid underscheduling due to rounding down
-      newInterval = Math.ceil(interval_days * ease_factor)
+      newInterval = Math.ceil(interval_days * newEaseFactor)
     }
     newRepetitions += 1
   } else {
@@ -47,12 +53,6 @@ export function calculateSM2({
     newRepetitions = 0
     newInterval = 1
   }
-
-  // Update ease factor based on quality
-  newEaseFactor = ease_factor + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
-  
-  // Ensure ease factor doesn't go below 1.3
-  newEaseFactor = Math.max(1.3, newEaseFactor)
 
   // Calculate due date
   const due_date = new Date()

@@ -75,7 +75,14 @@ const navigationItems: NavigationItem[] = [
     label: 'Profile',
     icon: User,
     href: '/profile',
-    description: 'Account settings'
+    description: 'Personal details'
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    icon: Settings,
+    href: '/settings',
+    description: 'App preferences'
   }
 ]
 
