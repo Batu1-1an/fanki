@@ -5,6 +5,9 @@
 
 import { SM2Result, ReviewResult } from '@/types'
 
+const HARD_INTERVAL_MULTIPLIER = 1.2
+const EASY_INTERVAL_BONUS = 1.3
+
 /**
  * Calculate the next review date using SM-2 algorithm
  * @param quality - User's response quality (0-5)
@@ -44,8 +47,14 @@ export function calculateSM2({
     } else if (newRepetitions === 1) {
       newInterval = 6
     } else {
-      // Use Math.ceil to avoid underscheduling due to rounding down
-      newInterval = Math.ceil(interval_days * newEaseFactor)
+      if (q === 3) {
+        newInterval = Math.max(1, Math.ceil(interval_days * HARD_INTERVAL_MULTIPLIER))
+      } else if (q === 5) {
+        newInterval = Math.ceil(interval_days * newEaseFactor * EASY_INTERVAL_BONUS)
+      } else {
+        // Use Math.ceil to avoid underscheduling due to rounding down
+        newInterval = Math.ceil(interval_days * newEaseFactor)
+      }
     }
     newRepetitions += 1
   } else {

@@ -260,7 +260,7 @@ export async function getStudySessionHistory(limit: number = 20): Promise<{
 }
 
 /**
- * Get study session statistics
+ * Get study session statistics (optimized with database function)
  */
 export async function getStudySessionStats(): Promise<{
   totalSessions: number
@@ -288,13 +288,12 @@ export async function getStudySessionStats(): Promise<{
       }
     }
 
-    const { data: sessions, error } = await supabase
-      .from('study_sessions')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('started_at', { ascending: false })
+    // Use optimized database function
+    const { data: stats, error } = await supabase
+      .rpc('get_user_study_session_stats', { p_user_id: user.id })
 
     if (error) {
+      console.error('Error fetching study session stats:', error)
       return {
         totalSessions: 0,
         completedSessions: 0,
@@ -307,101 +306,17 @@ export async function getStudySessionStats(): Promise<{
       }
     }
 
-    const totalSessions = sessions?.length || 0
-    const completedSessions = sessions?.filter(s => s.status === 'completed').length || 0
-    
-    const totalTimeMinutes = sessions?.reduce((total, session) => {
-      return total + (session.session_duration_seconds || 0) / 60
-    }, 0) || 0
-
-    const completedWithAccuracy = sessions?.filter(s => 
-      s.status === 'completed' && s.accuracy_percentage !== null
-    ) || []
-    
-    const averageAccuracy = completedWithAccuracy.length > 0
-      ? completedWithAccuracy.reduce((sum, s) => sum + (s.accuracy_percentage || 0), 0) / completedWithAccuracy.length
-      : 0
-
-    const totalWordsStudied = sessions?.reduce((total, session) => {
-      return total + (session.words_studied || 0)
-    }, 0) || 0
-
-    // Fetch user timezone (fallback to UTC)
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('timezone')
-      .eq('id', user.id)
-      .single()
-    const userTimeZone = profile?.timezone || 'UTC'
-
-    // Helpers for timezone-safe day math
-    const formatDateInTimeZone = (date: Date, timeZone: string): string => {
-      const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      }).formatToParts(date)
-      const y = parts.find(p => p.type === 'year')?.value || '1970'
-      const m = parts.find(p => p.type === 'month')?.value || '01'
-      const d = parts.find(p => p.type === 'day')?.value || '01'
-      return `${y}-${m}-${d}`
-    }
-    const addDaysISO = (isoDate: string, days: number): string => {
-      const d = new Date(isoDate + 'T00:00:00.000Z')
-      d.setUTCDate(d.getUTCDate() + days)
-      return d.toISOString().split('T')[0]
-    }
-
-    // Calculate streaks (consecutive days with completed sessions)
-    const completedByDate = new Map<string, boolean>()
-    sessions?.forEach(session => {
-      if (session.status === 'completed' && session.ended_at) {
-        const dateStr = formatDateInTimeZone(new Date(session.ended_at), userTimeZone)
-        completedByDate.set(dateStr, true)
-      }
-    })
-
-    let currentStreak = 0
-    let longestStreak = 0
-
-    const todayTz = formatDateInTimeZone(new Date(), userTimeZone)
-
-    // Calculate current streak (walk back by day strings)
-    let probe = todayTz
-    for (let i = 0; i < 365; i++) {
-      if (completedByDate.has(probe)) {
-        currentStreak++
-        probe = addDaysISO(probe, -1)
-      } else {
-        break
-      }
-    }
-
-    // Calculate longest streak across all completed dates
-    const allDatesAsc = Array.from(completedByDate.keys()).sort()
-    let tempStreak = 0
-    let prevStr: string | null = null
-    for (const dateStr of allDatesAsc) {
-      if (prevStr && dateStr === addDaysISO(prevStr, 1)) {
-        tempStreak++
-      } else {
-        tempStreak = 1
-      }
-      if (tempStreak > longestStreak) longestStreak = tempStreak
-      prevStr = dateStr
-    }
-
     return {
-      totalSessions,
-      completedSessions,
-      totalTimeMinutes: Math.round(totalTimeMinutes),
-      averageAccuracy: Math.round(averageAccuracy),
-      totalWordsStudied,
-      currentStreak,
-      longestStreak
+      totalSessions: stats?.totalSessions || 0,
+      completedSessions: stats?.completedSessions || 0,
+      totalTimeMinutes: stats?.totalTimeMinutes || 0,
+      averageAccuracy: stats?.averageAccuracy || 0,
+      totalWordsStudied: stats?.totalWordsStudied || 0,
+      currentStreak: stats?.currentStreak || 0,
+      longestStreak: stats?.longestStreak || 0
     }
   } catch (error) {
+    console.error('Failed to get study session stats:', error)
     return {
       totalSessions: 0,
       completedSessions: 0,

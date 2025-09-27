@@ -593,41 +593,54 @@ export async function generateStudySession(options: QueueOptions = {}): Promise<
       (!options.wordIds || options.wordIds.length === 0)
     ) {
       console.log("No due cards found. Generating a practice session as a fallback.");
-      
-      const { data: recentWords, error: wordsError } = await getUserWords({ limit: 10 });
 
-      if (wordsError) {
-        console.error("Fallback failed: could not fetch user words.", wordsError);
-        return { words: [], sessionId: '', estimatedTimeMinutes: 0, error: wordsError };
+      const fallbackLimit = Math.max(1, Math.min(options.maxWords ?? 20, 10));
+      const usingDeskFilter = options.deskId && options.deskId !== 'all';
+
+      let practiceSource: Word[] | null = null
+      let practiceError: any = null
+
+      if (usingDeskFilter) {
+        const { data, error } = await getDeskWords(options.deskId!, fallbackLimit)
+        practiceSource = data
+        practiceError = error
+      } else {
+        const { data, error } = await getUserWords({ limit: fallbackLimit })
+        practiceSource = data
+        practiceError = error
       }
 
-      if (recentWords && recentWords.length > 0) {
+      if (practiceError) {
+        console.error("Fallback failed: could not fetch practice words.", practiceError)
+        return { words: [], sessionId: '', estimatedTimeMinutes: 0, error: practiceError }
+      }
+
+      if (practiceSource && practiceSource.length > 0) {
         // Enrich these words to match the QueuedWord type
-        queue = recentWords.map(word => ({
+        const practiceQueue = practiceSource.map(word => ({
           ...word,
           priority: 'review_soon' as QueuePriority, // Assign lower priority to indicate it's for practice
           daysSinceLastReview: undefined,
           currentEaseFactor: 2.5,
           timesReviewed: 0,
           lastReview: undefined
-        }));
-        
+        }))
+
         // Attach flashcards to practice words
-        const wordIds = queue.map(w => w.id)
+        const wordIds = practiceQueue.map(w => w.id)
         const { data: flashcards } = await getUserFlashcards({ wordIds })
-        
+
         const flashcardMap = new Map<string, FlashcardWithWord>()
         flashcards?.forEach(fc => {
           flashcardMap.set(fc.word.id, fc)
         })
 
-        queue = queue.map(word => ({
+        queue = practiceQueue.map(word => ({
           ...word,
           flashcard: flashcardMap.get(word.id)
-        }));
+        }))
       }
     }
-    // --- END OF FALLBACK LOGIC ---
 
     // Ensure fallback queues get initial content if needed
     if (queue.length > 0 && userId) {
@@ -661,6 +674,7 @@ export async function generateStudySession(options: QueueOptions = {}): Promise<
       estimatedTimeMinutes
     }
   } catch (error) {
+    console.error("Error generating study session:", error)
     return { words: [], sessionId: '', estimatedTimeMinutes: 0, error }
   }
 }

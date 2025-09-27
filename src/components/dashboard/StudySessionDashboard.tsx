@@ -30,11 +30,12 @@ import {
   getStudySessionStats 
 } from '@/lib/study-sessions'
 import { StudySession } from '../flashcards/StudySession'
-import { getReviewStats, getDueWordCounts, getDueWords } from '@/lib/reviews'
+import { getDueWords } from '@/lib/reviews'
 import { Word, Review } from '@/types'
 import { cn } from '@/lib/utils'
 import { ExtendedStudySession, SessionStatus } from '@/types/study-sessions'
 import { Skeleton } from '@/components/ui/skeleton'
+import { loadDashboardData, refreshQueueStats, refreshSessionHistory } from '@/lib/dashboard-data'
 
 interface StudySessionDashboardProps {
   className?: string
@@ -149,7 +150,7 @@ export function StudySessionDashboard({
 
   useEffect(() => {
     checkForActiveSession()
-    loadDashboardData()
+    loadDashboardDataOptimized()
   }, [])
 
   const checkForActiveSession = async () => {
@@ -164,64 +165,29 @@ export function StudySessionDashboard({
     }
   }
 
-  // Unified dashboard data loading function (optimized with database aggregation)
-  const loadDashboardData = async (deskId: string = 'all') => {
+  // Optimized dashboard data loading function
+  const loadDashboardDataOptimized = async (deskId: string = 'all') => {
     setIsDashboardLoading(true)
     try {
-      // Use optimized database functions for accurate counts without heavy payload
-      const [stats, dueWordCounts, studyStats, sessionHistoryResult] = await Promise.all([
-        getReviewStats(),
-        getDueWordCounts(deskId === 'all' ? undefined : deskId),
-        getStudySessionStats(),
-        getStudySessionHistory(12)
-      ])
+      // Use the new optimized data loader
+      const dashboardData = await loadDashboardData(deskId)
 
-      const globalQueueStats = {
-        total: dueWordCounts.totalDue,
-        overdue: dueWordCounts.overdue,
-        dueToday: dueWordCounts.dueToday,
-        newWords: dueWordCounts.newWords,
-        averageDifficulty: 2.5 // Default, could be enhanced with separate query if needed
-      }
+      // Update all state from the optimized result
+      setDashboardStats(dashboardData.dashboardStats)
+      setQueueStats(dashboardData.queueStats)
+      setSessionStats(dashboardData.sessionStats)
+      setRecommendedMode(dashboardData.recommendedMode)
+      setRecentSessions(dashboardData.recentSessions)
 
-      // Also load a sample of cards for the TodaysCards component
+      // Load a sample of cards for the TodaysCards component
       const { data: sampleCards } = await getDueWords(50, 'recommended')
-
-      setDashboardStats(stats)
       setTodaysCards(sampleCards || [])
-      setQueueStats(globalQueueStats)
-      if (studyStats.error) {
-        console.error('Study session stats error:', studyStats.error)
-      }
-      setSessionStats({
-        totalSessions: studyStats.totalSessions,
-        completedSessions: studyStats.completedSessions,
-        totalTimeMinutes: studyStats.totalTimeMinutes,
-        averageAccuracy: Math.round(studyStats.averageAccuracy),
-        totalWordsStudied: studyStats.totalWordsStudied,
-        currentStreak: studyStats.currentStreak,
-        longestStreak: studyStats.longestStreak
+
+      console.log('Optimized dashboard data loaded:', {
+        loadTime: Date.now() - dashboardData.timestamp,
+        stats: dashboardData.dashboardStats,
+        queueStats: dashboardData.queueStats
       })
-
-      if (sessionHistoryResult.error) {
-        console.error('Study session history error:', sessionHistoryResult.error)
-      }
-      setRecentSessions(sessionHistoryResult.data || [])
-
-      console.log('Dashboard data loaded:', { stats, dueWordCounts, globalQueueStats, sampleCardsCount: sampleCards?.length || 0 })
-
-      // Derive recommendation from global stats (no longer biased by sampling)
-      let rec: { mode: any; reasoning: string; priority: 'high' | 'medium' | 'low' }
-      if (globalQueueStats.overdue > 10) {
-        rec = { mode: 'overdue_only', reasoning: `You have ${globalQueueStats.overdue} overdue words. Focus on catching up!`, priority: 'high' }
-      } else if (globalQueueStats.dueToday > 20) {
-        rec = { mode: 'review_only', reasoning: `${globalQueueStats.dueToday} words are due today. Focus on reviews first.`, priority: 'medium' }
-      } else if (globalQueueStats.newWords < 5) {
-        rec = { mode: 'mixed', reasoning: 'Good balance of new and review words. Keep up the momentum!', priority: 'low' }
-      } else {
-        rec = { mode: 'mixed', reasoning: 'Balanced study session recommended.', priority: 'low' }
-      }
-      setRecommendedMode(rec)
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
     } finally {
@@ -239,13 +205,13 @@ export function StudySessionDashboard({
     setHasActiveDbSession(false)
     // Refresh dashboard data by re-checking for active session and reloading dashboard data
     checkForActiveSession()
-    loadDashboardData()
+    loadDashboardDataOptimized()
   }
 
   const handleExitSession = () => {
     onActiveSessionChange?.(null)
     checkForActiveSession()
-    loadDashboardData()
+    loadDashboardDataOptimized()
   }
 
   // Quick start session function
@@ -442,7 +408,7 @@ export function StudySessionDashboard({
                 isLoading={isDashboardLoading}
                 className="h-full"
                 onDeskChange={async (deskId) => {
-                  await loadDashboardData(deskId)
+                  await loadDashboardDataOptimized(deskId)
                 }}
               />
             </div>

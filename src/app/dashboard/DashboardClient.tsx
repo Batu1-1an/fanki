@@ -42,11 +42,15 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     recentCount: 0
   })
 
-  // Load word statistics
+  // Load word statistics (now optimized with database function)
   useEffect(() => {
     const loadWordStats = async () => {
-      const stats = await getWordStats()
-      setWordStats(stats)
+      try {
+        const stats = await getWordStats()
+        setWordStats(stats)
+      } catch (error) {
+        console.error('Failed to load word stats:', error)
+      }
     }
     
     if (!loading) {
@@ -117,8 +121,12 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   const handleWordAdded = () => {
     // Reload word stats after adding a word
     const loadWordStats = async () => {
-      const stats = await getWordStats()
-      setWordStats(stats)
+      try {
+        const stats = await getWordStats()
+        setWordStats(stats)
+      } catch (error) {
+        console.error('Failed to reload word stats:', error)
+      }
     }
     loadWordStats()
     markFirstWordAdded()

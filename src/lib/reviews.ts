@@ -123,17 +123,25 @@ export async function submitReview({
         repetitions: lastReview?.repetitions || 0
       })
 
+      const isLapse = quality < 3
+      const now = new Date()
+      const lapseDueDate = new Date(now.getTime() + LEARNING_STEPS[0] * 60 * 1000)
+
       reviewData = {
         user_id: user.id,
         word_id: wordId,
         flashcard_id: flashcardId || null, // RFC-001: null for dynamic sentences
         quality,
         ease_factor: sm2Result.ease_factor,
-        interval_days: sm2Result.interval_days,
-        repetitions: sm2Result.repetitions,
-        due_date: sm2Result.due_date.toISOString(),
+        interval_days: isLapse ? 0 : sm2Result.interval_days,
+        repetitions: isLapse ? 0 : sm2Result.repetitions,
+        due_date: (isLapse ? lapseDueDate : sm2Result.due_date).toISOString(),
         reviewed_at: new Date().toISOString(),
         response_time_ms: responseTimeMs || null
+      }
+
+      if (isLapse) {
+        newWordStatus = 'learning'
       }
     }
 
@@ -186,7 +194,7 @@ async function handleLearningPhase({
 }> {
   const now = new Date()
   let newStatus: WordStatus = currentStatus
-  let ease_factor = 2.5
+  let ease_factor = lastReview?.ease_factor ?? 2.5
   let interval_days = 0
   let repetitions = lastReview?.repetitions || 0
 
@@ -232,7 +240,7 @@ async function handleLearningPhase({
         newStatus = 'review'
         repetitions = 1
         interval_days = GRADUATION_INTERVAL
-        ease_factor = 2.5
+        ease_factor = Math.min((lastReview?.ease_factor ?? 2.5) + 0.1, 3.0)
         const dueDate = new Date(now.getTime() + interval_days * 24 * 60 * 60 * 1000)
         return {
           ease_factor,
@@ -241,22 +249,6 @@ async function handleLearningPhase({
           due_date: dueDate,
           newStatus: 'review'
         }
-      }
-    }
-    
-    if (button === 'easy') {
-      // Graduate immediately
-      newStatus = 'review'
-      repetitions = 1
-      interval_days = 4 // Easy graduation gets 4 days
-      ease_factor = 2.6
-      const dueDate = new Date(now.getTime() + interval_days * 24 * 60 * 60 * 1000)
-      return {
-        ease_factor,
-        interval_days,
-        repetitions,
-        due_date: dueDate,
-        newStatus: 'review'
       }
     }
   }

@@ -223,7 +223,7 @@ export async function deleteWord(wordId: string): Promise<{ error: any }> {
   }
 }
 
-// Get word statistics for the current user
+// Get word statistics for the current user (optimized with database function)
 export async function getWordStats(): Promise<{ 
   total: number
   byDifficulty: Record<number, number>
@@ -238,41 +238,23 @@ export async function getWordStats(): Promise<{
       return { total: 0, byDifficulty: {}, byCategory: {}, recentCount: 0, error: 'User not authenticated' }
     }
 
-    // Get all words for statistics
-    const { data: words, error } = await supabase
-      .from('words')
-      .select('difficulty, category, created_at')
-      .eq('user_id', user.id)
+    // Use optimized database function
+    const { data: stats, error } = await supabase
+      .rpc('get_user_word_stats', { p_user_id: user.id })
 
-    if (error || !words) {
+    if (error) {
+      console.error('Error fetching word stats:', error)
       return { total: 0, byDifficulty: {}, byCategory: {}, recentCount: 0, error }
     }
 
-    const stats = {
-      total: words.length,
-      byDifficulty: {} as Record<number, number>,
-      byCategory: {} as Record<string, number>,
-      recentCount: 0
+    return {
+      total: stats?.total || 0,
+      byDifficulty: stats?.byDifficulty || {},
+      byCategory: stats?.byCategory || {},
+      recentCount: stats?.recentCount || 0
     }
-
-    const oneWeekAgo = new Date()
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-
-    words.forEach(word => {
-      // Count by difficulty
-      stats.byDifficulty[word.difficulty] = (stats.byDifficulty[word.difficulty] || 0) + 1
-      
-      // Count by category
-      stats.byCategory[word.category || 'General'] = (stats.byCategory[word.category || 'General'] || 0) + 1
-      
-      // Count recent words
-      if (new Date(word.created_at) > oneWeekAgo) {
-        stats.recentCount++
-      }
-    })
-
-    return stats
   } catch (error) {
+    console.error('Failed to get word stats:', error)
     return { total: 0, byDifficulty: {}, byCategory: {}, recentCount: 0, error }
   }
 }

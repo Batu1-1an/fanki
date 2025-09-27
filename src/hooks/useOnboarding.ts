@@ -43,13 +43,13 @@ export function useOnboarding() {
         .eq('id', session.user.id)
         .single()
 
-      const { data: wordsCount } = await supabase
+      const { data: wordsCount, count } = await supabase
         .from('words')
-        .select('id', { count: 'exact' })
+        .select('id', { count: 'exact', head: true })
         .eq('user_id', session.user.id)
 
       const hasSetPreferences = !!profile?.learning_level && !!profile?.target_language
-      const hasAddedFirstWord = (wordsCount?.length || 0) > 0
+      const hasAddedFirstWord = (count || 0) > 0
       
       // Get tour completion from localStorage or profile preferences
       const hasCompletedTour = localStorage.getItem('fanki-tour-completed') === 'true' || 
