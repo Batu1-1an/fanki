@@ -5,23 +5,11 @@ import { Tables, TablesInsert, TablesUpdate } from './index'
 
 export type SessionStatus = 'active' | 'paused' | 'completed' | 'abandoned'
 
-// Extended study session type with status tracking
-export interface ExtendedStudySession extends Tables<'study_sessions'> {
-  status: SessionStatus
-  paused_at?: string
-  resumed_at?: string
-}
+// Extended study session type - just use the base type directly since all fields are already in database
+export type ExtendedStudySession = Tables<'study_sessions'>
 
-// Extended insert type with status
-export interface ExtendedStudySessionInsert extends TablesInsert<'study_sessions'> {
-  status?: SessionStatus
-  paused_at?: string
-  resumed_at?: string
-}
+// Extended insert type - just use the base type
+export type ExtendedStudySessionInsert = TablesInsert<'study_sessions'>
 
-// Extended update type with status
-export interface ExtendedStudySessionUpdate extends TablesUpdate<'study_sessions'> {
-  status?: SessionStatus
-  paused_at?: string
-  resumed_at?: string
-}
+// Extended update type - just use the base type
+export type ExtendedStudySessionUpdate = TablesUpdate<'study_sessions'>

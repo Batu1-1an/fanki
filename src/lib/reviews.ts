@@ -1,5 +1,17 @@
 import { createClientComponentClient } from './supabase'
-import { Review, SM2Result, TablesInsert, Word, WordStatus, LEARNING_STEPS, GRADUATION_INTERVAL } from '@/types'
+import {
+  Review,
+  SM2Result,
+  TablesInsert,
+  Word,
+  WordStatus,
+  LEARNING_STEPS,
+  GRADUATION_INTERVAL,
+  ReviewCard,
+  CardReviewStatus,
+  CardSchedulingState,
+  ReviewWordInfo
+} from '@/types'
 import { calculateSM2, buttonToQuality } from '@/utils/sm2'
 import { getStudySessionStats } from '@/lib/study-sessions'
 
@@ -14,22 +26,12 @@ function serializeError(error: any): string {
     const details = []
     if (error.message) details.push(`message: ${error.message}`)
     if (error.code) details.push(`code: ${error.code}`)
-    if (error.details) details.push(`details: ${error.details}`)
     if (error.hint) details.push(`hint: ${error.hint}`)
+    if (error.details) details.push(`details: ${error.details}`)
     return details.join(', ')
   }
   
-  // Handle regular Error objects
-  if (error instanceof Error) {
-    return error.message
-  }
-  
-  // Handle string errors
-  if (typeof error === 'string') {
-    return error
-  }
-  
-  // Fallback to JSON stringify
+  // Handle plain errors
   try {
     return JSON.stringify(error)
   } catch {
@@ -40,17 +42,68 @@ function serializeError(error: any): string {
 const supabase = createClientComponentClient()
 
 /**
- * Submit a review for a word and update SM-2 scheduling or learning phase
- * RFC-001: flashcardId is optional and will be null for dynamic sentence generation
+ * Normalize a review status coming from Postgres into a safe `CardReviewStatus` value.
+ */
+function normalizeReviewStatus(status: any): CardReviewStatus {
+  const validStatuses: CardReviewStatus[] = ['new', 'overdue', 'due_today', 'completed_today', 'future', 'inactive']
+  if (validStatuses.includes(status as CardReviewStatus)) {
+    return status as CardReviewStatus
+  }
+  return 'new'
+}
+
+/**
+ * Convert an RPC row into a strongly-typed `ReviewCard` structure.
+ */
+function mapRpcRowToReviewCard(row: any): ReviewCard {
+  const scheduling: CardSchedulingState = {
+    easeFactor: row.ease_factor !== null && row.ease_factor !== undefined ? Number(row.ease_factor) : null,
+    intervalDays: row.interval_days ?? null,
+    repetitions: row.repetitions ?? null,
+    dueDate: row.due_date ?? null,
+    lastReviewedAt: row.last_reviewed_at ?? null,
+    lastQuality: row.last_quality ?? null
+  }
+
+  const word: ReviewWordInfo | null = row.word_id
+    ? {
+        id: row.word_id,
+        word: row.word ?? '',
+        definition: row.definition ?? null,
+        pronunciation: row.pronunciation ?? null,
+        difficulty: row.difficulty ?? null,
+        status: row.word_status ?? null,
+        createdAt: row.word_created_at ?? null,
+        updatedAt: row.word_updated_at ?? row.word_created_at ?? null
+      }
+    : null
+
+  return {
+    cardId: row.card_id,
+    noteId: row.note_id,
+    noteTypeSlug: row.note_type_slug ?? 'basic-word',
+    templateSlug: row.template_slug ?? 'front-back',
+    reviewStatus: normalizeReviewStatus(row.review_status),
+    scheduling,
+    renderPayload: row.render_payload ?? null,
+    fields: row.fields ?? {},
+    word
+  }
+}
+
+/**
+ * Submit a review for a card (new card-based review system)
  */
 export async function submitReview({
   wordId,
   flashcardId,
+  cardId,
   button,
   responseTimeMs
 }: {
   wordId: string
   flashcardId?: string | null
+  cardId?: string // NEW: Primary identifier for card-based system
   button: 'again' | 'hard' | 'good' | 'easy'
   responseTimeMs?: number
 }): Promise<{ data: Review | null; error: any }> {
@@ -103,14 +156,15 @@ export async function submitReview({
       reviewData = {
         user_id: user.id,
         word_id: wordId,
-        flashcard_id: flashcardId || null, // RFC-001: null for dynamic sentences
+        flashcard_id: flashcardId || null,
         quality,
         ease_factor: result.ease_factor,
         interval_days: result.interval_days,
         repetitions: result.repetitions,
         due_date: result.due_date.toISOString(),
         reviewed_at: new Date().toISOString(),
-        response_time_ms: responseTimeMs || null
+        response_time_ms: responseTimeMs || null,
+        card_id: cardId || null // Use provided card_id
       }
       
       newWordStatus = result.newStatus
@@ -130,14 +184,15 @@ export async function submitReview({
       reviewData = {
         user_id: user.id,
         word_id: wordId,
-        flashcard_id: flashcardId || null, // RFC-001: null for dynamic sentences
+        flashcard_id: flashcardId || null,
         quality,
         ease_factor: sm2Result.ease_factor,
         interval_days: isLapse ? 0 : sm2Result.interval_days,
         repetitions: isLapse ? 0 : sm2Result.repetitions,
         due_date: (isLapse ? lapseDueDate : sm2Result.due_date).toISOString(),
         reviewed_at: new Date().toISOString(),
-        response_time_ms: responseTimeMs || null
+        response_time_ms: responseTimeMs || null,
+        card_id: null
       }
 
       if (isLapse) {
@@ -220,7 +275,7 @@ async function handleLearningPhase({
   if (currentStatus === 'learning') {
     if (button === 'good' || button === 'hard') {
       // Move to next learning step or graduate
-      const currentStep = lastReview ? Math.min(lastReview.repetitions, LEARNING_STEPS.length - 1) : 0
+      const currentStep = lastReview ? Math.min(lastReview.repetitions ?? 0, LEARNING_STEPS.length - 1) : 0
       
       if (currentStep < LEARNING_STEPS.length - 1) {
         // Move to next learning step
@@ -308,7 +363,8 @@ export async function getLearningWords(limit: number = 20): Promise<{
         pronunciation: row.pronunciation,
         status: row.status as WordStatus,
         created_at: row.created_at,
-        updated_at: row.created_at
+        updated_at: row.created_at,
+        memory_hook: null
       }
 
       // Add review data (should always exist for learning words)
@@ -318,13 +374,14 @@ export async function getLearningWords(limit: number = 20): Promise<{
         word_id: row.word_id,
         flashcard_id: null,
         quality: row.quality,
-        ease_factor: Number(row.ease_factor),
+        ease_factor: row.ease_factor !== null ? Number(row.ease_factor) : 2.5,
         interval_days: row.interval_days,
         repetitions: row.repetitions,
         due_date: row.due_date,
         reviewed_at: row.reviewed_at,
         response_time_ms: null,
-        created_at: row.reviewed_at
+        created_at: row.reviewed_at,
+        card_id: null
       }
 
       return word
@@ -383,7 +440,8 @@ export async function getDueWords(limit: number = 20, sort: 'recommended' | 'old
         pronunciation: row.pronunciation,
         status: row.status as WordStatus,
         created_at: row.created_at,
-        updated_at: row.created_at // Use created_at as fallback
+        updated_at: row.created_at, // Use created_at as fallback
+        memory_hook: null
       }
 
       // Add review data if it exists
@@ -400,7 +458,8 @@ export async function getDueWords(limit: number = 20, sort: 'recommended' | 'old
           due_date: row.due_date,
           reviewed_at: row.reviewed_at,
           response_time_ms: null,
-          created_at: row.reviewed_at // Use reviewed_at as created_at for reviews
+          created_at: row.reviewed_at, // Use reviewed_at as created_at for reviews
+          card_id: null
         }
       }
 
@@ -410,7 +469,7 @@ export async function getDueWords(limit: number = 20, sort: 'recommended' | 'old
     // Add logging for recommended mode to track shuffle behavior
     if (sort === 'recommended' && results.length > 0) {
       const overdueCount = results.filter((w: Word & { lastReview?: Review }) => 
-        w.lastReview && new Date(w.lastReview.due_date) < new Date()
+        w.lastReview && w.lastReview.due_date && new Date(w.lastReview.due_date) < new Date()
       ).length
       console.log(`Applied optimized shuffled sampling: ${overdueCount} overdue cards in result set of ${results.length}`)
     }
@@ -643,7 +702,7 @@ export async function getDueWordCounts(deskId?: string): Promise<{
       totalDue: 0, 
       overdue: 0, 
       dueToday: 0, 
-      newWords: 0, 
+      newWords: 0,
       error: errorMessage 
     }
   }
@@ -704,9 +763,9 @@ export async function getWordProgress(wordId: string): Promise<{
     }
 
     const latestReview = reviews[reviews.length - 1]
-    const currentEaseFactor = latestReview.ease_factor
-    const currentInterval = latestReview.interval_days
-    const nextDueDate = new Date(latestReview.due_date)
+    const currentEaseFactor = latestReview.ease_factor ?? 2.5
+    const currentInterval = latestReview.interval_days ?? 0
+    const nextDueDate = latestReview.due_date ? new Date(latestReview.due_date) : null
 
     // Calculate difficulty trend based on recent ease factor changes
     let difficultyTrend: 'improving' | 'stable' | 'declining' = 'stable'
@@ -736,6 +795,133 @@ export async function getWordProgress(wordId: string): Promise<{
       nextDueDate: null, 
       difficultyTrend: 'stable',
       error 
+    }
+  }
+}
+
+/**
+ * NEW CARD-BASED FUNCTIONS FOR MULTI-TEMPLATE SUPPORT
+ */
+/**
+ * Get due cards for review using the new card-based system
+ * @param limit - Maximum number of cards to return
+ * @param sort - Sort order for cards
+ * @param deskId - Optional desk filter
+ * @returns Array of ReviewCard objects
+ */
+export async function getDueCards(
+  limit: number = 20,
+  sort: 'recommended' | 'oldest' | 'easiest' | 'hardest' = 'recommended',
+  deskId?: string
+): Promise<{
+  data: ReviewCard[] | null
+  error: any
+}> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return { data: null, error: 'User not authenticated' }
+    }
+
+    // Call database RPC function that returns cards
+    const { data: dueCards, error: dueError } = await supabase
+      .rpc('get_due_cards_optimized', {
+        p_user_id: user.id,
+        p_limit: limit,
+        p_sort_order: sort,
+        p_desk_id: deskId || null
+      })
+
+    if (dueError && Object.keys(dueError).length > 0) {
+      const errorMessage = serializeError(dueError)
+      console.error('Error fetching due cards:', errorMessage)
+      return { data: null, error: errorMessage }
+    }
+
+    if (!dueCards || dueCards.length === 0) {
+      return { data: [], error: null }
+    }
+
+    // Transform rows to ReviewCard objects
+    const results = dueCards.map(mapRpcRowToReviewCard)
+
+    return { data: results, error: null }
+  } catch (error) {
+    const errorMessage = serializeError(error)
+    console.error('Failed to get due cards:', errorMessage)
+    return { data: null, error: errorMessage }
+  }
+}
+
+/**
+ * Get card counts by status (card-based equivalent of getDueWordCounts)
+ * @param deskId - Optional desk filter
+ * @returns Card counts by status
+ */
+export async function getDueCardCounts(deskId?: string): Promise<{
+  totalDue: number
+  overdue: number
+  dueToday: number
+  newCards: number
+  completedToday: number
+  error?: any
+}> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      return { 
+        totalDue: 0, 
+        overdue: 0, 
+        dueToday: 0, 
+        newCards: 0,
+        completedToday: 0,
+        error: 'User not authenticated' 
+      }
+    }
+
+    // Use the new database function for card counts
+    const { data: counts, error: countsError } = await supabase
+      .rpc('get_due_card_counts', { 
+        p_user_id: user.id,
+        p_desk_id: deskId || null
+      })
+
+    if (countsError) {
+      const errorMessage = serializeError(countsError)
+      console.error('Error fetching due card counts:', errorMessage)
+      throw new Error(`Failed to fetch due card counts: ${errorMessage}`)
+    }
+
+    const countRow = counts?.[0]
+    if (!countRow) {
+      return {
+        totalDue: 0,
+        overdue: 0,
+        dueToday: 0,
+        newCards: 0,
+        completedToday: 0
+      }
+    }
+
+    return {
+      totalDue: Number(countRow.total_due) || 0,
+      overdue: Number(countRow.overdue) || 0,
+      dueToday: Number(countRow.due_today) || 0,
+      newCards: Number(countRow.new_cards) || 0,
+      completedToday: Number(countRow.completed_today) || 0
+    }
+  } catch (error) {
+    const errorMessage = serializeError(error)
+    console.error('Failed to get due card counts:', errorMessage)
+    return { 
+      totalDue: 0, 
+      overdue: 0, 
+      dueToday: 0, 
+      newCards: 0,
+      completedToday: 0,
+      error: errorMessage 
     }
   }
 }

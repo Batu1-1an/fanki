@@ -22,7 +22,7 @@ export async function createStudySession({
     const sessionData: ExtendedStudySessionInsert = {
       user_id: user.id,
       session_type: sessionType,
-      started_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
       status: 'active'
     }
 

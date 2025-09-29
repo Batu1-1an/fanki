@@ -38,7 +38,8 @@ const mockWords: QueuedWord[] = [
     status: 'new',
     priority: 'new',
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    memory_hook: null
   },
   {
     id: '2',
@@ -52,7 +53,8 @@ const mockWords: QueuedWord[] = [
     status: 'learning',
     priority: 'learning',
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    memory_hook: null
   },
   {
     id: '3',
@@ -66,7 +68,8 @@ const mockWords: QueuedWord[] = [
     status: 'review',
     priority: 'due_today',
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
+    memory_hook: null
   }
 ]
 
@@ -75,6 +78,7 @@ const mockFlashcards: FlashcardWithWord[] = mockWords.map((word, index) => ({
   flashcard: {
     id: `flashcard-${word.id}`,
     word_id: word.id,
+    image_description: null,
     sentences: [
       {
         sentence: index === 0 

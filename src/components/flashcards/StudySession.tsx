@@ -11,7 +11,8 @@ import {
   Word, 
   ReviewResult, 
   StudySession as StudySessionType,
-  SessionType 
+  SessionType,
+  QueuedCard
 } from '@/types'
 import { QueuedWord } from '@/lib/queue-manager'
 import { submitReview } from '@/lib/reviews'
@@ -43,8 +44,49 @@ import { cn } from '@/lib/utils'
 const PREFETCH_THRESHOLD = 1 // Start fetching the next chunk when on the second card (1 card left)
 const CHUNK_SIZE = 2 // Fetch next 2 cards in the background
 
+// Helper function to convert QueuedWord to QueuedCard for backward compatibility
+function convertWordToCard(word: QueuedWord): QueuedCard {
+  return {
+    cardId: word.id,
+    noteId: word.id, // Use word ID as note ID for legacy
+    noteTypeSlug: 'basic-word',
+    templateSlug: 'front-back',
+    reviewStatus: word.status === 'new' ? 'new' as const : 
+                  word.status === 'learning' ? 'new' as const : 'due_today' as const,
+    scheduling: {
+      easeFactor: word.currentEaseFactor || 2.5,
+      intervalDays: word.lastReview?.interval_days || 0,
+      repetitions: word.lastReview?.repetitions || 0,
+      dueDate: word.lastReview?.due_date || null,
+      lastReviewedAt: word.lastReview?.reviewed_at || null,
+      lastQuality: word.lastReview?.quality || null
+    },
+    renderPayload: null,
+    fields: {},
+    word: {
+      id: word.id,
+      word: word.word,
+      definition: word.definition,
+      pronunciation: word.pronunciation,
+      difficulty: word.difficulty,
+      status: word.status as any, // Type compatibility between WordStatus and ReviewStatus
+      createdAt: word.created_at,
+      updatedAt: word.updated_at
+    },
+    // Preserve QueuedWord-specific properties
+    priority: word.priority,
+    daysSinceLastReview: word.daysSinceLastReview,
+    currentEaseFactor: word.currentEaseFactor,
+    timesReviewed: word.timesReviewed,
+    sentences: word.sentences,
+    imageUrl: word.imageUrl,
+    imageDescription: word.imageDescription
+  }
+}
+
 interface StudySessionProps {
-  words: QueuedWord[]
+  words?: QueuedWord[] // Legacy support
+  cards?: QueuedCard[] // New card-based
   sessionType: SessionType
   sessionId?: string
   onSessionComplete: (session: Partial<StudySessionType>) => void
@@ -63,7 +105,7 @@ interface SessionStats {
   averageResponseTime: number
 }
 
-interface RelearningCard extends QueuedWord {
+interface RelearningCard extends QueuedCard {
   originalIndex: number
   timesRelearned: number
   addedToRelearningAt: Date
@@ -71,6 +113,7 @@ interface RelearningCard extends QueuedWord {
 
 interface CardReview {
   wordId: string
+  cardId: string // NEW: Primary identifier
   button: 'again' | 'hard' | 'good' | 'easy'
   responseTime: number
   timestamp: Date
@@ -78,6 +121,7 @@ interface CardReview {
 
 export function StudySession({
   words,
+  cards,
   sessionType,
   sessionId: propSessionId,
   onSessionComplete,
@@ -85,11 +129,20 @@ export function StudySession({
   className,
   userId
 }: StudySessionProps) {
+  // Support both legacy words and new cards
+  const sessionItems = cards || words || []
+  const isCardBased = !!cards
+  
+  // Convert words to cards if needed for unified handling
+  const initialCards: QueuedCard[] = isCardBased 
+    ? (sessionItems as QueuedCard[])
+    : (sessionItems as QueuedWord[]).map(convertWordToCard)
+  
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [enrichedWords, setEnrichedWords] = useState<QueuedWord[]>(words)
+  const [enrichedWords, setEnrichedWords] = useState<QueuedCard[]>(initialCards)
   const [isFetchingNextChunk, setIsFetchingNextChunk] = useState(false)
   const fetchedChunks = useRef(new Set([0])) // Keep track of which chunks are fetched (chunk 0 is initial)
-  const initialMainCardCount = useRef(words.length)
+  const initialMainCardCount = useRef(sessionItems.length)
   const completedMainWordIds = useRef<Set<string>>(new Set())
   const [completedMainCards, setCompletedMainCards] = useState(0)
   
@@ -159,12 +212,14 @@ export function StudySession({
   }, [currentWord])
 
   useEffect(() => {
-    initialMainCardCount.current = words.length
+    initialMainCardCount.current = initialCards.length
     completedMainWordIds.current = new Set(
-      Array.from(completedMainWordIds.current).filter(id => words.some(word => word.id === id))
+      Array.from(completedMainWordIds.current).filter(id => 
+        initialCards.some(card => card.cardId === id)
+      )
     )
     setCompletedMainCards(completedMainWordIds.current.size)
-  }, [words, words.length])
+  }, [initialCards])
 
   const initializeSession = useCallback(async () => {
     const { data, error } = await createStudySession({
@@ -191,7 +246,7 @@ export function StudySession({
     return `${mins}:${secs.toString().padStart(2, '0')}`
   }
 
-  const fetchNextChunk = useCallback(async (chunkIndex: number, currentWords: QueuedWord[]) => {
+  const fetchNextChunk = useCallback(async (chunkIndex: number, currentWords: QueuedCard[]) => {
     if (!userId) return
     setIsFetchingNextChunk(true)
     fetchedChunks.current.add(chunkIndex)
@@ -209,10 +264,12 @@ export function StudySession({
 
         if (hasSentences && hasImage) return null
         
-        const difficulty = word.difficulty <= 2 ? 'beginner' : 
-                          word.difficulty <= 4 ? 'intermediate' : 'advanced'
+        const wordDifficulty = word.word?.difficulty || (word as any).difficulty || 3
+        const difficulty = wordDifficulty <= 2 ? 'beginner' : 
+                          wordDifficulty <= 4 ? 'intermediate' : 'advanced'
         
-        return aiService.generateFlashcardContent(word.word, difficulty, userId)
+        const wordText = isCardBased ? word.word?.word : (word as any).word
+        return aiService.generateFlashcardContent(wordText, difficulty, userId)
       })
       
       const contentResults = await Promise.all(contentPromises)
@@ -231,7 +288,7 @@ export function StudySession({
             return {
               sentence: sentenceText,
               blank_position: sentenceText.indexOf(blankMarker) >= 0 ? sentenceText.indexOf(blankMarker) : 0,
-              correct_word: newWords[originalIndex].word
+              correct_word: isCardBased ? newWords[originalIndex].word?.word : (newWords[originalIndex] as any).word
             }
           })
           
@@ -273,26 +330,18 @@ export function StudySession({
   }, [currentIndex, enrichedWords, isFetchingNextChunk, userId, isPaused, currentlyShowingRelearning, fetchNextChunk])
 
   // Helper functions for re-learning queue management
-  const addToRelearningQueue = useCallback((word: Word | QueuedWord, originalIndex: number) => {
+  const addToRelearningQueue = useCallback((card: QueuedCard, originalIndex: number) => {
     const relearningCard: RelearningCard = {
-      ...word,
-      priority: (word as QueuedWord).priority || 'review_soon',
-      daysSinceLastReview: (word as QueuedWord).daysSinceLastReview,
-      currentEaseFactor: (word as QueuedWord).currentEaseFactor,
-      timesReviewed: (word as QueuedWord).timesReviewed,
-      lastReview: (word as QueuedWord).lastReview,
-      flashcard: (word as QueuedWord).flashcard,
-      sentences: (word as QueuedWord).sentences,
-      imageUrl: (word as QueuedWord).imageUrl,
-      imageDescription: (word as QueuedWord).imageDescription,
+      ...card,
       originalIndex,
       timesRelearned: 1,
       addedToRelearningAt: new Date()
     }
     
     setRelearningQueue(prev => {
-      // Check if word is already in re-learning queue
-      const existingIndex = prev.findIndex(c => c.id === word.id)
+      // Check if card is already in re-learning queue
+      const cardId = isCardBased ? card.cardId : (card as any).id
+      const existingIndex = prev.findIndex(c => (isCardBased ? c.cardId : (c as any).id) === cardId)
       if (existingIndex >= 0) {
         // Update existing entry - increase times relearned
         const updated = [...prev]
@@ -310,9 +359,9 @@ export function StudySession({
     })
   }, [])
 
-  const cycleRelearningCard = useCallback((wordId: string) => {
+  const cycleRelearningCard = useCallback((itemId: string) => {
     setRelearningQueue(prev => {
-      const index = prev.findIndex(word => word.id === wordId)
+      const index = prev.findIndex(item => (isCardBased ? item.cardId : (item as any).id) === itemId)
       if (index === -1) return prev
 
       const card = {
@@ -327,9 +376,9 @@ export function StudySession({
     })
   }, [])
 
-  const removeFromRelearningQueue = useCallback((wordId: string, markCompleted: boolean = false) => {
+  const removeFromRelearningQueue = useCallback((itemId: string, markCompleted: boolean = false) => {
     setRelearningQueue(prev => {
-      const index = prev.findIndex(word => word.id === wordId)
+      const index = prev.findIndex(item => (isCardBased ? item.cardId : (item as any).id) === itemId)
       if (index === -1) return prev
 
       const updated = [...prev]
@@ -341,7 +390,7 @@ export function StudySession({
 
       return updated
     })
-  }, [])
+  }, [isCardBased])
 
   const shouldTransitionToRelearning = useCallback((mainQueueFinished: boolean) => {
     if (relearningQueue.length === 0) return false
@@ -356,10 +405,14 @@ export function StudySession({
     setIsSubmittingReview(true)
     const responseTime = Date.now() - currentCardStartTime
     
+    const currentItemId = isCardBased ? currentWord.cardId : (currentWord as any).id
+    const wordId = isCardBased ? currentWord.word?.id : (currentWord as any).id
+    
     try {
-      // Submit review to SM-2 system (no flashcard_id needed for dynamic sentences)
+      // Submit review to SM-2 system
       const { error } = await submitReview({
-        wordId: currentWord.id,
+        wordId: wordId || '',
+        cardId: isCardBased ? currentWord.cardId : undefined,
         button,
         responseTimeMs: responseTime
       })
@@ -395,7 +448,8 @@ export function StudySession({
       
       // Track review for session summary
       const review: CardReview = {
-        wordId: currentWord.id,
+        wordId: wordId || '',
+        cardId: currentItemId,
         button,
         responseTime,
         timestamp: new Date()
@@ -403,26 +457,26 @@ export function StudySession({
       setCardReviews(prev => [...prev, review])
       setResponseTimes(prev => [...prev, responseTime])
 
-      if (!currentlyShowingRelearning && !completedMainWordIds.current.has(currentWord.id)) {
-        completedMainWordIds.current.add(currentWord.id)
+      if (!currentlyShowingRelearning && !completedMainWordIds.current.has(currentItemId)) {
+        completedMainWordIds.current.add(currentItemId)
         setCompletedMainCards(completedMainWordIds.current.size)
       }
       
       // Handle "Again" button - add to re-learning queue instead of removing completely
       if (button === 'again') {
         if (currentlyShowingRelearning) {
-          cycleRelearningCard(currentWord.id)
+          cycleRelearningCard(currentItemId)
         } else {
-          // Add current word to re-learning queue
+          // Add current card to re-learning queue
           addToRelearningQueue(currentWord, currentIndex)
         }
       } else {
         // For other buttons, remove from appropriate queue
         if (currentlyShowingRelearning) {
-          removeFromRelearningQueue(currentWord.id, true)
+          removeFromRelearningQueue(currentItemId, true)
         } else {
           const queueManager = getQueueManager()
-          queueManager.removeFromQueue(currentWord.id)
+          queueManager.removeFromQueue(currentItemId)
         }
       }
       
@@ -478,9 +532,7 @@ export function StudySession({
       words_correct: finalStats.cardsCorrect,
       total_reviews: finalStats.totalReviews,
       session_duration_seconds: duration,
-      accuracy_percentage: finalStats.accuracy,
-      started_at: finalStats.startTime.toISOString(),
-      ended_at: endTime.toISOString()
+      accuracy_percentage: finalStats.accuracy
     })
   }, [sessionStats, responseTimes, sessionType, onSessionComplete, sessionDuration, dbSessionId])
 
@@ -589,8 +641,8 @@ export function StudySession({
     setCompletedMainCards(0)
     setCompletedRelearningCount(0)
     setCurrentCardStartTime(Date.now())
-    initialMainCardCount.current = words.length
-  }, [words])
+    initialMainCardCount.current = initialCards.length
+  }, [initialCards])
 
   // Session completion screen
   if (isSessionComplete) {
@@ -787,11 +839,11 @@ export function StudySession({
 
       {/* Main flashcard */}
       <AnimatePresence mode="wait">
-        {currentWord && (
+        {currentWord && currentWord.word && (
           <div className="flex-1 space-y-6 min-h-0">
             <FlashcardComponent
-              key={currentWord.id}
-              word={currentWord}
+              key={currentWord.cardId}
+              word={currentWord.word as any} // FlashcardComponent expects Word type
               sentences={currentWord.sentences || null}
               imageUrl={currentWord.imageUrl || null}
               imageDescription={currentWord.imageDescription || null}

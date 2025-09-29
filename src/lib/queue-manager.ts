@@ -67,14 +67,14 @@ async function prefetchInitialContentForWords(
     initialChunk.map(async (word) => {
       const hasSentences = Array.isArray(word.sentences) && word.sentences.length > 0
       const hasImage = !!word.imageUrl
-
       if (hasSentences && hasImage) {
         return null
       }
 
       try {
-        const difficulty = word.difficulty <= 2 ? 'beginner' : 
-                         word.difficulty <= 4 ? 'intermediate' : 'advanced'
+        const difficultyValue = word.difficulty ?? 3
+        const difficulty = difficultyValue <= 2 ? 'beginner' : 
+                         difficultyValue <= 4 ? 'intermediate' : 'advanced'
 
         const content = await aiService.generateFlashcardContent(word.word, difficulty, userId)
 
@@ -431,7 +431,7 @@ export class ReviewQueueManager {
     }
 
     // For review cards, compare by UTC date-only strings (aligns with getDueWords)
-    const dueDateStr = new Date(word.lastReview.due_date).toISOString().split('T')[0]
+    const dueDateStr = new Date(word.lastReview.due_date || new Date()).toISOString().split('T')[0]
     const todayStr = new Date().toISOString().split('T')[0]
 
     if (dueDateStr < todayStr) return 'overdue'
@@ -443,7 +443,7 @@ export class ReviewQueueManager {
    * Calculate days since last review
    */
   private calculateDaysSinceLastReview(lastReview?: Review): number | undefined {
-    if (!lastReview) return undefined
+    if (!lastReview || !lastReview.reviewed_at) return undefined
     
     const lastReviewDate = new Date(lastReview.reviewed_at)
     const today = new Date()

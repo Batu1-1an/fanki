@@ -59,7 +59,8 @@ export default function WordEditModal({ word, onWordUpdated, onClose }: WordEdit
       newErrors.definition = 'Definition should be at least 10 characters long'
     }
     
-    if (formData.difficulty < 1 || formData.difficulty > 5) {
+    const difficulty = formData.difficulty ?? 3
+    if (difficulty < 1 || difficulty > 5) {
       newErrors.difficulty = 'Difficulty must be between 1 and 5'
     }
     
@@ -211,7 +212,7 @@ export default function WordEditModal({ word, onWordUpdated, onClose }: WordEdit
             <div>
               <Label htmlFor="edit-difficulty">Difficulty Level</Label>
               <Select
-                value={formData.difficulty.toString()}
+                value={(formData.difficulty ?? 3).toString()}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, difficulty: parseInt(value) }))}
                 disabled={isLoading}
               >

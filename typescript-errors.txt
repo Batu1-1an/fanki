@@ -1,0 +1,84 @@
+
+> fanki@0.1.0 type-check
+> tsc --noEmit
+
+src/components/words/AddWordForm.tsx(387,13): error TS18047: 'data.difficulty' is possibly 'null'.
+src/components/words/AddWordForm.tsx(387,49): error TS18047: 'data.difficulty' is possibly 'null'.
+src/components/words/WordEditModal.tsx(62,9): error TS18047: 'formData.difficulty' is possibly 'null'.
+src/components/words/WordEditModal.tsx(62,36): error TS18047: 'formData.difficulty' is possibly 'null'.
+src/components/words/WordEditModal.tsx(214,24): error TS18047: 'formData.difficulty' is possibly 'null'.
+src/components/words/WordManagementDashboard.tsx(111,27): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number | Date'.
+      Type 'null' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number'.
+      Type 'null' is not assignable to type 'string | number'.
+src/components/words/WordManagementDashboard.tsx(111,62): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number | Date'.
+      Type 'null' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number'.
+      Type 'null' is not assignable to type 'string | number'.
+src/components/words/WordManagementDashboard.tsx(113,27): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number | Date'.
+      Type 'null' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number'.
+      Type 'null' is not assignable to type 'string | number'.
+src/components/words/WordManagementDashboard.tsx(113,62): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number | Date'.
+      Type 'null' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number'.
+      Type 'null' is not assignable to type 'string | number'.
+src/components/words/WordManagementDashboard.tsx(117,18): error TS18047: 'b.difficulty' is possibly 'null'.
+src/components/words/WordManagementDashboard.tsx(117,33): error TS18047: 'a.difficulty' is possibly 'null'.
+src/components/words/WordManagementDashboard.tsx(670,41): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'number'.
+  Type 'null' is not assignable to type 'number'.
+src/components/words/WordManagementDashboard.tsx(674,33): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number | Date'.
+      Type 'null' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number'.
+      Type 'null' is not assignable to type 'string | number'.
+src/components/words/WordWithFlashcard.tsx(168,37): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'number'.
+  Type 'null' is not assignable to type 'number'.
+src/components/words/WordWithFlashcard.tsx(256,33): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number | Date'.
+      Type 'null' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number'.
+      Type 'null' is not assignable to type 'string | number'.
+src/components/words/WordWithFlashcard.tsx(326,29): error TS18047: 'word.difficulty' is possibly 'null'.
+src/components/words/WordWithFlashcard.tsx(326,65): error TS18047: 'word.difficulty' is possibly 'null'.
+src/lib/queue-manager.ts(76,28): error TS18047: 'word.difficulty' is possibly 'null'.
+src/lib/queue-manager.ts(77,26): error TS18047: 'word.difficulty' is possibly 'null'.
+src/lib/queue-manager.ts(434,33): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number | Date'.
+      Type 'null' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number'.
+      Type 'null' is not assignable to type 'string | number'.
+src/lib/queue-manager.ts(448,37): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number | Date'.
+      Type 'null' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | null' is not assignable to parameter of type 'string | number'.
+      Type 'null' is not assignable to type 'string | number'.
+src/lib/reviews.ts(278,49): error TS2345: Argument of type 'number | null' is not assignable to parameter of type 'number'.
+  Type 'null' is not assignable to type 'number'.
+src/lib/study-sessions.ts(25,7): error TS2353: Object literal may only specify known properties, and 'started_at' does not exist in type 'ExtendedStudySessionInsert'.
+src/lib/study-sessions.ts(61,7): error TS2561: Object literal may only specify known properties, but 'words_studied' does not exist in type 'ExtendedStudySessionUpdate'. Did you mean to write 'words_stªâº┤ied'?
+src/lib/study-sessions.ts(102,7): error TS2561: Object literal may only specify known properties, but 'words_studied' does not exist in type 'ExtendedStudySessionUpdate'. Did you mean to write 'words_stªâº┤ied'?
+src/types/study-sessions.ts(9,18): error TS2430: Interface 'ExtendedStudySession' incorrectly extends interface '{ accuracy_percentage: number | null; created_at: string | null; ended_at: string | null; id: string; paused_at: string | null; resumed_at: string | null; session_duration_seconds: number | null; ... 6 more ...; words_studied: number | null; }'.
+  Types of property 'paused_at' are incompatible.
+    Type 'string | undefined' is not assignable to type 'string | null'.
+      Type 'undefined' is not assignable to type 'string | null'.

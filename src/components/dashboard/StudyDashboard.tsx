@@ -102,7 +102,7 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
       const todayStr = new Date().toISOString().split('T')[0]
       const counts = cards.reduce((acc, c) => {
         if (!c.lastReview) acc.newWords++
-        else {
+        else if (c.lastReview.due_date) {
           const due = new Date(c.lastReview.due_date).toISOString().split('T')[0]
           if (due < todayStr) acc.overdue++
           else if (due === todayStr) acc.dueToday++

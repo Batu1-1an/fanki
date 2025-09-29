@@ -93,7 +93,7 @@ function groupCardsByPriority(cards: Array<Word & { lastReview?: Review }>) {
   cards.forEach(card => {
     if (!card.lastReview) {
       newWords.push(card)
-    } else {
+    } else if (card.lastReview.due_date) {
       const dueDateStr = new Date(card.lastReview.due_date).toISOString().split('T')[0]
       if (dueDateStr < todayStr) overdue.push(card)
       else if (dueDateStr === todayStr) dueToday.push(card)
@@ -646,7 +646,7 @@ export function StudySessionDashboard({
                                 key={`${session.id}-spark-${index}`}
                                 className="flex-1 rounded-t-lg bg-gradient-to-t from-indigo-200 via-indigo-300 to-indigo-500 transition-all"
                                 style={{ height: `${Math.max(8, accuracy)}%` }}
-                                title={`Accuracy ${accuracy}% on ${formatSessionDate(session.started_at)} at ${formatSessionTime(session.started_at)}`}
+                                title={`Accuracy ${accuracy}% on ${formatSessionDate(session.created_at)} at ${formatSessionTime(session.created_at)}`}
                               />
                             )
                           })
@@ -796,10 +796,10 @@ export function StudySessionDashboard({
                               <div className="flex flex-col gap-2">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                   <div className="text-sm font-medium">
-                                    {formatSessionDate(session.started_at)} <span className="text-muted-foreground">{formatSessionTime(session.started_at)}</span>
+                                    {formatSessionDate(session.created_at)} <span className="text-muted-foreground">{formatSessionTime(session.created_at)}</span>
                                   </div>
-                                  <Badge variant="outline" className={cn('text-xs capitalize', getStatusBadgeClasses(session.status))}>
-                                    {session.status}
+                                  <Badge variant="outline" className={cn('text-xs capitalize', getStatusBadgeClasses((session.status || 'active') as SessionStatus))}>
+                                    {session.status || 'active'}
                                   </Badge>
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs text-muted-foreground">

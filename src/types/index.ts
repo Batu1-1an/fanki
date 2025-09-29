@@ -1,9 +1,15 @@
-import { Database } from './database'
+import type {
+  Database,
+  Tables as SupabaseTables,
+  TablesInsert as SupabaseTablesInsert,
+  TablesUpdate as SupabaseTablesUpdate,
+  Json
+} from './database'
 
-// Convenience type exports
-export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
-export type TablesInsert<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert']
-export type TablesUpdate<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update']
+// Convenience type exports scoped to the public schema
+export type Tables<T extends keyof Database['public']['Tables']> = SupabaseTables<T>
+export type TablesInsert<T extends keyof Database['public']['Tables']> = SupabaseTablesInsert<T>
+export type TablesUpdate<T extends keyof Database['public']['Tables']> = SupabaseTablesUpdate<T>
 
 // Specific table types
 export type Profile = Tables<'profiles'>
@@ -11,6 +17,54 @@ export type Word = Tables<'words'>
 export type Flashcard = Tables<'flashcards'>
 export type Review = Tables<'reviews'>
 export type StudySession = Tables<'study_sessions'>
+export type Card = Tables<'cards'>
+export type Note = Tables<'notes'>
+export type CardTemplate = Tables<'card_templates'>
+
+export type ReviewStatus = 'new' | 'learning' | 'review'
+export type CardReviewStatus = 'new' | 'overdue' | 'due_today' | 'completed_today' | 'future' | 'inactive'
+
+export interface ReviewWordInfo {
+  id: string | null
+  word: string
+  definition: string | null
+  pronunciation: string | null
+  difficulty: number | null
+  status: ReviewStatus | null
+  createdAt: string | null
+  updatedAt: string | null
+}
+
+export interface CardSchedulingState {
+  easeFactor: number | null
+  intervalDays: number | null
+  repetitions: number | null
+  dueDate: string | null
+  lastReviewedAt: string | null
+  lastQuality: number | null
+}
+
+export interface ReviewCard {
+  cardId: string
+  noteId: string
+  noteTypeSlug: string
+  templateSlug: string
+  reviewStatus: CardReviewStatus
+  scheduling: CardSchedulingState
+  renderPayload: Json | null
+  fields: Json
+  word: ReviewWordInfo | null
+}
+
+export interface QueuedCard extends ReviewCard {
+  priority: 'learning' | 'overdue' | 'due_today' | 'new' | 'review_soon'
+  daysSinceLastReview?: number
+  currentEaseFactor?: number
+  timesReviewed?: number
+  sentences?: { sentence: string; blank_position: number; correct_word: string }[] | null
+  imageUrl?: string | null
+  imageDescription?: string | null
+}
 
 // Flashcard-related types
 export interface FlashcardSentence {

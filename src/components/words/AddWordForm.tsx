@@ -382,9 +382,10 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
         if (user && !selectedImage) {
           setIsGeneratingAI(true)
           // Generate AI content asynchronously - don't block the UI
+          const difficulty = (data.difficulty ?? 3) <= 2 ? 'beginner' : (data.difficulty ?? 3) >= 4 ? 'advanced' : 'intermediate'
           aiService.generateFlashcardContent(
             data.word,
-            data.difficulty <= 2 ? 'beginner' : data.difficulty >= 4 ? 'advanced' : 'intermediate',
+            difficulty,
             user.id
           ).catch(error => {
             console.error('Background AI generation failed:', error)

@@ -74,7 +74,7 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
     cards.forEach(card => {
       if (!card.lastReview) {
         newWords.push(card)
-      } else {
+      } else if (card.lastReview.due_date) {
         const dueDateStr = new Date(card.lastReview.due_date).toISOString().split('T')[0]
         if (dueDateStr < todayStr) overdue.push(card)
         else if (dueDateStr === todayStr) dueToday.push(card)
@@ -92,7 +92,7 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
 
     // Difficulty filter
     if (difficultyFilter !== 'all' && card.lastReview) {
-      const easeFactor = card.lastReview.ease_factor
+      const easeFactor = card.lastReview.ease_factor ?? 2.5
       switch (difficultyFilter) {
         case 'easy':
           return easeFactor >= 2.5
@@ -391,7 +391,7 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
               ) : (
                 <div className="space-y-2">
                   {cards.map(card => {
-                    const difficulty = getDifficultyBadge(card.lastReview?.ease_factor)
+                    const difficulty = getDifficultyBadge(card.lastReview?.ease_factor ?? undefined)
                     const isSelected = selectedCards.has(card.id)
                     
                     return (
@@ -418,12 +418,12 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
                             </div>
                             
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              {card.lastReview && tabKey === 'overdue' && (
+                              {card.lastReview && card.lastReview.due_date && tabKey === 'overdue' && (
                                 <Badge variant="destructive" className="text-xs">
                                   {getDaysOverdue(card.lastReview.due_date)} days overdue
                                 </Badge>
                               )}
-                              {card.lastReview && (
+                              {card.lastReview && card.lastReview.ease_factor != null && (
                                 <span>EF: {card.lastReview.ease_factor.toFixed(1)}</span>
                               )}
                               <input

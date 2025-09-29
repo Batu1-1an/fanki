@@ -80,7 +80,7 @@ export default function ProgressClient({ user }: ProgressClientProps) {
       const counts = cards.reduce((acc, c) => {
         if (!c.lastReview) acc.newWords++
         else {
-          const due = new Date(c.lastReview.due_date).toISOString().split('T')[0]
+          const due = c.lastReview.due_date ? new Date(c.lastReview.due_date).toISOString().split('T')[0] : ''
           if (due < todayStr) acc.overdue++
           else if (due === todayStr) acc.dueToday++
         }

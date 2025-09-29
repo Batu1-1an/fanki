@@ -165,7 +165,7 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting, selected
                 <h3 className="text-lg font-semibold text-gray-900 capitalize truncate">
                   {word.word}
                 </h3>
-                {getDifficultyBadge(word.difficulty)}
+                {getDifficultyBadge(word.difficulty ?? 3)}
               </div>
               <Badge variant="outline" className="text-xs">{word.category}</Badge>
             </div>
@@ -253,7 +253,7 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting, selected
         </div>
         
         <div className="flex items-center justify-between text-xs text-gray-400">
-          <span>Added {new Date(word.created_at).toLocaleDateString()}</span>
+          <span>Added {new Date(word.created_at || Date.now()).toLocaleDateString()}</span>
           {selectedDesk && (
             <div className="flex items-center gap-1">
               <div 
@@ -323,7 +323,7 @@ export function WordWithFlashcard({ word, onEdit, onDelete, isDeleting, selected
             <div className="bg-yellow-50 p-3 rounded-md">
               <FlashcardGenerator
                 word={word.word}
-                difficulty={word.difficulty <= 2 ? 'beginner' : word.difficulty >= 4 ? 'advanced' : 'intermediate'}
+                difficulty={(word.difficulty ?? 3) <= 2 ? 'beginner' : (word.difficulty ?? 3) >= 4 ? 'advanced' : 'intermediate'}
                 onContentGenerated={handleContentGenerated}
               />
             </div>

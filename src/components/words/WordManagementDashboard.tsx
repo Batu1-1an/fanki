@@ -108,13 +108,13 @@ export default function WordManagementDashboard() {
     filtered.sort((a, b) => {
       switch (sortBy) {
         case 'newest':
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
         case 'oldest':
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
         case 'alphabetical':
           return a.word.localeCompare(b.word)
         case 'difficulty':
-          return b.difficulty - a.difficulty
+          return (b.difficulty ?? 3) - (a.difficulty ?? 3)
         default:
           return 0
       }
@@ -667,11 +667,11 @@ export default function WordManagementDashboard() {
                     )}
                   </div>
                   <div className="col-span-1">
-                    {getDifficultyBadge(word.difficulty)}
+                    {getDifficultyBadge(word.difficulty ?? 3)}
                   </div>
                   <div className="col-span-1">
                     <div className="text-xs text-gray-500">
-                      {new Date(word.created_at).toLocaleDateString()}
+                      {new Date(word.created_at || Date.now()).toLocaleDateString()}
                     </div>
                   </div>
                   <div className="col-span-1">
