@@ -9,9 +9,12 @@ import OnboardingPreferences from '@/components/onboarding/OnboardingPreferences
 import FirstWordTutorial from '@/components/onboarding/FirstWordTutorial'
 import AddWordModal from '@/components/words/AddWordModal'
 import { StudySessionDashboard } from '@/components/dashboard/StudySessionDashboard'
+import { ModernDashboard } from '@/components/dashboard/ModernDashboard'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { QueuedWord } from '@/lib/queue-manager'
+import { Sparkles, LayoutDashboard } from 'lucide-react'
 
 interface DashboardClientProps {
   user: User
@@ -41,6 +44,26 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     byCategory: {} as Record<string, number>,
     recentCount: 0
   })
+  const [useModernDashboard, setUseModernDashboard] = useState(true)
+
+  // Load user's dashboard preference from localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedPreference = localStorage.getItem('fanki-dashboard-view')
+      if (savedPreference === 'classic') {
+        setUseModernDashboard(false)
+      }
+    }
+  }, [])
+
+  // Save user's dashboard preference to localStorage
+  const toggleDashboard = () => {
+    const newValue = !useModernDashboard
+    setUseModernDashboard(newValue)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('fanki-dashboard-view', newValue ? 'modern' : 'classic')
+    }
+  }
 
   // Load word statistics (now optimized with database function)
   useEffect(() => {
@@ -175,12 +198,45 @@ export default function DashboardClient({ user }: DashboardClientProps) {
               </div>
             </div>
           ) : (
-            /* Show comprehensive StudySessionDashboard for users who completed onboarding */
-            <StudySessionDashboard 
-              activeSession={activeStudySession}
-              onActiveSessionChange={setActiveStudySession}
-              userId={user.id}
-            />
+            /* Show comprehensive dashboard for users who completed onboarding */
+            <div className="relative">
+              {/* Dashboard Toggle Button */}
+              <div className="absolute top-4 right-4 z-10">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleDashboard}
+                  className="gap-2 shadow-lg hover:shadow-xl transition-shadow"
+                >
+                  {useModernDashboard ? (
+                    <>
+                      <LayoutDashboard className="w-4 h-4" />
+                      Classic View
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4" />
+                      Modern View
+                      <Badge variant="secondary" className="ml-1 text-[10px] px-1">New</Badge>
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {useModernDashboard ? (
+                <ModernDashboard
+                  activeSession={activeStudySession}
+                  onActiveSessionChange={setActiveStudySession}
+                  userId={user.id}
+                />
+              ) : (
+                <StudySessionDashboard 
+                  activeSession={activeStudySession}
+                  onActiveSessionChange={setActiveStudySession}
+                  userId={user.id}
+                />
+              )}
+            </div>
           )}
         </div>
       </DashboardLayout>

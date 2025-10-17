@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { FlashcardComponent } from './FlashcardComponent'
+import { CardRenderer } from '@/components/cards/CardRenderer'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -45,12 +45,13 @@ const PREFETCH_THRESHOLD = 1 // Start fetching the next chunk when on the second
 const CHUNK_SIZE = 2 // Fetch next 2 cards in the background
 
 // Helper function to convert QueuedWord to QueuedCard for backward compatibility
+// This preserves legacy word data while creating a properly structured card
 function convertWordToCard(word: QueuedWord): QueuedCard {
   return {
     cardId: word.id,
     noteId: word.id, // Use word ID as note ID for legacy
-    noteTypeSlug: 'basic-word',
-    templateSlug: 'front-back',
+    noteTypeSlug: 'basic', // Legacy words are basic type (not 'basic-word')
+    templateSlug: 'forward', // Use proper template slug
     reviewStatus: word.status === 'new' ? 'new' as const : 
                   word.status === 'learning' ? 'new' as const : 'due_today' as const,
     scheduling: {
@@ -61,8 +62,21 @@ function convertWordToCard(word: QueuedWord): QueuedCard {
       lastReviewedAt: word.lastReview?.reviewed_at || null,
       lastQuality: word.lastReview?.quality || null
     },
-    renderPayload: null,
-    fields: {},
+    // Construct render_payload from word data
+    renderPayload: {
+      word: word.word,
+      definition: word.definition,
+      pronunciation: word.pronunciation,
+      image_url: word.imageUrl,
+      image_description: word.imageDescription,
+      sentences: word.sentences || []
+    },
+    // Construct fields matching basic note type schema
+    fields: {
+      front: word.word,
+      back: word.definition,
+      extra: word.pronunciation || ''
+    },
     word: {
       id: word.id,
       word: word.word,
@@ -264,6 +278,10 @@ export function StudySession({
 
         if (hasSentences && hasImage) return null
         
+        // Only generate AI content for 'default' note type
+        // Basic cards use only user-provided content (Anki standard)
+        if (word.noteTypeSlug !== 'default') return null
+        
         const wordDifficulty = word.word?.difficulty || (word as any).difficulty || 3
         const difficulty = wordDifficulty <= 2 ? 'beginner' : 
                           wordDifficulty <= 4 ? 'intermediate' : 'advanced'
@@ -405,14 +423,14 @@ export function StudySession({
     setIsSubmittingReview(true)
     const responseTime = Date.now() - currentCardStartTime
     
-    const currentItemId = isCardBased ? currentWord.cardId : (currentWord as any).id
-    const wordId = isCardBased ? currentWord.word?.id : (currentWord as any).id
+    const currentItemId = currentWord.cardId
+    const wordId = currentWord.word?.id || currentWord.cardId
     
     try {
-      // Submit review to SM-2 system
+      // Submit review to SM-2 system (now always using card-based system)
       const { error } = await submitReview({
         wordId: wordId || '',
-        cardId: isCardBased ? currentWord.cardId : undefined,
+        cardId: currentWord.cardId, // Always use cardId for proper card tracking
         button,
         responseTimeMs: responseTime
       })
@@ -837,24 +855,29 @@ export function StudySession({
         </CardContent>
       </Card>
 
-      {/* Main flashcard */}
+      {/* Main flashcard - Now using CardRenderer to support multiple card types */}
       <AnimatePresence mode="wait">
-        {currentWord && currentWord.word && (
+        {currentWord && (
           <div className="flex-1 space-y-6 min-h-0">
-            <FlashcardComponent
+            <CardRenderer
               key={currentWord.cardId}
-              word={currentWord.word as any} // FlashcardComponent expects Word type
-              sentences={currentWord.sentences || null}
-              imageUrl={currentWord.imageUrl || null}
-              imageDescription={currentWord.imageDescription || null}
-              isGeneratingContent={!currentWord.sentences || !currentWord.imageUrl} // Show loader only if content not ready
-              contentGenerationError={null} // Handled by background fetching
-              onRegenerateContent={undefined} // Background system handles fetching
+              card={currentWord}
+              isGeneratingContent={!currentWord.sentences || !currentWord.imageUrl}
+              contentGenerationError={null}
+              onRegenerateContent={undefined}
               onReview={handleReview}
               onNext={currentIndex < totalCards - 1 ? handleNext : undefined}
               onPrevious={currentIndex > 0 ? handlePrevious : undefined}
               showNavigation={false}
-              autoFlip={false}
+              onWordUpdated={(updatedWord) => {
+                // Update the current word if edited
+                setEnrichedWords(prev => 
+                  prev.map(w => w.cardId === currentWord.cardId 
+                    ? { ...w, word: { ...w.word, ...updatedWord } as any }
+                    : w
+                  )
+                )
+              }}
             />
           </div>
         )}

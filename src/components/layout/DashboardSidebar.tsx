@@ -44,17 +44,17 @@ interface DashboardSidebarProps {
 const navigationItems: NavigationItem[] = [
   {
     id: 'dashboard',
-    label: 'Study Center',
+    label: 'Dashboard',
     icon: Home,
     href: '/dashboard',
-    description: 'Your learning hub'
+    description: 'Overview'
   },
   {
     id: 'study',
-    label: 'Study Now',
+    label: 'Study Center',
     icon: Play,
-    href: '/study',
-    description: 'Start a study session'
+    href: '/dashboard',
+    description: 'Your learning hub'
   },
   {
     id: 'words',
@@ -117,17 +117,17 @@ export function DashboardSidebar({
 
   return (
     <motion.aside
-      initial={{ width: isMobile ? 280 : (isCollapsed ? 80 : 280) }}
-      animate={{ width: isMobile ? 280 : (isCollapsed ? 80 : 280) }}
+      initial={{ width: isMobile ? 280 : (isCollapsed ? 80 : 240) }}
+      animate={{ width: isMobile ? 280 : (isCollapsed ? 80 : 240) }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
       className={cn(
-        "h-screen border-r border-border bg-card/50 backdrop-blur-sm relative",
+        "h-screen border-r border-slate-700/50 bg-slate-800 relative",
         isMobile && "shadow-2xl"
       )}
     >
       <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="p-6 border-b border-border">
+        <div className="p-5 border-b border-slate-700/50">
           <div className="flex items-center justify-between">
             <AnimatePresence>
               {(!isCollapsed || isMobile) && (
@@ -136,14 +136,13 @@ export function DashboardSidebar({
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.2 }}
-                  className="flex items-center gap-3"
+                  className="flex items-center gap-2"
                 >
-                  <div className="w-8 h-8 bg-gradient-to-br from-primary to-blue-600 rounded-lg flex items-center justify-center">
+                  <div className="w-8 h-8 bg-gradient-to-br from-teal-400 to-teal-600 rounded-lg flex items-center justify-center">
                     <span className="text-white font-bold text-sm">F</span>
                   </div>
                   <div>
-                    <h1 className="font-bold text-lg heading-gradient">Fanki</h1>
-                    <p className="text-xs text-muted-foreground">AI Learning</p>
+                    <h1 className="font-bold text-lg text-white">Fanki</h1>
                   </div>
                 </motion.div>
               )}
@@ -154,7 +153,7 @@ export function DashboardSidebar({
                 variant="ghost"
                 size="sm"
                 onClick={onToggle}
-                className="h-8 w-8 p-0 hover:bg-accent"
+                className="h-8 w-8 p-0 hover:bg-slate-700 text-slate-300"
               >
                 {isMobile ? (
                   <X className="w-4 h-4" />
@@ -168,61 +167,8 @@ export function DashboardSidebar({
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <AnimatePresence>
-          {(!isCollapsed || isMobile) && (
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.2, delay: 0.1 }}
-              className="p-6 space-y-4"
-            >
-              <div className="grid grid-cols-2 gap-3">
-                <Card variant="elevated" className="p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                      <BookOpen className="w-4 h-4 text-primary" />
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">Words</div>
-                      <div className="font-semibold">{wordCount}</div>
-                    </div>
-                  </div>
-                </Card>
-                
-                <Card variant="elevated" className="p-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                      <Target className="w-4 h-4 text-orange-600" />
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">Due</div>
-                      <div className="font-semibold">{dueCount}</div>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-              
-              {streakCount > 0 && (
-                <Card variant="premium" className="p-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center">
-                      <Flame className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <div className="text-xs text-muted-foreground">Current Streak</div>
-                      <div className="font-bold text-lg">{streakCount} days</div>
-                    </div>
-                  </div>
-                </Card>
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* Navigation */}
-        <nav className="flex-1 px-3 py-4">
+        <nav className="flex-1 px-3 py-6">
           <div className="space-y-2">
             {navigationItems.map((item, index) => {
               const Icon = item.icon
@@ -237,18 +183,18 @@ export function DashboardSidebar({
                   transition={{ duration: 0.2, delay: index * 0.05 }}
                 >
                   <Button
-                    variant={active ? "default" : "ghost"}
+                    variant="ghost"
                     size="sm"
                     onClick={() => window.location.href = item.href}
                     onMouseEnter={() => setHoveredItem(item.id)}
                     onMouseLeave={() => setHoveredItem(null)}
                     className={cn(
-                      "w-full justify-start gap-3 h-11 relative",
+                      "w-full justify-start gap-3 h-10 relative text-slate-300 hover:text-white hover:bg-slate-700/50",
                       isCollapsed && "justify-center px-0",
-                      active && "shadow-sm ring-1 ring-primary/20"
+                      active && "bg-teal-500 text-white hover:bg-teal-600 hover:text-white"
                     )}
                   >
-                    <Icon className={cn("w-5 h-5", active && "text-primary-foreground")} />
+                    <Icon className="w-5 h-5" />
                     
                     <AnimatePresence>
                       {(!isCollapsed || isMobile) && (
@@ -294,7 +240,7 @@ export function DashboardSidebar({
         </nav>
 
         {/* Quick Action */}
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-slate-700/50">
           <AnimatePresence>
             {(!isCollapsed || isMobile) ? (
               <motion.div
@@ -304,13 +250,12 @@ export function DashboardSidebar({
                 transition={{ duration: 0.2 }}
               >
                 <Button
-                  variant="premium"
                   size="sm"
                   onClick={() => window.location.href = '/study'}
-                  className="w-full gap-2"
+                  className="w-full gap-2 bg-teal-500 hover:bg-teal-600 text-white"
                 >
                   <Play className="w-4 h-4" />
-                  Quick Study
+                  Start Quick Session
                 </Button>
               </motion.div>
             ) : (
@@ -321,10 +266,9 @@ export function DashboardSidebar({
                 transition={{ duration: 0.2 }}
               >
                 <Button
-                  variant="premium"
                   size="sm"
                   onClick={() => window.location.href = '/study'}
-                  className="w-full px-0"
+                  className="w-full px-0 bg-teal-500 hover:bg-teal-600 text-white"
                 >
                   <Play className="w-4 h-4" />
                 </Button>

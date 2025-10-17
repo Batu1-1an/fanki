@@ -129,6 +129,25 @@ export async function submitReview({
       return { data: null, error: 'Word not found' }
     }
 
+    // Validate card ID (optional - fallback to null if card doesn't exist)
+    let validatedCardId: string | null = null
+    if (cardId) {
+      const { data: card, error: cardError } = await supabase
+        .from('cards')
+        .select('id')
+        .eq('id', cardId)
+        .single()
+
+      if (cardError) {
+        console.warn(
+          'Card ID provided for review but not found. Falling back to null card_id:',
+          serializeError(cardError)
+        )
+      } else if (card?.id) {
+        validatedCardId = card.id
+      }
+    }
+
     // Get the most recent review for this word
     const { data: lastReview } = await supabase
       .from('reviews')
@@ -158,15 +177,14 @@ export async function submitReview({
         word_id: wordId,
         flashcard_id: flashcardId || null,
         quality,
-        ease_factor: result.ease_factor,
         interval_days: result.interval_days,
         repetitions: result.repetitions,
         due_date: result.due_date.toISOString(),
         reviewed_at: new Date().toISOString(),
         response_time_ms: responseTimeMs || null,
-        card_id: cardId || null // Use provided card_id
+        card_id: validatedCardId ? validatedCardId : null
       }
-      
+
       newWordStatus = result.newStatus
     } else {
       // Regular SM-2 for review cards
@@ -192,7 +210,7 @@ export async function submitReview({
         due_date: (isLapse ? lapseDueDate : sm2Result.due_date).toISOString(),
         reviewed_at: new Date().toISOString(),
         response_time_ms: responseTimeMs || null,
-        card_id: null
+        card_id: validatedCardId
       }
 
       if (isLapse) {

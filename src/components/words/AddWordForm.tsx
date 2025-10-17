@@ -17,6 +17,20 @@ import { aiService } from '@/lib/ai-services'
 import { useAuth } from '@/hooks/useAuth'
 import { searchUnsplashImages, trackUnsplashDownload, UnsplashPhoto, UnsplashRateLimit } from '@/lib/unsplash'
 import { useToast } from '@/components/ui/toast'
+import { getNoteTypes, createNoteWithCards, NoteType, NoteTypeSlug } from '@/lib/cards'
+
+// Helper function to get note type descriptions
+function getNoteTypeDescription(slug: string): string {
+  const descriptions: Record<string, string> = {
+    default: 'Fanki\'s smart flashcard with AI-generated sentences & images',
+    basic: 'Simple front-and-back (Anki standard - no AI)',
+    basic_reverse: 'Creates forward and reverse cards automatically',
+    typing: 'Requires typing the correct answer',
+    cloze: 'Fill-in-the-blank format with {{c1::answer}} syntax',
+    image_occlusion: 'Hide parts of an image to quiz yourself'
+  }
+  return descriptions[slug] || 'Custom card type'
+}
 
 interface AddWordFormProps {
   onWordAdded?: (word: Word) => void
@@ -28,6 +42,13 @@ interface AddWordFormProps {
 export default function AddWordForm({ onWordAdded, onCancel, isModal = false, selectedDesk }: AddWordFormProps) {
   const { user } = useAuth()
   const { success, error: showError } = useToast()
+  
+  // Card type selection
+  const [noteTypes, setNoteTypes] = useState<NoteType[]>([])
+  const [selectedNoteType, setSelectedNoteType] = useState<NoteTypeSlug>('default')
+  const [generateReverse, setGenerateReverse] = useState(false)
+  const [clozeText, setClozeText] = useState('')
+  
   const [formData, setFormData] = useState({
     word: '',
     definition: '',
@@ -62,6 +83,17 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
     downloadLocation?: string
   } | null>(null)
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
+
+  // Load note types on component mount
+  useEffect(() => {
+    const loadNoteTypes = async () => {
+      const { data } = await getNoteTypes()
+      if (data) {
+        setNoteTypes(data)
+      }
+    }
+    loadNoteTypes()
+  }, [])
 
   // Load desks on component mount
   useEffect(() => {
@@ -335,83 +367,123 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
     
     if (!validateForm()) return
     
+    // Validate cloze text if cloze type is selected
+    if (selectedNoteType === 'cloze' && !clozeText.trim()) {
+      setErrors({ form: 'Cloze text is required for cloze cards' })
+      return
+    }
+    
     setIsLoading(true)
     
     try {
-      const { data, error } = await createWord({
-        word: formData.word.trim(),
-        definition: formData.definition.trim(),
-        difficulty: formData.difficulty,
-        category: formData.category,
-        pronunciation: formData.pronunciation.trim() || null,
-        language: 'en',
-        user_id: user!.id
+      // First create the word (for word-based cards)
+      let wordId: string | undefined
+      
+      if (selectedNoteType !== 'cloze') {
+        const { data, error } = await createWord({
+          word: formData.word.trim(),
+          definition: formData.definition.trim(),
+          difficulty: formData.difficulty,
+          category: formData.category,
+          pronunciation: formData.pronunciation.trim() || null,
+          language: 'en',
+          user_id: user!.id
+        })
+        
+        if (error) {
+          if (error.code === 'DUPLICATE_WORD') {
+            setErrors({ word: error.message })
+          } else {
+            setErrors({ form: 'Failed to add word. Please try again.' })
+          }
+          return
+        }
+        
+        if (data) {
+          wordId = data.id
+          
+          // Add word to selected desk
+          const targetDeskId = formData.deskId || defaultDesk?.id
+          if (targetDeskId) {
+            await addWordToDesk(data.id, targetDeskId)
+          }
+        }
+      }
+      
+      // Create note and cards based on selected type
+      const noteTypeToUse = generateReverse && selectedNoteType === 'basic' 
+        ? 'basic_reverse' 
+        : selectedNoteType
+      
+      const fields: Record<string, any> = {}
+      
+      if (selectedNoteType === 'cloze') {
+        fields.text = clozeText
+        fields.extra = formData.definition
+      } else {
+        fields.front = formData.word.trim()
+        fields.back = formData.definition.trim()
+        fields.extra = formData.pronunciation || ''
+        
+        // Include image data if selected
+        if (selectedImage) {
+          fields.image_url = selectedImage.imageUrl
+          fields.image_description = selectedImage.description
+        }
+      }
+      
+      // Create note and cards
+      const { noteId, cardIds, error: cardError } = await createNoteWithCards({
+        userId: user!.id,
+        noteTypeSlug: noteTypeToUse,
+        fields,
+        wordId
       })
       
-      if (error) {
-        if (error.code === 'DUPLICATE_WORD') {
-          setErrors({ word: error.message })
-        } else {
-          setErrors({ form: 'Failed to add word. Please try again.' })
-        }
+      if (cardError) {
+        setErrors({ form: 'Failed to create cards. Please try again.' })
         return
       }
       
-      if (data) {
-        // Add word to selected desk
-        const targetDeskId = formData.deskId || defaultDesk?.id
-        if (targetDeskId) {
-          await addWordToDesk(data.id, targetDeskId)
-        }
-
-        if (selectedImage && user) {
-          try {
-            await aiService.saveFlashcard(
-              data.word,
-              user.id,
-              [],
-              selectedImage.imageUrl,
-              selectedImage.description
-            )
-          } catch (error) {
-            console.error('Failed to save selected image to flashcard cache:', error)
-          }
-        }
-        
-        // Generate AI content in the background
-        if (user && !selectedImage) {
-          setIsGeneratingAI(true)
-          // Generate AI content asynchronously - don't block the UI
-          const difficulty = (data.difficulty ?? 3) <= 2 ? 'beginner' : (data.difficulty ?? 3) >= 4 ? 'advanced' : 'intermediate'
-          aiService.generateFlashcardContent(
-            data.word,
-            difficulty,
-            user.id
-          ).catch(error => {
-            console.error('Background AI generation failed:', error)
-            // Don't show error to user - this is background generation
-          }).finally(() => {
-            setIsGeneratingAI(false)
-          })
-        }
-        
-        // Reset form
-        setFormData({
-          word: '',
-          definition: '',
-          difficulty: 3,
-          category: 'General',
-          pronunciation: '',
-          deskId: selectedDesk?.id || defaultDesk?.id || ''
+      // Success! Show success message
+      const cardTypeLabel = noteTypes.find(nt => nt.slug === noteTypeToUse)?.label || 'Flashcard'
+      success?.({
+        title: 'Card created!',
+        description: `${cardTypeLabel} created successfully${cardIds.length > 1 ? ` (${cardIds.length} cards)` : ''}`
+      })
+      
+      // Reset form
+      setFormData({
+        word: '',
+        definition: '',
+        difficulty: 3,
+        category: 'General',
+        pronunciation: '',
+        deskId: selectedDesk?.id || defaultDesk?.id || ''
+      })
+      setClozeText('')
+      setGenerateReverse(false)
+      setErrors({})
+      setValidFields({})
+      setFieldTouched({})
+      setSelectedImage(null)
+      setUnsplashResults([])
+      setImageSelectionError(null)
+      
+      // Call callback if provided
+      if (onWordAdded && wordId) {
+        const { data } = await createWord({
+          word: formData.word.trim(),
+          definition: formData.definition.trim(),
+          difficulty: formData.difficulty,
+          category: formData.category,
+          pronunciation: formData.pronunciation.trim() || null,
+          language: 'en',
+          user_id: user!.id
         })
-        setErrors({})
-        setValidFields({})
-        setFieldTouched({})
-        setSelectedImage(null)
-        setUnsplashResults([])
-        setImageSelectionError(null)
-        
-        onWordAdded?.(data)
+        if (data) {
+          onWordAdded(data)
+        }
       }
     } catch (error) {
       setErrors({ form: 'An unexpected error occurred. Please try again.' })
@@ -444,6 +516,66 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
           {errors.form}
         </div>
       )}
+      
+      {/* Card Type Selector */}
+      <div className="space-y-3 p-4 bg-blue-50/50 border border-blue-200 rounded-lg">
+        <Label className="text-base font-semibold flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-blue-600" />
+          Card Type
+        </Label>
+        <p className="text-sm text-gray-600 mb-3">
+          Choose the type of flashcard you want to create
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {noteTypes.map((noteType) => (
+            <button
+              key={noteType.slug}
+              type="button"
+              onClick={() => setSelectedNoteType(noteType.slug as NoteTypeSlug)}
+              className={cn(
+                "text-left p-3 rounded-lg border-2 transition-all",
+                selectedNoteType === noteType.slug
+                  ? "border-blue-500 bg-blue-50 shadow-sm"
+                  : "border-gray-200 bg-white hover:border-gray-300"
+              )}
+            >
+              <div className="flex items-start gap-2">
+                <input
+                  type="radio"
+                  checked={selectedNoteType === noteType.slug}
+                  onChange={() => setSelectedNoteType(noteType.slug as NoteTypeSlug)}
+                  className="mt-1"
+                />
+                <div className="flex-1">
+                  <div className="font-medium text-sm">{noteType.label}</div>
+                  <div className="text-xs text-gray-600 mt-1">
+                    {noteType.description || getNoteTypeDescription(noteType.slug)}
+                  </div>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+        
+        {/* Reverse card toggle for basic cards */}
+        {selectedNoteType === 'basic' && (
+          <div className="flex items-center gap-2 mt-3 p-3 bg-white rounded border border-gray-200">
+            <input
+              type="checkbox"
+              id="generate-reverse"
+              checked={generateReverse}
+              onChange={(e) => setGenerateReverse(e.target.checked)}
+              className="rounded"
+            />
+            <Label htmlFor="generate-reverse" className="cursor-pointer flex-1">
+              <span className="font-medium">Generate reverse card</span>
+              <span className="text-xs text-gray-600 block">
+                Creates both Front→Back and Back→Front cards
+              </span>
+            </Label>
+          </div>
+        )}
+      </div>
       
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         <div className="sm:col-span-2">
@@ -720,6 +852,35 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
             </p>
           )}
         </div>
+        
+        {/* Cloze Text Input (only for cloze cards) */}
+        {selectedNoteType === 'cloze' && (
+          <div className="sm:col-span-2 p-4 bg-blue-50/30 border border-blue-200 rounded-lg">
+            <Label htmlFor="cloze-text" className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-blue-600" />
+              Cloze Deletion Text *
+            </Label>
+            <p className="text-xs text-gray-600 mb-2">
+              Use <code className="px-1 py-0.5 bg-gray-100 rounded text-xs">{'{{c1::answer}}'}</code> to create fill-in-the-blank cards
+            </p>
+            <Textarea
+              id="cloze-text"
+              value={clozeText}
+              onChange={(e) => setClozeText(e.target.value)}
+              placeholder="Example: The capital of France is {{c1::Paris}}."
+              rows={4}
+              className="font-mono text-sm"
+            />
+            {clozeText && (
+              <div className="mt-2 p-2 bg-white rounded border border-gray-200">
+                <p className="text-xs font-semibold text-gray-700 mb-1">Preview:</p>
+                <p className="text-sm">
+                  {clozeText.replace(/\{\{c\d+::([^}]+)\}\}/g, '[...]')}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
         
         <div>
           <Label htmlFor="difficulty">Difficulty Level</Label>

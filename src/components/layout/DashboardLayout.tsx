@@ -184,7 +184,7 @@ export function DashboardLayout({
           </motion.header>
         ) : (
           <motion.header 
-            className="h-16 border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-10"
+            className="h-16 border-b border-slate-700/50 bg-slate-800 sticky top-0 z-10"
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.3 }}
@@ -195,7 +195,7 @@ export function DashboardLayout({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="md:hidden h-8 w-8 p-0"
+                  className="md:hidden h-8 w-8 p-0 text-slate-300 hover:text-white hover:bg-slate-700"
                   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 >
                   {mobileMenuOpen ? (
@@ -207,28 +207,33 @@ export function DashboardLayout({
                 
                 {title && (
                   <div className="min-w-0">
-                    <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate">{title}</h1>
+                    <h1 className="text-lg sm:text-xl font-semibold text-white truncate">{title}</h1>
                     {description && (
-                      <p className="text-xs sm:text-sm text-muted-foreground truncate">{description}</p>
+                      <p className="text-xs sm:text-sm text-slate-400 truncate">{description}</p>
                     )}
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex items-center gap-2 sm:gap-4">
+                {/* Greeting - Hidden on small screens */}
+                <div className="hidden md:block text-sm text-white font-medium">
+                  Good {new Date().getHours() < 12 ? 'Morning' : new Date().getHours() < 18 ? 'Afternoon' : 'Evening'}, {user.user_metadata?.full_name?.split(' ')[0] || 'there'}!
+                </div>
+
                 {/* Notifications - Hidden on very small screens */}
-                <Button variant="ghost" size="sm" className="relative hidden xs:flex">
+                <Button variant="ghost" size="sm" className="relative hidden xs:flex text-slate-300 hover:text-white hover:bg-slate-700">
                   <Bell className="w-4 h-4" />
-                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full"></span>
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-teal-500 rounded-full"></span>
                 </Button>
 
                 {/* User Menu */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                    <Button variant="ghost" className="relative h-8 w-8 rounded-full hover:bg-slate-700">
                       <Avatar className="h-8 w-8">
                         <AvatarImage src={user.user_metadata?.avatar_url} alt="User" />
-                        <AvatarFallback className="text-xs">
+                        <AvatarFallback className="text-xs bg-teal-500 text-white">
                           {getUserInitials()}
                         </AvatarFallback>
                       </Avatar>

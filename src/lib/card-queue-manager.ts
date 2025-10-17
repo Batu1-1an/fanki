@@ -52,6 +52,12 @@ async function prefetchInitialContentForCards(
         return null
       }
 
+      // Only generate AI content for 'default' note type
+      // Basic, cloze, typing, etc. use only user-provided content
+      if (card.noteTypeSlug !== 'default') {
+        return null
+      }
+
       // Only generate content for word-based cards
       if (!card.word?.word) {
         return null
