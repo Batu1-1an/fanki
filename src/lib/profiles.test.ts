@@ -29,7 +29,7 @@ describe('Profiles Library', () => {
     })
 
     it('should update avatar URL', () => {
-      let profile = { avatar_url: null }
+      let profile: { avatar_url: string | null } = { avatar_url: null }
       profile = { avatar_url: 'https://example.com/avatar.jpg' }
       expect(profile.avatar_url).toBeTruthy()
     })

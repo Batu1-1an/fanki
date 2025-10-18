@@ -148,8 +148,8 @@ describe('Auth Callback Route', () => {
     })
 
     it('should reject mismatched state', () => {
-      const sentState = 'state_abc'
-      const receivedState = 'state_xyz'
+      const sentState: string = 'state_abc'
+      const receivedState: string = 'state_xyz'
       
       const isValid = sentState === receivedState
       expect(isValid).toBe(false)

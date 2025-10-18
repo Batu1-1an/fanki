@@ -283,8 +283,8 @@ describe('Words API Routes', () => {
     })
 
     it('should return 403 for unauthorized updates', () => {
-      const wordOwnerId = 'user-123'
-      const requestUserId = 'user-456'
+      const wordOwnerId: string = 'user-123'
+      const requestUserId: string = 'user-456'
       
       const statusCode = wordOwnerId === requestUserId ? 200 : 403
       expect(statusCode).toBe(403)

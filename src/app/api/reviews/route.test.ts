@@ -308,8 +308,8 @@ describe('Reviews API Routes', () => {
     })
 
     it('should return 403 for unauthorized reviews', () => {
-      const cardOwnerId = 'user-123'
-      const requestUserId = 'user-456'
+      const cardOwnerId: string = 'user-123'
+      const requestUserId: string = 'user-456'
       
       const statusCode = cardOwnerId === requestUserId ? 200 : 403
       expect(statusCode).toBe(403)
