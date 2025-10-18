@@ -321,7 +321,7 @@ export default function Home() {
               </p>
               <h2 className="mt-6 text-3xl font-semibold sm:text-4xl">Frequently Asked Questions</h2>
               <p className="mt-4 text-base text-slate-600">
-                Everything you need to know about Fanki's features and how it works.
+                Everything you need to know about Fanki&apos;s features and how it works.
               </p>
             </div>
             <div className="mt-12 grid gap-4">

@@ -272,7 +272,7 @@ export function QueueBreakdownCard({
 
         {total === 0 && (
           <div className="text-center py-4 text-sm text-muted-foreground">
-            🎉 No cards due! You're all caught up.
+            🎉 No cards due! You&apos;re all caught up.
           </div>
         )}
       </CardContent>

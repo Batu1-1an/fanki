@@ -85,7 +85,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
               </AlertTitle>
               <AlertDescription className="mt-2">
                 <p className="text-sm">
-                  We encountered an unexpected error. Don't worry, your data is safe.
+                  We encountered an unexpected error. Don&apos;t worry, your data is safe.
                 </p>
               </AlertDescription>
             </Alert>

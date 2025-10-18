@@ -327,7 +327,7 @@ export function StudySession({
     } finally {
       setIsFetchingNextChunk(false)
     }
-  }, [userId])
+  }, [userId, isCardBased])
 
   // Predictive chunk fetching - loads next chunk in background
   useEffect(() => {
@@ -375,7 +375,7 @@ export function StudySession({
         return [...prev, relearningCard]
       }
     })
-  }, [])
+  }, [isCardBased])
 
   const cycleRelearningCard = useCallback((itemId: string) => {
     setRelearningQueue(prev => {
@@ -392,7 +392,7 @@ export function StudySession({
       queueWithoutCard.splice(index, 1)
       return [...queueWithoutCard, card]
     })
-  }, [])
+  }, [isCardBased])
 
   const removeFromRelearningQueue = useCallback((itemId: string, markCompleted: boolean = false) => {
     setRelearningQueue(prev => {

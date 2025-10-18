@@ -210,7 +210,7 @@ export function ClozeCardView({ card, onReview, className }: ClozeCardViewProps)
         <div className="text-xs text-center text-gray-500 space-y-1">
           <p>Yellow blanks indicate the current cloze deletion</p>
           {clozeSegments.length > 1 && !isRevealed && (
-            <p>Multiple deletions - they'll be shown one at a time</p>
+            <p>Multiple deletions - they&apos;ll be shown one at a time</p>
           )}
         </div>
       </CardContent>
