@@ -16,6 +16,7 @@ interface CardRendererProps {
   contentGenerationError?: string | null
   onRegenerateContent?: () => void
   onWordUpdated?: (updatedWord: Word) => void
+  isInteractionDisabled?: boolean
   className?: string
 }
 
@@ -35,6 +36,7 @@ export function CardRenderer({
   contentGenerationError = null,
   onRegenerateContent,
   onWordUpdated,
+  isInteractionDisabled = false,
   className
 }: CardRendererProps) {
   
@@ -54,6 +56,7 @@ export function CardRenderer({
         contentGenerationError,
         onRegenerateContent,
         onWordUpdated,
+        isInteractionDisabled,
         className
       })
 
@@ -68,6 +71,7 @@ export function CardRenderer({
         contentGenerationError,
         onRegenerateContent,
         onWordUpdated,
+        isInteractionDisabled,
         className
       })
 
@@ -82,6 +86,7 @@ export function CardRenderer({
         contentGenerationError,
         onRegenerateContent,
         onWordUpdated,
+        isInteractionDisabled,
         className
       })
 
@@ -96,6 +101,7 @@ export function CardRenderer({
         contentGenerationError,
         onRegenerateContent,
         onWordUpdated,
+        isInteractionDisabled,
         className
       })
 
@@ -110,6 +116,7 @@ export function CardRenderer({
         contentGenerationError,
         onRegenerateContent,
         onWordUpdated,
+        isInteractionDisabled,
         className
       })
 
@@ -185,6 +192,7 @@ function renderBasicCard(card: QueuedCard, props: Omit<CardRendererProps, 'card'
       onPrevious={props.onPrevious}
       showNavigation={props.showNavigation}
       onWordUpdated={props.onWordUpdated}
+      isInteractionDisabled={props.isInteractionDisabled}
       className={props.className}
     />
   )
@@ -249,6 +257,7 @@ function renderReverseCard(card: QueuedCard, props: Omit<CardRendererProps, 'car
         onPrevious={props.onPrevious}
         showNavigation={props.showNavigation}
         onWordUpdated={props.onWordUpdated}
+        isInteractionDisabled={props.isInteractionDisabled}
       />
     </div>
   )
@@ -313,6 +322,7 @@ function renderClozeCard(card: QueuedCard, props: Omit<CardRendererProps, 'card'
         onPrevious={props.onPrevious}
         showNavigation={props.showNavigation}
         onWordUpdated={props.onWordUpdated}
+        isInteractionDisabled={props.isInteractionDisabled}
       />
     </div>
   )

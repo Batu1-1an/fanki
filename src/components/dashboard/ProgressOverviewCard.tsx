@@ -33,7 +33,7 @@ export function ProgressOverviewCard({
       bgColor: 'bg-emerald-100'
     },
     {
-      label: 'Active Decks',
+      label: 'Active Desks',
       value: activeDesks.toString(),
       icon: BarChart3,
       color: 'text-blue-500',
@@ -53,7 +53,7 @@ export function ProgressOverviewCard({
       <CardContent>
         <div className="space-y-6">
           {/* Main stats grid */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {stats.map((stat, index) => {
               const Icon = stat.icon
               return (

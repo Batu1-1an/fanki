@@ -70,7 +70,7 @@ export function WeeklyActivityCard({ activityData }: WeeklyActivityCardProps) {
           {/* Day labels */}
           <div className="flex justify-around text-xs text-muted-foreground font-medium">
             {last7Days.map((day, i) => (
-              <div key={i} className="w-12 text-center">
+              <div key={i} className="flex-1 min-w-0 text-center">
                 {day.dayOfWeek}
               </div>
             ))}
@@ -85,7 +85,7 @@ export function WeeklyActivityCard({ activityData }: WeeklyActivityCardProps) {
                 const size = hasActivity ? getDotSize(day.reviewCount) : 'w-2 h-2'
                 
                 return (
-                  <div key={`${i}-${row}`} className="w-12 flex justify-center">
+                  <div key={`${i}-${row}`} className="flex-1 min-w-0 flex justify-center">
                     <motion.div
                       className={`rounded-full ${intensity} ${size} transition-all cursor-pointer hover:scale-125`}
                       initial={{ scale: 0, opacity: 0 }}

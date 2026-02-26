@@ -65,9 +65,12 @@ export default function ProgressClient({ user }: ProgressClientProps) {
     priority: 'low'
   })
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const loadWordStats = async () => {
+  const loadWordStats = async () => {
+    setLoading(true)
+    setLoadError(null)
+    try {
       const [wordStatsData, dashboardStatsData, dueWordsResp] = await Promise.all([
         getWordStats(),
         getReviewStats(),
@@ -114,9 +117,15 @@ export default function ProgressClient({ user }: ProgressClientProps) {
         rec = { mode: 'mixed', reasoning: 'Balanced study session recommended.', priority: 'low' }
       }
       setRecommendedMode(rec)
+    } catch (error) {
+      console.error('Failed to load progress dashboard data:', error)
+      setLoadError('Could not load progress data. Please try again.')
+    } finally {
       setLoading(false)
     }
+  }
 
+  useEffect(() => {
     loadWordStats()
   }, [])
 
@@ -158,6 +167,13 @@ export default function ProgressClient({ user }: ProgressClientProps) {
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           {/* Overview Stats */}
+          {loadError && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 flex items-center justify-between gap-3">
+              <p className="text-sm text-red-600">{loadError}</p>
+              <Button size="sm" variant="outline" onClick={loadWordStats}>Retry</Button>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
             <div className="bg-white overflow-hidden shadow rounded-lg">
               <div className="p-5">

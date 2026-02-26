@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 
@@ -8,6 +8,8 @@ interface OnboardingPreferencesProps {
   isOpen: boolean
   onComplete: (preferences: UserPreferences) => void
   onSkip: () => void
+  isSaving?: boolean
+  errorMessage?: string | null
 }
 
 interface UserPreferences {
@@ -43,7 +45,13 @@ const LEARNING_GOALS = [
   { value: 'career', label: '🚀 Career Development' }
 ]
 
-export default function OnboardingPreferences({ isOpen, onComplete, onSkip }: OnboardingPreferencesProps) {
+export default function OnboardingPreferences({
+  isOpen,
+  onComplete,
+  onSkip,
+  isSaving = false,
+  errorMessage = null
+}: OnboardingPreferencesProps) {
   const [currentStep, setCurrentStep] = useState(1)
   const [preferences, setPreferences] = useState<UserPreferences>({
     full_name: '',
@@ -52,10 +60,57 @@ export default function OnboardingPreferences({ isOpen, onComplete, onSkip }: On
     daily_goal: 10,
     learning_goal: ''
   })
+  const modalRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const modal = modalRef.current
+    modal?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onSkip()
+      }
+
+      if (event.key !== 'Tab' || !modal) {
+        return
+      }
+
+      const focusableElements = Array.from(
+        modal.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      ).filter(element => !element.hasAttribute('disabled'))
+
+      if (focusableElements.length === 0) {
+        return
+      }
+
+      const firstElement = focusableElements[0]
+      const lastElement = focusableElements[focusableElements.length - 1]
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault()
+        lastElement.focus()
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault()
+        firstElement.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onSkip])
 
   if (!isOpen) return null
 
   const handleNext = () => {
+    if (isSaving) {
+      return
+    }
+
     if (currentStep < 3) {
       setCurrentStep(currentStep + 1)
     } else {
@@ -84,7 +139,14 @@ export default function OnboardingPreferences({ isOpen, onComplete, onSkip }: On
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-auto">
+      <div
+        ref={modalRef}
+        className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Onboarding preferences"
+        tabIndex={-1}
+      >
         <div className="p-8">
           {/* Progress bar */}
           <div className="mb-8">
@@ -104,6 +166,12 @@ export default function OnboardingPreferences({ isOpen, onComplete, onSkip }: On
               />
             </div>
           </div>
+
+          {errorMessage && (
+            <div className="mb-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {errorMessage}
+            </div>
+          )}
 
           {/* Step 1: Personal Info */}
           {currentStep === 1 && (
@@ -260,10 +328,10 @@ export default function OnboardingPreferences({ isOpen, onComplete, onSkip }: On
             
             <Button 
               onClick={handleNext}
-              disabled={!canProceed()}
+              disabled={!canProceed() || isSaving}
               className="px-8"
             >
-              {currentStep === 3 ? 'Complete Setup' : 'Next'}
+              {isSaving ? 'Saving...' : currentStep === 3 ? 'Complete Setup' : 'Next'}
             </Button>
           </div>
         </div>

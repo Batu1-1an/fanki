@@ -111,10 +111,48 @@ npm run test:coverage
 1. Go to the Dashboard
 2. Click "Start Study Session"
 3. Review cards using the 4-button system:
-   - **Again** (0): Completely forgot
-   - **Hard** (3): Difficult to recall
-   - **Good** (4): Recalled with minor difficulty
-   - **Easy** (5): Perfect recall
+   - **Again**: Completely forgot
+   - **Hard**: Difficult to recall
+   - **Good**: Recalled with minor difficulty
+   - **Easy**: Perfect recall
+
+## 🔄 Application Flow
+
+This is the end-to-end runtime flow used by the app:
+
+1. **Login and callback**
+   - User signs in with email or OAuth.
+   - `/auth/callback` exchanges provider code for Supabase session.
+   - Session cookies are written on the redirect response and user is sent to dashboard.
+
+2. **Dashboard and queue preparation**
+   - Dashboard loads due/new counts, streak, and recent study stats.
+   - If a desk is selected, queue and counters are scoped to that desk.
+   - Queue manager prioritizes cards as: `overdue -> due_today -> new -> future`.
+
+3. **Session start and prefetch**
+   - Study session is created in DB (`study_sessions`).
+   - Initial chunk is prefetched so first cards appear immediately.
+   - Missing sentence/image content can be generated in background via Edge Functions.
+
+4. **Review loop (core learning cycle)**
+   - User answers card with `Again/Hard/Good/Easy`.
+   - Review is saved to `reviews` with response time, quality, and status transition.
+   - Scheduling is recalculated (learning/relearning/review phases + SM-2 parameters).
+   - Session counters update in real time (studied, correct, total reviews, accuracy).
+
+5. **Completion and feedback**
+   - When queue is done, session is completed and duration/accuracy are persisted.
+   - Dashboard refreshes with updated due counts and progress data.
+
+### Sequence Overview
+
+```
+login -> /auth/callback -> session cookie set -> /dashboard
+      -> generate queue (desk-aware) -> start study session
+      -> render card -> review submit -> save review -> recalculate due date
+      -> next card ... -> complete session -> refresh dashboard/progress
+```
 
 ### Organizing with Desks
 

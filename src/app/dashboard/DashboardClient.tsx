@@ -46,6 +46,8 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     recentCount: 0
   })
   const [useModernDashboard, setUseModernDashboard] = useState(true)
+  const [preferencesError, setPreferencesError] = useState<string | null>(null)
+  const [isSavingPreferences, setIsSavingPreferences] = useState(false)
 
   // Load user's dashboard preference from localStorage
   useEffect(() => {
@@ -128,13 +130,18 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   }
 
   const handlePreferencesComplete = async (preferences: any) => {
+    setIsSavingPreferences(true)
+    setPreferencesError(null)
     const success = await savePreferences(preferences)
     if (success) {
       setShowPreferences(false)
       if (!onboardingState.hasAddedFirstWord) {
         setTimeout(() => setShowFirstWordTutorial(true), 300)
       }
+    } else {
+      setPreferencesError('Could not save your preferences. Please check your connection and try again.')
     }
+    setIsSavingPreferences(false)
   }
 
   const handleFirstWordTutorialComplete = () => {
@@ -191,6 +198,11 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                 <p className="text-muted-foreground mb-8">
                   Let&apos;s get you set up to start your learning journey
                 </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6" data-tour="stats-cards">
+                  <div className="rounded-lg border p-3 text-sm text-muted-foreground">Track due cards</div>
+                  <div className="rounded-lg border p-3 text-sm text-muted-foreground" data-tour="study-button">Start daily study</div>
+                  <div className="rounded-lg border p-3 text-sm text-muted-foreground" data-tour="progress-button">View progress</div>
+                </div>
                 <Button 
                   onClick={() => {
                     if (onboardingState.currentStep === 'first-word') {
@@ -212,7 +224,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
             /* Show comprehensive dashboard for users who completed onboarding */
             <div className="relative">
               {/* Dashboard Toggle Button */}
-              <div className="absolute top-4 right-4 z-10">
+              <div className="flex justify-end mb-3 sm:mb-4">
                 <Button
                   variant="outline"
                   size="sm"
@@ -262,9 +274,11 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       <OnboardingPreferences
         isOpen={showPreferences}
         onComplete={handlePreferencesComplete}
-        onSkip={() => {
+        isSaving={isSavingPreferences}
+        errorMessage={preferencesError}
+        onSkip={async () => {
           setShowPreferences(false)
-          skipPreferences()
+          await skipPreferences()
         }}
       />
       

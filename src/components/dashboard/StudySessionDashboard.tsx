@@ -148,6 +148,7 @@ export function StudySessionDashboard({
     longestStreak: 0
   })
   const [recentSessions, setRecentSessions] = useState<ExtendedStudySession[]>([])
+  const [dashboardError, setDashboardError] = useState<string | null>(null)
 
   useEffect(() => {
     checkForActiveSession()
@@ -169,6 +170,7 @@ export function StudySessionDashboard({
   // Optimized dashboard data loading function
   const loadDashboardDataOptimized = async (deskId: string = selectedDeskId) => {
     setIsDashboardLoading(true)
+    setDashboardError(null)
     try {
       setSelectedDeskId(deskId)
       // Use the new optimized data loader
@@ -193,6 +195,7 @@ export function StudySessionDashboard({
       })
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
+      setDashboardError('We could not refresh your dashboard data. Please try again.')
     } finally {
       setIsDashboardLoading(false)
     }
@@ -323,6 +326,17 @@ export function StudySessionDashboard({
     .reverse()
 
   const retentionRate = Math.min(100, Math.max(0, dashboardStats.retentionRate))
+  const weekStart = new Date()
+  weekStart.setDate(weekStart.getDate() - 6)
+  weekStart.setHours(0, 0, 0, 0)
+  const sessionsThisWeek = recentSessions.filter(session => {
+    if (!session.created_at) {
+      return false
+    }
+
+    const createdAt = new Date(session.created_at)
+    return createdAt >= weekStart
+  }).length
 
   // If there's an active study session, show it
   if (activeSession) {
@@ -388,6 +402,17 @@ export function StudySessionDashboard({
 
       {/* Main dashboard tabs */}
       <Tabs defaultValue="overview" className="space-y-6">
+        {dashboardError && (
+          <Card>
+            <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <p className="text-sm text-red-600">{dashboardError}</p>
+              <Button variant="outline" size="sm" onClick={() => loadDashboardDataOptimized(selectedDeskId)}>
+                Retry
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         <TabsList className="grid grid-cols-2 xs:grid-cols-4 w-full max-w-md mx-auto">
           <TabsTrigger value="overview" className="text-xs xs:text-sm">Overview</TabsTrigger>
           <TabsTrigger value="today" className="text-xs xs:text-sm">Today</TabsTrigger>
@@ -682,7 +707,7 @@ export function StudySessionDashboard({
                           <Calendar className="w-4 h-4 text-sky-500" />
                           Sessions this week
                         </div>
-                        <div className="text-2xl font-semibold">{Math.min(sessionStats.totalSessions, 7)}</div>
+                        <div className="text-2xl font-semibold">{sessionsThisWeek}</div>
                         <p className="text-xs text-muted-foreground">
                           Aim for at least 5 focused sessions each week to maintain momentum.
                         </p>

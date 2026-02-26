@@ -58,6 +58,7 @@ interface FlashcardComponentProps {
   autoFlip?: boolean
   className?: string
   onWordUpdated?: (updatedWord: Word) => void
+  isInteractionDisabled?: boolean
 }
 
 export function FlashcardComponent({
@@ -74,7 +75,8 @@ export function FlashcardComponent({
   showNavigation = false,
   autoFlip = false,
   className,
-  onWordUpdated
+  onWordUpdated,
+  isInteractionDisabled = false
 }: FlashcardComponentProps) {
   const [state, setState] = useState<FlashcardState>({
     isFlipped: false,
@@ -143,6 +145,10 @@ export function FlashcardComponent({
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement) return
 
+      if (isInteractionDisabled) {
+        return
+      }
+
       switch (e.key) {
         case ' ':
           e.preventDefault()
@@ -172,7 +178,7 @@ export function FlashcardComponent({
 
     document.addEventListener('keydown', handleKeyPress)
     return () => document.removeEventListener('keydown', handleKeyPress)
-  }, [state.isFlipped, onNext, onPrevious, handleFlip, handleReview])
+  }, [state.isFlipped, onNext, onPrevious, handleFlip, handleReview, isInteractionDisabled])
 
   const fetchAudio = useCallback(async () => {
     if (!currentWord.id) return
@@ -306,6 +312,7 @@ export function FlashcardComponent({
                   onClick={handleShowAnswer}
                   className="gap-1 sm:gap-2 text-xs sm:text-sm shrink-0 w-full xs:w-auto"
                   title="Reveal the answer without guessing"
+                  disabled={isInteractionDisabled}
                 >
                   <Clock className="w-3 h-3 sm:w-4 sm:h-4" />
                   <span className="xs:hidden sm:inline">Show Answer</span>
@@ -335,7 +342,7 @@ export function FlashcardComponent({
                       </h3>
                       <p className="text-red-600 mb-4">{contentGenerationError}</p>
                       {onRegenerateContent && (
-                        <Button onClick={onRegenerateContent} variant="outline" size="sm">
+                        <Button onClick={onRegenerateContent} variant="outline" size="sm" disabled={isInteractionDisabled}>
                           Try Again
                         </Button>
                       )}
@@ -390,7 +397,7 @@ export function FlashcardComponent({
                       e.stopPropagation()
                       playAudio()
                     }}
-                    disabled={isLoadingAudio || !!audioError}
+                    disabled={isInteractionDisabled || isLoadingAudio || !!audioError}
                     className="gap-2 w-full xs:w-auto"
                     title={
                       audioError 
@@ -417,6 +424,7 @@ export function FlashcardComponent({
                       handleEditWord()
                     }}
                     className="gap-1 sm:gap-2 text-xs sm:text-sm flex-1 xs:flex-none"
+                    disabled={isInteractionDisabled}
                   >
                     <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
                     <span className="xs:hidden sm:inline">Edit</span>
@@ -426,6 +434,7 @@ export function FlashcardComponent({
                     size="sm"
                     onClick={resetCard}
                     className="gap-1 sm:gap-2 text-xs sm:text-sm flex-1 xs:flex-none"
+                    disabled={isInteractionDisabled}
                   >
                     <RotateCcw className="w-3 h-3 sm:w-4 sm:h-4" />
                     <span className="xs:hidden sm:inline">Reset</span>
@@ -488,6 +497,7 @@ export function FlashcardComponent({
                     size="sm"
                     onClick={() => handleReview(1)}
                     className="gap-2 text-xs xs:text-sm sm:text-base px-3 sm:px-6 h-11 sm:h-16 rounded-lg sm:rounded-xl shadow-md sm:flex-row flex-col"
+                    disabled={isInteractionDisabled}
                   >
                     <X className="w-4 h-4 sm:w-5 sm:h-5" />
                     <span className="text-xs xs:text-sm sm:text-base font-semibold">Again (1)</span>
@@ -497,6 +507,7 @@ export function FlashcardComponent({
                     size="sm"
                     onClick={() => handleReview(2)}
                     className="text-xs xs:text-sm sm:text-base px-3 sm:px-6 h-11 sm:h-16 rounded-lg sm:rounded-xl shadow-md"
+                    disabled={isInteractionDisabled}
                   >
                     <span className="text-xs xs:text-sm sm:text-base font-semibold">Hard (2)</span>
                   </Button>
@@ -505,6 +516,7 @@ export function FlashcardComponent({
                     size="sm"
                     onClick={() => handleReview(3)}
                     className="text-xs xs:text-sm sm:text-base px-3 sm:px-6 h-11 sm:h-16 rounded-lg sm:rounded-xl shadow-md"
+                    disabled={isInteractionDisabled}
                   >
                     <span className="text-xs xs:text-sm sm:text-base font-semibold">Good (3)</span>
                   </Button>
@@ -513,6 +525,7 @@ export function FlashcardComponent({
                     size="sm"
                     onClick={() => handleReview(4)}
                     className="gap-2 text-xs xs:text-sm sm:text-base px-3 sm:px-6 h-11 sm:h-16 rounded-lg sm:rounded-xl shadow-md sm:flex-row flex-col"
+                    disabled={isInteractionDisabled}
                   >
                     <Check className="w-4 h-4 sm:w-5 sm:h-5" />
                     <span className="text-xs xs:text-sm sm:text-base font-semibold">Easy (4)</span>

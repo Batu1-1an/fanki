@@ -41,23 +41,17 @@ interface GroupedCards {
 }
 
 export function TodaysCards({ onStartSession, cards, isLoading, className }: TodaysCardsProps) {
-  const [groupedCards, setGroupedCards] = useState<GroupedCards>({
-    overdue: [],
-    dueToday: [],
-    newWords: []
-  })
   const [searchTerm, setSearchTerm] = useState('')
   const [difficultyFilter, setDifficultyFilter] = useState<string>('all')
   const [selectedCards, setSelectedCards] = useState<Set<string>>(new Set())
   const selectedCardIds = Array.from(selectedCards)
   const [isStartingSession, setIsStartingSession] = useState(false)
 
-  // Update grouped cards when cards prop changes
   useEffect(() => {
-    if (cards) {
-      const grouped = groupCardsByPriority(cards)
-      setGroupedCards(grouped)
-    }
+    setSelectedCards(prev => {
+      const validIds = new Set(cards.map(card => card.id))
+      return new Set(Array.from(prev).filter(id => validIds.has(id)))
+    })
   }, [cards])
 
   // Removed loadTodaysCards - now handled by parent component
@@ -103,6 +97,8 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
 
     return true
   })
+
+  const filteredGroupedCards = groupCardsByPriority(filteredCards)
 
   const handleCardSelect = (cardId: string, selected: boolean) => {
     setSelectedCards(prev => {
@@ -228,7 +224,7 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
               Today&apos;s Cards
             </CardTitle>
             <Badge variant="outline" className="text-lg px-3 py-1">
-              {cards.length} cards available
+              {filteredCards.length} cards available
             </Badge>
           </div>
         </CardHeader>
@@ -286,9 +282,9 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="overdue" className="relative">
             Overdue
-            {groupedCards.overdue.length > 0 && (
+            {filteredGroupedCards.overdue.length > 0 && (
               <Badge variant="destructive" className="ml-2 h-5 w-5 rounded-full p-0 text-xs">
-                {groupedCards.overdue.length}
+                {filteredGroupedCards.overdue.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -300,20 +296,20 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Overdue cards summary */}
             <Card className={cn("cursor-pointer transition-colors hover:bg-red-50", 
-              groupedCards.overdue.length > 0 ? "border-red-200" : "")}>
+              filteredGroupedCards.overdue.length > 0 ? "border-red-200" : "")}>
               <CardContent className="p-4 text-center">
                 <AlertTriangle className={cn("w-8 h-8 mx-auto mb-2", 
-                  groupedCards.overdue.length > 0 ? "text-red-600" : "text-muted-foreground")} />
+                  filteredGroupedCards.overdue.length > 0 ? "text-red-600" : "text-muted-foreground")} />
                 <div className="text-2xl font-bold text-red-600">
-                  {groupedCards.overdue.length}
+                  {filteredGroupedCards.overdue.length}
                 </div>
                 <div className="text-sm text-muted-foreground">Overdue Cards</div>
-                {groupedCards.overdue.length > 0 && (
+                {filteredGroupedCards.overdue.length > 0 && (
                   <Button 
                     size="sm" 
                     variant="destructive" 
                     className="mt-2 w-full"
-                    onClick={() => handleSelectGroup(groupedCards.overdue, true)}
+                    onClick={() => handleSelectGroup(filteredGroupedCards.overdue, true)}
                   >
                     <Flame className="w-4 h-4 mr-1" />
                     Select All
@@ -327,15 +323,15 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
               <CardContent className="p-4 text-center">
                 <Clock className="w-8 h-8 mx-auto mb-2 text-orange-600" />
                 <div className="text-2xl font-bold text-orange-600">
-                  {groupedCards.dueToday.length}
+                  {filteredGroupedCards.dueToday.length}
                 </div>
                 <div className="text-sm text-muted-foreground">Due Today</div>
-                {groupedCards.dueToday.length > 0 && (
+                {filteredGroupedCards.dueToday.length > 0 && (
                   <Button 
                     size="sm" 
                     variant="outline" 
                     className="mt-2 w-full"
-                    onClick={() => handleSelectGroup(groupedCards.dueToday, true)}
+                    onClick={() => handleSelectGroup(filteredGroupedCards.dueToday, true)}
                   >
                     Select All
                   </Button>
@@ -348,15 +344,15 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
               <CardContent className="p-4 text-center">
                 <Plus className="w-8 h-8 mx-auto mb-2 text-green-600" />
                 <div className="text-2xl font-bold text-green-600">
-                  {groupedCards.newWords.length}
+                  {filteredGroupedCards.newWords.length}
                 </div>
                 <div className="text-sm text-muted-foreground">New Words</div>
-                {groupedCards.newWords.length > 0 && (
+                {filteredGroupedCards.newWords.length > 0 && (
                   <Button 
                     size="sm" 
                     variant="outline" 
                     className="mt-2 w-full"
-                    onClick={() => handleSelectGroup(groupedCards.newWords, true)}
+                    onClick={() => handleSelectGroup(filteredGroupedCards.newWords, true)}
                   >
                     Select All
                   </Button>
@@ -368,9 +364,9 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
 
         {/* Individual card lists */}
         {(['overdue', 'due', 'new'] as const).map(tabKey => {
-          const cards = tabKey === 'overdue' ? groupedCards.overdue :
-                       tabKey === 'due' ? groupedCards.dueToday :
-                       groupedCards.newWords
+          const cards = tabKey === 'overdue' ? filteredGroupedCards.overdue :
+                       tabKey === 'due' ? filteredGroupedCards.dueToday :
+                       filteredGroupedCards.newWords
           
           return (
             <TabsContent key={tabKey} value={tabKey} className="space-y-3">
@@ -378,9 +374,9 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
                 <Card>
                   <CardContent className="p-8 text-center">
                     <CheckCircle2 className="w-12 h-12 mx-auto text-green-600 mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">All caught up!</h3>
+                    <h3 className="text-lg font-semibold mb-2">No matching cards</h3>
                     <p className="text-muted-foreground">
-                      No {tabKey === 'overdue' ? 'overdue' : tabKey === 'due' ? 'cards due today' : 'new words'} to study.
+                      Try clearing filters or changing search to see more cards.
                     </p>
                   </CardContent>
                 </Card>

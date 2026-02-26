@@ -175,6 +175,7 @@ export function StudySession({
   const [responseTimes, setResponseTimes] = useState<number[]>([])
   const [cardReviews, setCardReviews] = useState<CardReview[]>([])
   const [isSubmittingReview, setIsSubmittingReview] = useState(false)
+  const [reviewSubmitError, setReviewSubmitError] = useState<string | null>(null)
   const [reviewCompleted, setReviewCompleted] = useState(false)
   const [dbSessionId, setDbSessionId] = useState<string | null>(propSessionId || null)
   const [isPaused, setIsPaused] = useState(false)
@@ -196,6 +197,8 @@ export function StudySession({
   const [currentlyShowingRelearning, setCurrentlyShowingRelearning] = useState(false)
   const [mainQueueCompleted, setMainQueueCompleted] = useState(false)
   const [completedRelearningCount, setCompletedRelearningCount] = useState(0)
+  const [isGeneratingByCardId, setIsGeneratingByCardId] = useState<Record<string, boolean>>({})
+  const [contentGenerationErrors, setContentGenerationErrors] = useState<Record<string, string>>({})
 
   // Get current word from either main queue or re-learning queue
   const currentWord = currentlyShowingRelearning && relearningQueue.length > 0
@@ -307,6 +310,21 @@ export function StudySession({
     const startIndex = chunkIndex * CHUNK_SIZE
     const endIndex = Math.min(startIndex + CHUNK_SIZE, currentWords.length)
     const chunkToFetch = currentWords.slice(startIndex, endIndex)
+    const cardsToGenerate = chunkToFetch.filter(word => {
+      const hasSentences = Array.isArray(word.sentences) && word.sentences.length > 0
+      const hasImage = !!word.imageUrl
+      return !(hasSentences && hasImage) && word.noteTypeSlug === 'default'
+    })
+
+    if (cardsToGenerate.length > 0) {
+      setIsGeneratingByCardId(prev => {
+        const next = { ...prev }
+        cardsToGenerate.forEach(card => {
+          next[card.cardId] = true
+        })
+        return next
+      })
+    }
 
     console.log(`Pre-fetching content for next 2 cards (${startIndex + 1} to ${endIndex})...`)
 
@@ -357,15 +375,92 @@ export function StudySession({
         })
         return newWords
       })
+
+      setContentGenerationErrors(prev => {
+        const next = { ...prev }
+        cardsToGenerate.forEach(card => {
+          delete next[card.cardId]
+        })
+        return next
+      })
       
       console.log(`Content for next 2 cards (${startIndex + 1} to ${endIndex}) is ready.`)
     } catch (error) {
       console.error(`Failed to pre-fetch chunk ${chunkIndex}:`, error)
       fetchedChunks.current.delete(chunkIndex) // Allow re-fetching on next trigger
+
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate content for this card.'
+      setContentGenerationErrors(prev => {
+        const next = { ...prev }
+        cardsToGenerate.forEach(card => {
+          next[card.cardId] = errorMessage
+        })
+        return next
+      })
     } finally {
+      if (cardsToGenerate.length > 0) {
+        setIsGeneratingByCardId(prev => {
+          const next = { ...prev }
+          cardsToGenerate.forEach(card => {
+            next[card.cardId] = false
+          })
+          return next
+        })
+      }
+
       setIsFetchingNextChunk(false)
     }
   }, [userId, isCardBased])
+
+  const regenerateCardContent = useCallback(async (card: QueuedCard) => {
+    if (!userId || card.noteTypeSlug !== 'default') {
+      return
+    }
+
+    setIsGeneratingByCardId(prev => ({ ...prev, [card.cardId]: true }))
+    setContentGenerationErrors(prev => {
+      const next = { ...prev }
+      delete next[card.cardId]
+      return next
+    })
+
+    try {
+      const wordDifficulty = card.word?.difficulty || (card as any).difficulty || 3
+      const difficulty = wordDifficulty <= 2 ? 'beginner' : wordDifficulty <= 4 ? 'intermediate' : 'advanced'
+      const wordText = card.word?.word
+
+      if (!wordText) {
+        throw new Error('Missing word text for regeneration')
+      }
+
+      const content = await aiService.generateFlashcardContent(wordText, difficulty, userId)
+      const transformedSentences = content.sentences.map((sentence: any) => {
+        const sentenceText = typeof sentence === 'string' ? sentence : sentence.sentence || sentence.text || ''
+
+        return {
+          sentence: sentenceText,
+          blank_position: getBlankPosition(sentenceText, sentence?.blank_position ?? 0),
+          correct_word: wordText
+        }
+      })
+
+      setEnrichedWords(prev => prev.map(item =>
+        item.cardId === card.cardId
+          ? {
+              ...item,
+              sentences: transformedSentences,
+              imageUrl: content.imageUrl,
+              imageDescription: content.imageDescription || null
+            }
+          : item
+      ))
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to regenerate card content.'
+      setContentGenerationErrors(prev => ({ ...prev, [card.cardId]: errorMessage }))
+    } finally {
+      setIsGeneratingByCardId(prev => ({ ...prev, [card.cardId]: false }))
+    }
+  }, [userId])
 
   // Predictive chunk fetching - loads next chunk in background
   useEffect(() => {
@@ -459,6 +554,7 @@ export function StudySession({
     if (!currentWord || isSubmittingReview || isPaused) return
     
     setIsSubmittingReview(true)
+    setReviewSubmitError(null)
     const responseTime = Date.now() - currentCardStartTime
     
     const currentItemId = currentWord.cardId
@@ -475,6 +571,8 @@ export function StudySession({
       
       if (error) {
         console.error('Failed to submit review:', error)
+        setReviewSubmitError(typeof error === 'string' ? error : 'Failed to save your review. Please try again.')
+        return
       }
       
       // Update local stats
@@ -520,22 +618,22 @@ export function StudySession({
         // For other buttons, remove from appropriate queue
         if (currentlyShowingRelearning) {
           removeFromRelearningQueue(currentItemId, true)
-        } else {
+        } else if (!isCardBased) {
           const queueManager = getQueueManager()
           queueManager.removeFromQueue(currentItemId)
         }
       }
+
+      setHasReviewedCurrentCard(true)
+      setReviewCompleted(true)
       
     } catch (error) {
       console.error('Review submission failed:', error)
+      setReviewSubmitError('Failed to save your review. Please try again.')
     } finally {
       setIsSubmittingReview(false)
-      setHasReviewedCurrentCard(true)
-      
-      // Immediately trigger next card with minimal delay for smooth animation
-      setReviewCompleted(true)
     }
-  }, [currentWord, isSubmittingReview, isPaused, currentCardStartTime, currentlyShowingRelearning, currentIndex, addToRelearningQueue, removeFromRelearningQueue, cycleRelearningCard])
+  }, [currentWord, isSubmittingReview, isPaused, currentCardStartTime, currentlyShowingRelearning, currentIndex, addToRelearningQueue, removeFromRelearningQueue, cycleRelearningCard, isCardBased])
   
   const handleReview = useCallback((result: ReviewResult) => {
     // Legacy quality mapping (buttons use 1-4, keyboard may send 0-5)
@@ -661,6 +759,7 @@ export function StudySession({
       if (pauseStartTime) {
         const pauseDuration = Math.floor((new Date().getTime() - pauseStartTime.getTime()) / 1000)
         setTotalPauseTime(prev => prev + pauseDuration)
+        setCurrentCardStartTime(prev => prev + pauseDuration * 1000)
       }
       setIsPaused(false)
       setPauseStartTime(null)
@@ -798,8 +897,8 @@ export function StudySession({
     )
   }
 
-  // No cards available or no current word
-  if (totalCards === 0 || !currentWord) {
+  // No cards available
+  if (totalCards === 0) {
     return (
       <div className={cn("max-w-2xl mx-auto", className)}>
         <Card>
@@ -809,13 +908,28 @@ export function StudySession({
             </div>
             <h3 className="text-xl font-semibold mb-2">No Cards Available</h3>
             <p className="text-muted-foreground mb-4">
-              {totalCards === 0 
-                ? "There are no words ready for this study session." 
-                : "Loading study session..."}
+              There are no words ready for this study session.
             </p>
             <Button onClick={handleExitSession}>
               Return to Dashboard
             </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (!currentWord) {
+    return (
+      <div className={cn("max-w-2xl mx-auto", className)}>
+        <Card>
+          <CardContent className="p-8 text-center space-y-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
+            <h3 className="text-xl font-semibold">Preparing next card</h3>
+            <p className="text-muted-foreground">
+              We are syncing your queue. This should only take a moment.
+            </p>
+            <Button variant="outline" onClick={handleExitSession}>Return to Dashboard</Button>
           </CardContent>
         </Card>
       </div>
@@ -906,14 +1020,15 @@ export function StudySession({
       {/* Main flashcard - Now using CardRenderer to support multiple card types */}
       <AnimatePresence mode="wait">
         {currentWord && (
-          <div className="flex-1 space-y-6 min-h-0">
+          <div className="relative flex-1 space-y-6 min-h-0">
             <CardRenderer
               key={currentWord.cardId}
               card={currentWord}
-              isGeneratingContent={!currentWord.sentences || currentWord.sentences.length === 0}
-              contentGenerationError={null}
-              onRegenerateContent={undefined}
+              isGeneratingContent={Boolean(isGeneratingByCardId[currentWord.cardId])}
+              contentGenerationError={contentGenerationErrors[currentWord.cardId] || null}
+              onRegenerateContent={() => regenerateCardContent(currentWord)}
               onReview={handleReview}
+              isInteractionDisabled={isSubmittingReview || isPaused}
               onNext={currentIndex < totalCards - 1 ? handleNext : undefined}
               onPrevious={currentIndex > 0 ? handlePrevious : undefined}
               showNavigation={false}
@@ -927,6 +1042,26 @@ export function StudySession({
                 )
               }}
             />
+
+            {isPaused && (
+              <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center rounded-lg z-10">
+                <div className="text-center space-y-2">
+                  <p className="text-sm font-medium">Session paused</p>
+                  <p className="text-xs text-muted-foreground">Resume to continue reviewing cards.</p>
+                </div>
+              </div>
+            )}
+
+            {reviewSubmitError && (
+              <Card className="border-red-200 bg-red-50">
+                <CardContent className="p-3 text-sm text-red-700 flex items-center justify-between gap-3">
+                  <span>{reviewSubmitError}</span>
+                  <Button size="sm" variant="outline" onClick={() => setReviewSubmitError(null)}>
+                    Dismiss
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </AnimatePresence>

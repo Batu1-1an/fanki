@@ -5,6 +5,7 @@ import { motion } from 'framer-motion'
 import { QueuedWord, generateStudySession } from '@/lib/queue-manager'
 import { loadDashboardData } from '@/lib/dashboard-data'
 import { getActiveStudySession } from '@/lib/study-sessions'
+import { getUserDesks } from '@/lib/desks'
 import { StudySession } from '../flashcards/StudySession'
 import { LearningPathCard } from './LearningPathCard'
 import { NextStepCard } from './NextStepCard'
@@ -15,6 +16,7 @@ import { AchievementsCard } from './AchievementsCard'
 import { ProgressOverviewCard } from './ProgressOverviewCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { toLocalDateKey } from '@/lib/date-utils'
 
@@ -75,6 +77,8 @@ export function ModernDashboard({
   const [hasActiveDbSession, setHasActiveDbSession] = useState(false)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [selectedDeskId, setSelectedDeskId] = useState<string>('all')
+  const [activeDeskCount, setActiveDeskCount] = useState(0)
+  const [dashboardError, setDashboardError] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -82,17 +86,23 @@ export function ModernDashboard({
 
   const loadData = async (deskId: string = selectedDeskId) => {
     setIsLoading(true)
+    setDashboardError(null)
     try {
       setSelectedDeskId(deskId)
       // Check for active session
-      const { data: session } = await getActiveStudySession()
-      setHasActiveDbSession(!!session)
+      const [{ data: session }, { data: desks }, data] = await Promise.all([
+        getActiveStudySession(),
+        getUserDesks(),
+        loadDashboardData(deskId)
+      ])
 
-      // Load dashboard data with optional desk filter
-      const data = await loadDashboardData(deskId)
+      setHasActiveDbSession(!!session)
+      setActiveDeskCount((desks || []).length)
+
       setDashboardData(data)
     } catch (error) {
       console.error('Failed to load dashboard data:', error)
+      setDashboardError('Unable to load dashboard data right now.')
     } finally {
       setIsLoading(false)
     }
@@ -124,9 +134,30 @@ export function ModernDashboard({
   const handleStartNewWords = () => handleStartSession('new_only', 20)
   const handleStartMixed = () => handleStartSession('mixed', 20)
 
-  const handleResumeSession = () => {
-    // Logic to resume the last active session
-    handleStartSession()
+  const handleResumeSession = async () => {
+    try {
+      const { data: session } = await getActiveStudySession()
+      if (!session) {
+        handleStartSession()
+        return
+      }
+
+      const { words } = await generateStudySession({
+        maxWords: 20,
+        studyMode: 'mixed',
+        prioritizeWeakWords: true,
+        deskId: selectedDeskId
+      })
+
+      if (words.length > 0) {
+        onActiveSessionChange?.({
+          words,
+          sessionId: session.id
+        })
+      }
+    } catch (error) {
+      console.error('Failed to resume session:', error)
+    }
   }
 
   const handleSessionComplete = (sessionData: any) => {
@@ -252,6 +283,31 @@ export function ModernDashboard({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1, duration: 0.5 }}
           >
+            <NextStepCard
+              priority={nextStepInfo.priority}
+              title={nextStepInfo.title}
+              subtitle={nextStepInfo.subtitle}
+              onStartSession={handleStartSession}
+              isLoading={isLoading}
+            />
+          </motion.div>
+
+          {dashboardError && (
+            <Card>
+              <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <p className="text-sm text-red-600">{dashboardError}</p>
+                <Button variant="outline" size="sm" onClick={() => loadData(selectedDeskId)}>
+                  Retry
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15, duration: 0.5 }}
+          >
             <LearningPathCard
               onStartSession={handleStartSession}
               onResumeSession={handleResumeSession}
@@ -306,7 +362,7 @@ export function ModernDashboard({
                 <ProgressOverviewCard
                   totalSessions={dashboardData?.sessionStats.totalSessions ?? 0}
                   averageAccuracy={dashboardData?.sessionStats.averageAccuracy ?? 0}
-                  activeDesks={12}
+                  activeDesks={activeDeskCount}
                   totalTimeMinutes={dashboardData?.sessionStats.totalTimeMinutes ?? 0}
                 />
               </motion.div>
@@ -335,7 +391,7 @@ export function ModernDashboard({
                 transition={{ delay: 0.3, duration: 0.5 }}
               >
                 <AchievementsCard
-                  totalWords={dashboardData?.dashboardStats.totalReviews ?? 0}
+                  totalWords={dashboardData?.sessionStats.totalWordsStudied ?? 0}
                   currentStreak={dashboardData?.sessionStats.currentStreak ?? 0}
                   longestStreak={dashboardData?.sessionStats.longestStreak ?? 0}
                   completedSessions={dashboardData?.sessionStats.completedSessions ?? 0}

@@ -42,7 +42,7 @@ export function AchievementsCard({
       id: 'vocabulary',
       icon: BookOpen,
       title: 'Vocabulary Builder',
-      description: `${totalWords} Words`,
+      description: `${totalWords} Words Studied`,
       isUnlocked: totalWords >= 500,
       progress: totalWords,
       target: 500

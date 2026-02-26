@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { X } from 'lucide-react'
 
@@ -60,10 +60,31 @@ const tourSteps: TourStep[] = [
 export default function WelcomeTour({ isOpen, onClose, onComplete }: WelcomeTourProps) {
   const [currentStep, setCurrentStep] = useState(0)
   const [highlightedElement, setHighlightedElement] = useState<Element | null>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
+
+  const availableSteps = useMemo(() => {
+    if (!isOpen || typeof document === 'undefined') {
+      return tourSteps
+    }
+
+    return tourSteps.filter(step => {
+      if (!step.target) {
+        return true
+      }
+
+      return Boolean(document.querySelector(`[data-tour="${step.target}"]`))
+    })
+  }, [isOpen])
 
   useEffect(() => {
-    if (isOpen && tourSteps[currentStep]?.target) {
-      const element = document.querySelector(`[data-tour="${tourSteps[currentStep].target}"]`)
+    if (currentStep >= availableSteps.length) {
+      setCurrentStep(Math.max(0, availableSteps.length - 1))
+    }
+  }, [availableSteps, currentStep])
+
+  useEffect(() => {
+    if (isOpen && availableSteps[currentStep]?.target) {
+      const element = document.querySelector(`[data-tour="${availableSteps[currentStep].target}"]`)
       setHighlightedElement(element)
       
       if (element) {
@@ -72,10 +93,53 @@ export default function WelcomeTour({ isOpen, onClose, onComplete }: WelcomeTour
     } else {
       setHighlightedElement(null)
     }
-  }, [currentStep, isOpen])
+  }, [currentStep, isOpen, availableSteps])
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const modal = modalRef.current
+    modal?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        handleSkip()
+        return
+      }
+
+      if (event.key !== 'Tab' || !modal) {
+        return
+      }
+
+      const focusableElements = Array.from(
+        modal.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      ).filter(element => !element.hasAttribute('disabled'))
+
+      if (focusableElements.length === 0) {
+        return
+      }
+
+      const firstElement = focusableElements[0]
+      const lastElement = focusableElements[focusableElements.length - 1]
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault()
+        lastElement.focus()
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault()
+        firstElement.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen])
 
   const nextStep = () => {
-    if (currentStep < tourSteps.length - 1) {
+    if (currentStep < availableSteps.length - 1) {
       setCurrentStep(currentStep + 1)
     } else {
       handleComplete()
@@ -102,7 +166,11 @@ export default function WelcomeTour({ isOpen, onClose, onComplete }: WelcomeTour
 
   if (!isOpen) return null
 
-  const step = tourSteps[currentStep]
+  const step = availableSteps[currentStep]
+
+  if (!step) {
+    return null
+  }
 
   return (
     <>
@@ -124,7 +192,14 @@ export default function WelcomeTour({ isOpen, onClose, onComplete }: WelcomeTour
 
       {/* Tour modal */}
       <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto">
+        <div
+          ref={modalRef}
+          className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Welcome tour"
+          tabIndex={-1}
+        >
           <div className="p-6">
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
@@ -161,7 +236,7 @@ export default function WelcomeTour({ isOpen, onClose, onComplete }: WelcomeTour
             {/* Navigation */}
             <div className="flex items-center justify-between">
               <div className="flex space-x-1">
-                {tourSteps.map((_, index) => (
+                {availableSteps.map((_, index) => (
                   <div
                     key={index}
                     className={`w-2 h-2 rounded-full transition-colors ${

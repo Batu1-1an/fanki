@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 // Using inline SVG icons instead of lucide-react
 
@@ -12,6 +12,8 @@ interface FirstWordTutorialProps {
 
 export default function FirstWordTutorial({ isOpen, onClose, onComplete }: FirstWordTutorialProps) {
   const [currentStep, setCurrentStep] = useState(0)
+  const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
 
   if (!isOpen) return null
 
@@ -36,15 +38,79 @@ export default function FirstWordTutorial({ isOpen, onClose, onComplete }: First
 
   const currentStepData = steps[currentStep]
 
+  useEffect(() => {
+    if (!isOpen || currentStep !== 0) {
+      setTargetRect(null)
+      return
+    }
+
+    const updateTargetRect = () => {
+      const target = document.querySelector('[data-tour="add-word-button"]') as HTMLElement | null
+      if (!target) {
+        setTargetRect(null)
+        return
+      }
+
+      setTargetRect(target.getBoundingClientRect())
+    }
+
+    updateTargetRect()
+    window.addEventListener('resize', updateTargetRect)
+    window.addEventListener('scroll', updateTargetRect, true)
+
+    return () => {
+      window.removeEventListener('resize', updateTargetRect)
+      window.removeEventListener('scroll', updateTargetRect, true)
+    }
+  }, [isOpen, currentStep])
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const modal = modalRef.current
+    modal?.focus()
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+
+      if (event.key !== 'Tab' || !modal) {
+        return
+      }
+
+      const focusableElements = Array.from(
+        modal.querySelectorAll<HTMLElement>('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+      ).filter(element => !element.hasAttribute('disabled'))
+
+      if (focusableElements.length === 0) {
+        return
+      }
+
+      const firstElement = focusableElements[0]
+      const lastElement = focusableElements[focusableElements.length - 1]
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault()
+        lastElement.focus()
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault()
+        firstElement.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, onClose])
+
   const handleNext = () => {
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1)
     } else {
-      // Simulate clicking the add word button on completion
-      const addWordButton = document.querySelector('[data-tour="add-word-button"]') as HTMLElement
-      if (addWordButton) {
-        addWordButton.click()
-      }
       onComplete()
     }
   }
@@ -55,11 +121,11 @@ export default function FirstWordTutorial({ isOpen, onClose, onComplete }: First
       <div className="fixed inset-0 bg-black/60 z-30" />
       
       {/* Highlight spotlight for add word button */}
-      {currentStep === 0 && (
+      {currentStep === 0 && targetRect && (
         <>
           <div className="fixed z-40 animate-bounce pointer-events-none" style={{
-            top: '20px',
-            left: '50%',
+            top: `${Math.max(16, targetRect.top - 72)}px`,
+            left: `${targetRect.left + targetRect.width / 2}px`,
             transform: 'translateX(-50%)'
           }}>
             <div className="bg-yellow-400 text-black px-4 py-2 rounded-full text-sm font-medium shadow-lg">
@@ -72,11 +138,10 @@ export default function FirstWordTutorial({ isOpen, onClose, onComplete }: First
           
           {/* Pulsing highlight around add word button */}
           <div className="fixed z-40 pointer-events-none" style={{
-            top: '140px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: '200px',
-            height: '100px'
+            top: `${Math.max(0, targetRect.top - 8)}px`,
+            left: `${Math.max(0, targetRect.left - 8)}px`,
+            width: `${targetRect.width + 16}px`,
+            height: `${targetRect.height + 16}px`
           }}>
             <div className="w-full h-full border-4 border-yellow-400 rounded-xl shadow-2xl animate-pulse bg-yellow-400/20" />
           </div>
@@ -85,7 +150,14 @@ export default function FirstWordTutorial({ isOpen, onClose, onComplete }: First
 
       {/* Tutorial modal */}
       <div className="fixed inset-0 flex items-end sm:items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full mx-auto">
+        <div
+          ref={modalRef}
+          className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-md w-full mx-auto"
+          role="dialog"
+          aria-modal="true"
+          aria-label="First word tutorial"
+          tabIndex={-1}
+        >
           <div className="p-6">
             {/* Header */}
             <div className="flex items-start justify-between mb-4">

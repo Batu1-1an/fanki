@@ -187,7 +187,7 @@ export function QueueBreakdownCard({
         </div>
 
         {/* Queue Stats Grid */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {queueSegments.map((segment, index) => {
             const Icon = segment.icon
             return (

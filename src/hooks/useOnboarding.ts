@@ -14,6 +14,7 @@ interface UserPreferences {
 interface OnboardingState {
   hasCompletedTour: boolean
   hasSetPreferences: boolean
+  hasSkippedPreferences: boolean
   hasAddedFirstWord: boolean
   currentStep: 'tour' | 'preferences' | 'first-word' | 'complete'
 }
@@ -22,6 +23,7 @@ export function useOnboarding() {
   const [onboardingState, setOnboardingState] = useState<OnboardingState>({
     hasCompletedTour: false,
     hasSetPreferences: false,
+    hasSkippedPreferences: false,
     hasAddedFirstWord: false,
     currentStep: 'tour'
   })
@@ -48,19 +50,22 @@ export function useOnboarding() {
 
       const hasSetPreferences = !!profile?.learning_level && !!profile?.target_language
       const hasAddedFirstWord = (count || 0) > 0
+      const hasSkippedPreferences =
+        localStorage.getItem('fanki-preferences-skipped') === 'true' ||
+        profile?.preferences?.onboarding_preferences_skipped === true
       
       // Get tour completion from localStorage or profile preferences
       const hasCompletedTour = localStorage.getItem('fanki-tour-completed') === 'true' || 
                                 profile?.preferences?.onboarding_completed === true
 
       // Force completion if user has words and preferences set up
-      const shouldCompleteOnboarding = hasSetPreferences && hasAddedFirstWord
+      const shouldCompleteOnboarding = (hasSetPreferences || hasSkippedPreferences) && hasAddedFirstWord
 
       let currentStep: OnboardingState['currentStep'] = 'complete'
       if (!shouldCompleteOnboarding) {
         if (!hasCompletedTour) {
           currentStep = 'tour'
-        } else if (!hasSetPreferences) {
+        } else if (!hasSetPreferences && !hasSkippedPreferences) {
           currentStep = 'preferences'
         } else if (!hasAddedFirstWord) {
           currentStep = 'first-word'
@@ -70,6 +75,7 @@ export function useOnboarding() {
       setOnboardingState({
         hasCompletedTour,
         hasSetPreferences,
+        hasSkippedPreferences,
         hasAddedFirstWord,
         currentStep
       })
@@ -129,6 +135,7 @@ export function useOnboarding() {
       setOnboardingState(prev => ({
         ...prev,
         hasSetPreferences: true,
+        hasSkippedPreferences: false,
         currentStep: prev.hasAddedFirstWord ? 'complete' : 'first-word'
       }))
 
@@ -147,18 +154,44 @@ export function useOnboarding() {
     }))
   }
 
-  const skipPreferences = () => {
+  const skipPreferences = async () => {
+    localStorage.setItem('fanki-preferences-skipped', 'true')
+
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user) {
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('preferences')
+        .eq('id', session.user.id)
+        .maybeSingle()
+
+      await supabase
+        .from('profiles')
+        .upsert({
+          id: session.user.id,
+          preferences: {
+            ...(existingProfile?.preferences || {}),
+            onboarding_preferences_skipped: true,
+            onboarding_preferences_skipped_at: new Date().toISOString()
+          },
+          updated_at: new Date().toISOString()
+        })
+    }
+
     setOnboardingState(prev => ({
       ...prev,
+      hasSkippedPreferences: true,
       currentStep: prev.hasAddedFirstWord ? 'complete' : 'first-word'
     }))
   }
 
   const resetOnboarding = () => {
     localStorage.removeItem('fanki-tour-completed')
+    localStorage.removeItem('fanki-preferences-skipped')
     setOnboardingState({
       hasCompletedTour: false,
       hasSetPreferences: false,
+      hasSkippedPreferences: false,
       hasAddedFirstWord: false,
       currentStep: 'tour'
     })

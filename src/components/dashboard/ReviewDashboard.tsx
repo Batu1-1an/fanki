@@ -69,6 +69,7 @@ export function ReviewDashboard({
   const [selectedDeskId, setSelectedDeskId] = useState<string>('all')
   const [isStartingSession, setIsStartingSession] = useState(false)
   const [sortOrder, setSortOrder] = useState<'recommended' | 'oldest' | 'easiest' | 'hardest'>('recommended')
+  const [sessionError, setSessionError] = useState<string | null>(null)
 
   useEffect(() => {
     loadDesks()
@@ -92,6 +93,7 @@ export function ReviewDashboard({
 
   const handleStartSession = async (mode: any = recommendedMode.mode, maxWords: number = 20) => {
     setIsStartingSession(true)
+    setSessionError(null)
     try {
       const options: any = {
         maxWords,
@@ -110,11 +112,11 @@ export function ReviewDashboard({
       if (words.length > 0) {
         onStartSession(words, sessionId)
       } else {
-        // Handle no words available
-        console.log('No words available for study session')
+        setSessionError('No cards available for the selected filters. Try another desk or mode.')
       }
     } catch (error) {
       console.error('Failed to start session:', error)
+      setSessionError('Failed to start the session. Please try again.')
     } finally {
       setIsStartingSession(false)
     }
@@ -166,7 +168,7 @@ export function ReviewDashboard({
         <Card>
           <CardContent className="p-4 text-center">
             <Calendar className="w-6 h-6 mx-auto mb-2 text-blue-600" />
-            <div className="text-2xl font-bold">{stats.wordsDueToday}</div>
+            <div className="text-2xl font-bold">{queueStats.dueToday}</div>
             <div className="text-sm text-muted-foreground">Due Today</div>
           </CardContent>
         </Card>
@@ -212,22 +214,22 @@ export function ReviewDashboard({
         </Card>
       </div>
 
-      {/* Deck Selection (shown only when a deck change handler is provided) */}
+      {/* Desk Selection (shown only when a desk change handler is provided) */}
       {onDeskChange && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2">
               <BookOpen className="w-5 h-5" />
-              Study Deck Selection
+              Study Desk Selection
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               <div>
-                <label className="text-sm font-medium mb-2 block">Choose a deck to study:</label>
+                <label className="text-sm font-medium mb-2 block">Choose a desk to study:</label>
                 <Select value={selectedDeskId} onValueChange={(v) => { setSelectedDeskId(v); onDeskChange?.(v) }}>
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder="All decks (default)" />
+                    <SelectValue placeholder="All desks (default)" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">
@@ -258,7 +260,7 @@ export function ReviewDashboard({
                     <span className="font-medium">{getSelectedDeskInfo()!.name}</span>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Studying from: {getSelectedDeskInfo()!.description || 'Selected deck'}
+                    Studying from: {getSelectedDeskInfo()!.description || 'Selected desk'}
                   </p>
                 </div>
               )}
@@ -304,8 +306,11 @@ export function ReviewDashboard({
           </div>
           {queueStats.total === 0 && (
             <p className="text-sm text-orange-600 mt-2">
-              {selectedDeskId ? 'No cards available in selected deck.' : 'No cards available to study.'}
+              {selectedDeskId !== 'all' ? 'No cards available in the selected desk.' : 'No cards available to study.'}
             </p>
+          )}
+          {sessionError && (
+            <p className="text-sm text-red-600 mt-2">{sessionError}</p>
           )}
         </CardContent>
       </Card>
@@ -504,7 +509,7 @@ export function ReviewDashboard({
                     variant="outline"
                     className="h-20 flex-col gap-2"
                   >
-                    <span className="font-semibold">Manage Decks</span>
+                    <span className="font-semibold">Manage Desks</span>
                     <span className="text-sm text-muted-foreground">Edit flashcards</span>
                   </Button>
                 </div>
