@@ -60,7 +60,8 @@ export async function updateStudySession(
     const updateData: ExtendedStudySessionUpdate = {
       words_studied: updates.wordsStudied,
       words_correct: updates.wordsCorrect,
-      total_reviews: updates.totalReviews
+      total_reviews: updates.totalReviews,
+      accuracy_percentage: updates.accuracyPercentage
     }
 
     const { data, error } = await supabase
@@ -102,6 +103,7 @@ export async function completeStudySession(
       words_studied: completion.wordsStudied,
       words_correct: completion.wordsCorrect,
       total_reviews: completion.totalReviews,
+      accuracy_percentage: completion.accuracyPercentage,
       session_duration_seconds: completion.sessionDurationSeconds,
       status: 'completed',
       ended_at: completion.endedAt || new Date().toISOString()
@@ -222,7 +224,7 @@ export async function getActiveStudySession(): Promise<{
       .select('*')
       .eq('user_id', user.id)
       .in('status', ['active', 'paused'])
-      .order('started_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(1)
       .single()
 
@@ -250,7 +252,7 @@ export async function getStudySessionHistory(limit: number = 20): Promise<{
       .from('study_sessions')
       .select('*')
       .eq('user_id', user.id)
-      .order('started_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(limit)
 
     return { data, error }

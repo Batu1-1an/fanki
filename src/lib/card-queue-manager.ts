@@ -2,6 +2,7 @@ import { createClientComponentClient } from './supabase'
 import { QueuedCard, ReviewCard, CardReviewStatus } from '@/types'
 import { getDueCards } from './reviews'
 import { aiService } from './ai-services'
+import { getBlankPosition } from './flashcard-text'
 
 const INITIAL_CHUNK_SIZE = 2 // Fetch first 2 cards to start immediately
 
@@ -72,11 +73,10 @@ async function prefetchInitialContentForCards(
         const transformedSentences = Array.isArray(content.sentences)
           ? content.sentences.map((sentence: any) => {
               const sentenceText = typeof sentence === 'string' ? sentence : sentence.sentence || sentence.text || ''
-              const blankMarker = '___'
 
               return {
                 sentence: sentenceText,
-                blank_position: sentenceText.indexOf(blankMarker) >= 0 ? sentenceText.indexOf(blankMarker) : 0,
+                blank_position: getBlankPosition(sentenceText, sentence?.blank_position ?? 0),
                 correct_word: card.word!.word
               }
             })
@@ -193,11 +193,15 @@ export class CardQueueManager {
 
       const {
         maxCards = 20,
-        sortOrder = 'recommended'
+        sortOrder = 'recommended',
+        deskId,
+        cardIds,
+        difficultyRange,
+        includeNewCards = true
       } = options
 
       // Fetch due cards using new card-based system
-      const { data: dueCards, error: dueError } = await getDueCards(maxCards, sortOrder)
+      const { data: dueCards, error: dueError } = await getDueCards(maxCards * 2, sortOrder, deskId)
 
       if (dueError) {
         console.error('Error fetching due cards:', dueError)
@@ -212,8 +216,26 @@ export class CardQueueManager {
       // Convert ReviewCard to QueuedCard
       let queue: QueuedCard[] = dueCards.map(card => this.enrichCardWithPriority(card))
 
+      if (!includeNewCards) {
+        queue = queue.filter(card => card.reviewStatus !== 'new')
+      }
+
+      if (difficultyRange) {
+        queue = queue.filter(card => {
+          const ease = card.currentEaseFactor ?? 2.5
+          return ease >= difficultyRange[0] && ease <= difficultyRange[1]
+        })
+      }
+
+      if (cardIds && cardIds.length > 0) {
+        const cardIdSet = new Set(cardIds)
+        queue = queue.filter(card => cardIdSet.has(card.cardId))
+      }
+
       // Apply study mode filter
       queue = this.applyStudyModeFilter(queue, options.studyMode)
+
+      queue = queue.slice(0, maxCards)
 
       // Sort by priority if needed
       if (options.prioritizeWeakCards) {
@@ -285,6 +307,9 @@ export class CardQueueManager {
         return 'overdue'
       case 'due_today':
         return 'due_today'
+      case 'completed_today':
+      case 'inactive':
+        return 'review_soon'
       case 'future':
         return 'review_soon'
       default:

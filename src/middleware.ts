@@ -35,25 +35,25 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session if expired - required for Server Components
-  const { data: { session } } = await supabase.auth.getSession()
+  // Refresh session and verify user with Auth service
+  const { data: { user } } = await supabase.auth.getUser()
 
   const isAuthPage = request.nextUrl.pathname.startsWith('/auth')
   const isProtectedRoute = [
     '/dashboard',
     '/study',
-    '/words',
-    '/progress',
-    '/settings'
+    '/settings',
+    '/profile'
   ].some(route => request.nextUrl.pathname.startsWith(route))
+  const isAuthCallback = request.nextUrl.pathname.startsWith('/auth/callback')
 
   // Redirect authenticated users away from auth pages
-  if (session && isAuthPage) {
+  if (user && isAuthPage && !isAuthCallback) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   // Redirect unauthenticated users to login
-  if (!session && isProtectedRoute) {
+  if (!user && isProtectedRoute) {
     return NextResponse.redirect(new URL('/auth/login', request.url))
   }
 

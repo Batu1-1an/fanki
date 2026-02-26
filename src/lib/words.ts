@@ -112,7 +112,7 @@ export async function getUserWords(options?: {
       query = query.limit(options.limit)
     }
     
-    if (options?.offset) {
+    if (options?.offset !== undefined) {
       query = query.range(options.offset, options.offset + (options.limit || 10) - 1)
     }
 

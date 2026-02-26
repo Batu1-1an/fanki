@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils'
 import { ExtendedStudySession, SessionStatus } from '@/types/study-sessions'
 import { Skeleton } from '@/components/ui/skeleton'
 import { loadDashboardData, refreshQueueStats, refreshSessionHistory } from '@/lib/dashboard-data'
+import { classifyDueDate } from '@/lib/date-utils'
 
 interface StudySessionDashboardProps {
   className?: string
@@ -85,7 +86,6 @@ interface SessionStats {
 
 // Helper: group cards by priority using UTC date-only strings
 function groupCardsByPriority(cards: Array<Word & { lastReview?: Review }>) {
-  const todayStr = new Date().toISOString().split('T')[0]
   const overdue: Array<Word & { lastReview?: Review }> = []
   const dueToday: Array<Word & { lastReview?: Review }> = []
   const newWords: Array<Word & { lastReview?: Review }> = []
@@ -94,9 +94,9 @@ function groupCardsByPriority(cards: Array<Word & { lastReview?: Review }>) {
     if (!card.lastReview) {
       newWords.push(card)
     } else if (card.lastReview.due_date) {
-      const dueDateStr = new Date(card.lastReview.due_date).toISOString().split('T')[0]
-      if (dueDateStr < todayStr) overdue.push(card)
-      else if (dueDateStr === todayStr) dueToday.push(card)
+      const dueClassification = classifyDueDate(card.lastReview.due_date)
+      if (dueClassification === 'overdue') overdue.push(card)
+      else if (dueClassification === 'due_today') dueToday.push(card)
     }
   })
 
@@ -123,6 +123,7 @@ export function StudySessionDashboard({
   })
   const [todaysCards, setTodaysCards] = useState<Array<Word & { lastReview?: Review }>>([])
   const [isDashboardLoading, setIsDashboardLoading] = useState(true)
+  const [selectedDeskId, setSelectedDeskId] = useState<string>('all')
   
   // Centralized queue state
   const [queueStats, setQueueStats] = useState<QueueStats>({
@@ -166,9 +167,10 @@ export function StudySessionDashboard({
   }
 
   // Optimized dashboard data loading function
-  const loadDashboardDataOptimized = async (deskId: string = 'all') => {
+  const loadDashboardDataOptimized = async (deskId: string = selectedDeskId) => {
     setIsDashboardLoading(true)
     try {
+      setSelectedDeskId(deskId)
       // Use the new optimized data loader
       const dashboardData = await loadDashboardData(deskId)
 
@@ -180,7 +182,8 @@ export function StudySessionDashboard({
       setRecentSessions(dashboardData.recentSessions)
 
       // Load a sample of cards for the TodaysCards component
-      const { data: sampleCards } = await getDueWords(50, 'recommended')
+      const deskFilter = deskId && deskId !== 'all' ? deskId : undefined
+      const { data: sampleCards } = await getDueWords(50, 'recommended', deskFilter)
       setTodaysCards(sampleCards || [])
 
       console.log('Optimized dashboard data loaded:', {
@@ -205,13 +208,13 @@ export function StudySessionDashboard({
     setHasActiveDbSession(false)
     // Refresh dashboard data by re-checking for active session and reloading dashboard data
     checkForActiveSession()
-    loadDashboardDataOptimized()
+    loadDashboardDataOptimized(selectedDeskId)
   }
 
   const handleExitSession = () => {
     onActiveSessionChange?.(null)
     checkForActiveSession()
-    loadDashboardDataOptimized()
+    loadDashboardDataOptimized(selectedDeskId)
   }
 
   // Quick start session function
@@ -220,7 +223,8 @@ export function StudySessionDashboard({
       const { words, sessionId } = await generateStudySession({
         maxWords: 20,
         studyMode: 'mixed',
-        prioritizeWeakWords: true
+        prioritizeWeakWords: true,
+        deskId: selectedDeskId
       })
       
       if (words.length > 0) {

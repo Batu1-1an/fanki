@@ -21,11 +21,16 @@ export function isValidRedirect(url: string | null | undefined): boolean {
       return !url.startsWith('//')
     }
 
-    // For any other format, parse as URL to check if it's external
+    // For any other format, parse as URL and allow only same-origin targets
     const parsedUrl = new URL(url)
-    
-    // Only allow URLs without host (relative paths) or same origin
-    return !parsedUrl.host || parsedUrl.host === process.env.NEXT_PUBLIC_SITE_URL
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
+
+    if (!siteUrl) {
+      return false
+    }
+
+    const siteOrigin = new URL(siteUrl).origin
+    return parsedUrl.origin === siteOrigin
   } catch {
     // If URL parsing fails, it's likely not a valid URL - reject it
     return false
@@ -42,5 +47,13 @@ export function getSafeRedirectUrl(
   url: string | null | undefined, 
   fallback: string = '/dashboard'
 ): string {
-  return isValidRedirect(url) ? url! : fallback
+  if (isValidRedirect(url)) {
+    return url!
+  }
+
+  if (isValidRedirect(fallback)) {
+    return fallback
+  }
+
+  return '/dashboard'
 }

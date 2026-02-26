@@ -92,10 +92,21 @@ export async function searchUnsplashImages(
     console.info('Unsplash rate limit', rateLimit)
   }
 
+  const rawResults = Array.isArray(data?.results) ? data.results : []
+  const results: UnsplashPhoto[] = rawResults.filter((photo: any) => {
+    return Boolean(
+      photo &&
+      photo.id &&
+      photo.urls?.small &&
+      photo.urls?.regular &&
+      photo.links?.download_location
+    )
+  })
+
   return {
     total: data?.total ?? 0,
     totalPages: data?.total_pages ?? 0,
-    results: (data?.results || []) as UnsplashPhoto[],
+    results,
     rateLimit
   }
 }

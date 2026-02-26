@@ -20,6 +20,7 @@ import { getUserDesks, createDesk, Desk } from '@/lib/desks'
 import { generateStudySession } from '@/lib/queue-manager'
 import { getReviewStats, getDueWords } from '@/lib/reviews'
 import { useToast } from '@/components/ui/toast'
+import { classifyDueDate } from '@/lib/date-utils'
 
 interface StudyDashboardProps {
   onStartSession: (words: any[], sessionId: string) => void
@@ -99,13 +100,12 @@ export function StudyDashboard({ onStartSession, className }: StudyDashboardProp
       setDashboardStats(statsData)
 
       const cards = dueWordsResp.data || []
-      const todayStr = new Date().toISOString().split('T')[0]
       const counts = cards.reduce((acc, c) => {
         if (!c.lastReview) acc.newWords++
         else if (c.lastReview.due_date) {
-          const due = new Date(c.lastReview.due_date).toISOString().split('T')[0]
-          if (due < todayStr) acc.overdue++
-          else if (due === todayStr) acc.dueToday++
+          const dueClassification = classifyDueDate(c.lastReview.due_date)
+          if (dueClassification === 'overdue') acc.overdue++
+          else if (dueClassification === 'due_today') acc.dueToday++
         }
         return acc
       }, { overdue: 0, dueToday: 0, newWords: 0 })

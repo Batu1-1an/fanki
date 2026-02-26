@@ -16,6 +16,7 @@ import { ProgressOverviewCard } from './ProgressOverviewCard'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
+import { toLocalDateKey } from '@/lib/date-utils'
 
 interface ModernDashboardProps {
   className?: string
@@ -73,14 +74,16 @@ export function ModernDashboard({
   const [isLoading, setIsLoading] = useState(true)
   const [hasActiveDbSession, setHasActiveDbSession] = useState(false)
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
+  const [selectedDeskId, setSelectedDeskId] = useState<string>('all')
 
   useEffect(() => {
     loadData()
   }, [])
 
-  const loadData = async (deskId: string = 'all') => {
+  const loadData = async (deskId: string = selectedDeskId) => {
     setIsLoading(true)
     try {
+      setSelectedDeskId(deskId)
       // Check for active session
       const { data: session } = await getActiveStudySession()
       setHasActiveDbSession(!!session)
@@ -104,7 +107,8 @@ export function ModernDashboard({
       const { words, sessionId } = await generateStudySession({
         maxWords,
         studyMode: mode,
-        prioritizeWeakWords: true
+        prioritizeWeakWords: true,
+        deskId: selectedDeskId
       })
       
       if (words.length > 0) {
@@ -129,12 +133,12 @@ export function ModernDashboard({
     console.log('Session completed:', sessionData)
     onActiveSessionChange?.(null)
     setHasActiveDbSession(false)
-    loadData()
+    loadData(selectedDeskId)
   }
 
   const handleExitSession = () => {
     onActiveSessionChange?.(null)
-    loadData()
+    loadData(selectedDeskId)
   }
 
   // Get weekly activity data from recent sessions
@@ -146,14 +150,14 @@ export function ModernDashboard({
     dashboardData.recentSessions.forEach(session => {
       if (session.created_at) {
         const date = new Date(session.created_at)
-        const dateKey = date.toISOString().split('T')[0]
+        const dateKey = toLocalDateKey(date)
         const currentCount = activityMap.get(dateKey) || 0
         activityMap.set(dateKey, currentCount + (session.total_reviews || 0))
       }
     })
 
     return Array.from(activityMap.entries()).map(([dateStr, reviewCount]) => ({
-      date: new Date(dateStr),
+      date: new Date(`${dateStr}T00:00:00`),
       reviewCount
     }))
   }

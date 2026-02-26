@@ -37,16 +37,14 @@ export default function FirstWordTutorial({ isOpen, onClose, onComplete }: First
   const currentStepData = steps[currentStep]
 
   const handleNext = () => {
-    if (currentStep === 0) {
-      // Simulate clicking the add word button
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1)
+    } else {
+      // Simulate clicking the add word button on completion
       const addWordButton = document.querySelector('[data-tour="add-word-button"]') as HTMLElement
       if (addWordButton) {
         addWordButton.click()
       }
-      onComplete()
-    } else if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1)
-    } else {
       onComplete()
     }
   }

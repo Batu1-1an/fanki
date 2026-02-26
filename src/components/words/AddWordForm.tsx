@@ -157,19 +157,20 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
   }
 
   const handleSelectUnsplashImage = async (photo: UnsplashPhoto) => {
+    setSelectedImage({
+      source: 'unsplash',
+      imageUrl: photo.urls.regular,
+      description: photo.alt_description || photo.description || undefined,
+      attribution: {
+        name: photo.user?.name,
+        username: photo.user?.username,
+        profileUrl: photo.user?.links?.html
+      },
+      downloadLocation: photo.links.download_location
+    })
+
     try {
       await trackUnsplashDownload(photo.links.download_location)
-      setSelectedImage({
-        source: 'unsplash',
-        imageUrl: photo.urls.regular,
-        description: photo.alt_description || photo.description || undefined,
-        attribution: {
-          name: photo.user?.name,
-          username: photo.user?.username,
-          profileUrl: photo.user?.links?.html
-        },
-        downloadLocation: photo.links.download_location
-      })
       setImageSelectionError(null)
       success?.({
         title: 'Image selected',
@@ -177,11 +178,9 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
       })
     } catch (error) {
       console.error('Failed to register Unsplash download:', error)
-      const message = 'Failed to register download with Unsplash. Please try another image.'
-      setImageSelectionError(message)
       showError?.({
-        title: 'Unsplash download failed',
-        description: message
+        title: 'Unsplash tracking warning',
+        description: 'Image selected, but download tracking failed. You can still use this image.'
       })
     }
   }
@@ -217,9 +216,13 @@ export default function AddWordForm({ onWordAdded, onCancel, isModal = false, se
         imageUrl: response.imageUrl,
         description: response.description || undefined
       })
+
+      const usedFallbackImage = Boolean(response.note) || response.imageUrl.includes('placehold.co')
       success?.({
         title: 'Image generated',
-        description: 'Gemini created an image for this word.'
+        description: usedFallbackImage
+          ? 'Fallback image selected because AI image generation was unavailable.'
+          : 'Gemini created an image for this word.'
       })
     } catch (error) {
       console.error('Gemini image generation failed:', error)

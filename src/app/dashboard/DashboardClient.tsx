@@ -26,6 +26,7 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     loading, 
     completeTour, 
     savePreferences, 
+    skipPreferences,
     markFirstWordAdded 
   } = useOnboarding()
 
@@ -90,23 +91,31 @@ export default function DashboardClient({ user }: DashboardClientProps) {
 
   // Show appropriate onboarding step when ready
   useEffect(() => {
-    if (!loading && onboardingState.currentStep !== 'complete') {
-      setTimeout(() => {
-        switch (onboardingState.currentStep) {
-          case 'tour':
-            setShowTour(true)
-            break
-          case 'preferences':
-            setShowPreferences(true)
-            break
-          case 'first-word':
-            if (!firstWordTutorialDismissed) {
-              setShowFirstWordTutorial(true)
-            }
-            break
-        }
-      }, 500) // Small delay for better UX
+    if (loading || onboardingState.currentStep === 'complete') {
+      return
     }
+
+    const timeoutId = setTimeout(() => {
+      setShowTour(false)
+      setShowPreferences(false)
+      setShowFirstWordTutorial(false)
+
+      switch (onboardingState.currentStep) {
+        case 'tour':
+          setShowTour(true)
+          break
+        case 'preferences':
+          setShowPreferences(true)
+          break
+        case 'first-word':
+          if (!firstWordTutorialDismissed) {
+            setShowFirstWordTutorial(true)
+          }
+          break
+      }
+    }, 500)
+
+    return () => clearTimeout(timeoutId)
   }, [loading, onboardingState.currentStep, firstWordTutorialDismissed])
 
 
@@ -186,6 +195,8 @@ export default function DashboardClient({ user }: DashboardClientProps) {
                   onClick={() => {
                     if (onboardingState.currentStep === 'first-word') {
                       setShowAddWordModal(true)
+                    } else if (onboardingState.currentStep === 'preferences') {
+                      setShowPreferences(true)
                     } else {
                       setShowTour(true)
                     }
@@ -251,7 +262,10 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       <OnboardingPreferences
         isOpen={showPreferences}
         onComplete={handlePreferencesComplete}
-        onSkip={() => setShowPreferences(false)}
+        onSkip={() => {
+          setShowPreferences(false)
+          skipPreferences()
+        }}
       />
       
       <FirstWordTutorial

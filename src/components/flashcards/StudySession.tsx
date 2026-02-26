@@ -40,6 +40,7 @@ import {
   Timer
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { getBlankPosition } from '@/lib/flashcard-text'
 
 const PREFETCH_THRESHOLD = 1 // Start fetching the next chunk when on the second card (1 card left)
 const CHUNK_SIZE = 2 // Fetch next 2 cards in the background
@@ -180,6 +181,15 @@ export function StudySession({
   const [pauseStartTime, setPauseStartTime] = useState<Date | null>(null)
   const [totalPauseTime, setTotalPauseTime] = useState(0)
   const [currentCardStartTime, setCurrentCardStartTime] = useState(() => Date.now())
+  const [hasReviewedCurrentCard, setHasReviewedCurrentCard] = useState(false)
+  const lastSyncedReviewCount = useRef(0)
+  const pendingCompletionRef = useRef<{
+    wordsStudied: number
+    wordsCorrect: number
+    totalReviews: number
+    sessionDurationSeconds: number
+    accuracyPercentage: number
+  } | null>(null)
   
   // Re-learning queue for lapsed cards
   const [relearningQueue, setRelearningQueue] = useState<RelearningCard[]>([])
@@ -222,6 +232,7 @@ export function StudySession({
   useEffect(() => {
     if (currentWord) {
       setCurrentCardStartTime(Date.now())
+      setHasReviewedCurrentCard(false)
     }
   }, [currentWord])
 
@@ -253,6 +264,34 @@ export function StudySession({
       initializeSession()
     }
   }, [dbSessionId, initializeSession])
+
+  useEffect(() => {
+    if (!dbSessionId) {
+      return
+    }
+
+    if (sessionStats.totalReviews <= lastSyncedReviewCount.current) {
+      return
+    }
+
+    lastSyncedReviewCount.current = sessionStats.totalReviews
+    void updateStudySession(dbSessionId, {
+      wordsStudied: sessionStats.cardsStudied,
+      wordsCorrect: sessionStats.cardsCorrect,
+      totalReviews: sessionStats.totalReviews,
+      accuracyPercentage: sessionStats.accuracy
+    })
+  }, [dbSessionId, sessionStats.cardsStudied, sessionStats.cardsCorrect, sessionStats.totalReviews, sessionStats.accuracy])
+
+  useEffect(() => {
+    if (!dbSessionId || !pendingCompletionRef.current) {
+      return
+    }
+
+    const completion = pendingCompletionRef.current
+    pendingCompletionRef.current = null
+    void completeStudySession(dbSessionId, completion)
+  }, [dbSessionId])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -301,11 +340,10 @@ export function StudySession({
           const originalIndex = startIndex + index
           const transformedSentences = content.sentences.map((sentence: any) => {
             const sentenceText = typeof sentence === 'string' ? sentence : sentence.sentence || sentence.text || ''
-            const blankMarker = '___'
             
             return {
               sentence: sentenceText,
-              blank_position: sentenceText.indexOf(blankMarker) >= 0 ? sentenceText.indexOf(blankMarker) : 0,
+              blank_position: getBlankPosition(sentenceText, sentence?.blank_position ?? 0),
               correct_word: isCardBased ? newWords[originalIndex].word?.word : (newWords[originalIndex] as any).word
             }
           })
@@ -418,7 +456,7 @@ export function StudySession({
   }, [relearningQueue.length, completedMainCards])
 
   const handleReviewButton = useCallback(async (button: 'again' | 'hard' | 'good' | 'easy') => {
-    if (!currentWord || isSubmittingReview) return
+    if (!currentWord || isSubmittingReview || isPaused) return
     
     setIsSubmittingReview(true)
     const responseTime = Date.now() - currentCardStartTime
@@ -449,16 +487,6 @@ export function StudySession({
           cardsCorrect: prev.cardsCorrect + (isCorrect ? 1 : 0),
           totalReviews: prev.totalReviews + 1,
           accuracy: ((prev.cardsCorrect + (isCorrect ? 1 : 0)) / (prev.cardsStudied + 1)) * 100
-        }
-        
-        // Update database session
-        if (dbSessionId) {
-          updateStudySession(dbSessionId, {
-            wordsStudied: newStats.cardsStudied,
-            wordsCorrect: newStats.cardsCorrect,
-            totalReviews: newStats.totalReviews,
-            accuracyPercentage: newStats.accuracy
-          })
         }
         
         return newStats
@@ -502,17 +530,24 @@ export function StudySession({
       console.error('Review submission failed:', error)
     } finally {
       setIsSubmittingReview(false)
+      setHasReviewedCurrentCard(true)
       
       // Immediately trigger next card with minimal delay for smooth animation
       setReviewCompleted(true)
     }
-  }, [currentWord, isSubmittingReview, currentCardStartTime, currentlyShowingRelearning, currentIndex, addToRelearningQueue, removeFromRelearningQueue, cycleRelearningCard, dbSessionId])
+  }, [currentWord, isSubmittingReview, isPaused, currentCardStartTime, currentlyShowingRelearning, currentIndex, addToRelearningQueue, removeFromRelearningQueue, cycleRelearningCard])
   
   const handleReview = useCallback((result: ReviewResult) => {
-    // Legacy support for existing ReviewResult interface
-    const button = result.quality >= 5 ? 'easy' : 
-                  result.quality >= 3 ? 'good' : 
-                  result.quality >= 2 ? 'hard' : 'again'
+    // Legacy quality mapping (buttons use 1-4, keyboard may send 0-5)
+    const qualityToButton: Record<number, 'again' | 'hard' | 'good' | 'easy'> = {
+      0: 'again',
+      1: 'again',
+      2: 'hard',
+      3: 'good',
+      4: 'easy',
+      5: 'easy'
+    }
+    const button = qualityToButton[result.quality] || 'again'
     handleReviewButton(button)
   }, [handleReviewButton])
 
@@ -533,14 +568,18 @@ export function StudySession({
     setIsSessionComplete(true)
 
     // Complete session in database
+    const completionPayload = {
+      wordsStudied: finalStats.cardsStudied,
+      wordsCorrect: finalStats.cardsCorrect,
+      totalReviews: finalStats.totalReviews,
+      sessionDurationSeconds: duration,
+      accuracyPercentage: finalStats.accuracy
+    }
+
     if (dbSessionId) {
-      await completeStudySession(dbSessionId, {
-        wordsStudied: finalStats.cardsStudied,
-        wordsCorrect: finalStats.cardsCorrect,
-        totalReviews: finalStats.totalReviews,
-        sessionDurationSeconds: duration,
-        accuracyPercentage: finalStats.accuracy
-      })
+      await completeStudySession(dbSessionId, completionPayload)
+    } else {
+      pendingCompletionRef.current = completionPayload
     }
 
     // Call completion handler with session data
@@ -555,6 +594,14 @@ export function StudySession({
   }, [sessionStats, responseTimes, sessionType, onSessionComplete, sessionDuration, dbSessionId])
 
   const handleNext = useCallback(() => {
+    if (isPaused || isSubmittingReview) {
+      return
+    }
+
+    if (!hasReviewedCurrentCard) {
+      return
+    }
+
     if (currentlyShowingRelearning) {
       if (relearningQueue.length === 0) {
         setCurrentlyShowingRelearning(false)
@@ -571,6 +618,7 @@ export function StudySession({
 
     if (hasMoreMainCards) {
       setCurrentIndex(prev => prev + 1)
+      setHasReviewedCurrentCard(false)
     } else if (!mainQueueCompleted) {
       setMainQueueCompleted(true)
     }
@@ -586,7 +634,7 @@ export function StudySession({
     if (mainQueueJustFinished && relearningQueue.length === 0) {
       completeSession()
     }
-  }, [currentlyShowingRelearning, relearningQueue.length, mainQueueCompleted, completeSession, enrichedWords, currentIndex, shouldTransitionToRelearning])
+  }, [isPaused, isSubmittingReview, hasReviewedCurrentCard, currentlyShowingRelearning, relearningQueue.length, mainQueueCompleted, completeSession, enrichedWords, currentIndex, shouldTransitionToRelearning])
 
   // Handle review completion with fast animation-driven transition
   useEffect(() => {
@@ -862,7 +910,7 @@ export function StudySession({
             <CardRenderer
               key={currentWord.cardId}
               card={currentWord}
-              isGeneratingContent={!currentWord.sentences || !currentWord.imageUrl}
+              isGeneratingContent={!currentWord.sentences || currentWord.sentences.length === 0}
               contentGenerationError={null}
               onRegenerateContent={undefined}
               onReview={handleReview}

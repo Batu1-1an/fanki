@@ -16,8 +16,13 @@ export async function getCurrentUser(): Promise<User | null> {
  */
 export async function getCurrentUserServer(): Promise<User | null> {
   const supabaseClient = await createServerComponentClient()
-  const { data: { session } } = await supabaseClient.auth.getSession()
-  return session?.user || null
+  const { data: { user }, error } = await supabaseClient.auth.getUser()
+
+  if (error) {
+    return null
+  }
+
+  return user
 }
 
 /**

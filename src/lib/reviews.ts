@@ -72,7 +72,7 @@ function mapRpcRowToReviewCard(row: any): ReviewCard {
         definition: row.definition ?? null,
         pronunciation: row.pronunciation ?? null,
         difficulty: row.difficulty ?? null,
-        status: row.word_status ?? null,
+        status: row.word_status ?? row.status ?? null,
         createdAt: row.word_created_at ?? null,
         updatedAt: row.word_updated_at ?? row.word_created_at ?? null
       }
@@ -148,15 +148,34 @@ export async function submitReview({
       }
     }
 
-    // Get the most recent review for this word
-    const { data: lastReview } = await supabase
-      .from('reviews')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('word_id', wordId)
-      .order('reviewed_at', { ascending: false })
-      .limit(1)
-      .single()
+    // Get the most recent review. Prefer card-level history when card_id is available.
+    let lastReview: Review | null = null
+
+    if (validatedCardId) {
+      const { data: cardLastReview } = await supabase
+        .from('reviews')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('card_id', validatedCardId)
+        .order('reviewed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      lastReview = cardLastReview as Review | null
+    }
+
+    if (!lastReview) {
+      const { data: wordLastReview } = await supabase
+        .from('reviews')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('word_id', wordId)
+        .order('reviewed_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      lastReview = wordLastReview as Review | null
+    }
 
     const quality = buttonToQuality(button)
     let reviewData: TablesInsert<'reviews'>
@@ -168,7 +187,7 @@ export async function submitReview({
         wordId,
         quality,
         button,
-        lastReview,
+        lastReview: lastReview || undefined,
         currentStatus: word.status
       })
       
@@ -280,6 +299,7 @@ async function handleLearningPhase({
   if (button === 'again') {
     // Reset to first learning step
     interval_days = 0 // Show again in 1 minute (handled by queue manager)
+    repetitions = 0
     const dueDate = new Date(now.getTime() + LEARNING_STEPS[0] * 60 * 1000)
     return {
       ease_factor,
@@ -291,6 +311,22 @@ async function handleLearningPhase({
   }
 
   if (currentStatus === 'learning') {
+    if (button === 'easy') {
+      // Easy in learning should graduate immediately
+      newStatus = 'review'
+      repetitions = 1
+      interval_days = Math.max(GRADUATION_INTERVAL * 2, 2)
+      ease_factor = Math.min((lastReview?.ease_factor ?? 2.5) + 0.15, 3.0)
+      const dueDate = new Date(now.getTime() + interval_days * 24 * 60 * 60 * 1000)
+      return {
+        ease_factor,
+        interval_days,
+        repetitions,
+        due_date: dueDate,
+        newStatus: 'review'
+      }
+    }
+
     if (button === 'good' || button === 'hard') {
       // Move to next learning step or graduate
       const currentStep = lastReview ? Math.min(lastReview.repetitions ?? 0, LEARNING_STEPS.length - 1) : 0
@@ -416,7 +452,11 @@ export async function getLearningWords(limit: number = 20): Promise<{
 /**
  * Get words due for review today with configurable sort order (optimized database version)
  */
-export async function getDueWords(limit: number = 20, sort: 'recommended' | 'oldest' | 'easiest' | 'hardest' = 'recommended'): Promise<{
+export async function getDueWords(
+  limit: number = 20,
+  sort: 'recommended' | 'oldest' | 'easiest' | 'hardest' = 'recommended',
+  deskId?: string
+): Promise<{
   data: Array<Word & { lastReview?: Review }> | null
   error: any
 }> {
@@ -432,7 +472,8 @@ export async function getDueWords(limit: number = 20, sort: 'recommended' | 'old
       .rpc('get_due_words_optimized', {
         p_user_id: user.id,
         p_limit: limit,
-        p_sort_order: sort
+        p_sort_order: sort,
+        p_desk_id: deskId || null
       })
 
     if (dueError && Object.keys(dueError).length > 0) {
@@ -597,7 +638,14 @@ export async function getNextReviewPrediction(wordId: string): Promise<{
       }
     }
 
-    // Get last review for the word
+    // Get current word status and last review for prediction
+    const { data: word } = await supabase
+      .from('words')
+      .select('status')
+      .eq('id', wordId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
     const { data: lastReview } = await supabase
       .from('reviews')
       .select('ease_factor, interval_days, repetitions')
@@ -610,13 +658,28 @@ export async function getNextReviewPrediction(wordId: string): Promise<{
     const currentEaseFactor = lastReview?.ease_factor || 2.5
     const currentInterval = lastReview?.interval_days || 1
     const currentRepetitions = lastReview?.repetitions || 0
+    const currentStatus = (word?.status as WordStatus | undefined) || 'new'
 
     // Calculate intervals for each button
     const buttons = ['again', 'hard', 'good', 'easy'] as const
     const intervals: Record<typeof buttons[number], number> = {} as any
     const dueDates: Record<typeof buttons[number], Date> = {} as any
 
-    buttons.forEach(button => {
+    for (const button of buttons) {
+      if (currentStatus === 'new' || currentStatus === 'learning') {
+        const learningResult = await handleLearningPhase({
+          wordId,
+          quality: buttonToQuality(button),
+          button,
+          lastReview: lastReview as Review | undefined,
+          currentStatus
+        })
+
+        intervals[button] = learningResult.interval_days
+        dueDates[button] = learningResult.due_date
+        continue
+      }
+
       const quality = buttonToQuality(button)
       const result = calculateSM2({
         quality,
@@ -624,9 +687,16 @@ export async function getNextReviewPrediction(wordId: string): Promise<{
         interval_days: currentInterval,
         repetitions: currentRepetitions
       })
-      intervals[button] = result.interval_days
-      dueDates[button] = result.due_date
-    })
+
+      if (quality < 3) {
+        const lapseDueDate = new Date(Date.now() + LEARNING_STEPS[0] * 60 * 1000)
+        intervals[button] = 0
+        dueDates[button] = lapseDueDate
+      } else {
+        intervals[button] = result.interval_days
+        dueDates[button] = result.due_date
+      }
+    }
 
     return { intervals, dueDates }
   } catch (error) {

@@ -44,7 +44,7 @@ export async function getUserFlashcards(options?: {
       query = query.limit(options.limit)
     }
     
-    if (options?.offset) {
+    if (options?.offset !== undefined) {
       query = query.range(options.offset, options.offset + (options.limit || 10) - 1)
     }
 
@@ -80,17 +80,32 @@ export async function getDueFlashcards(): Promise<{ data: FlashcardWithWord[] | 
       return { data: null, error: 'User not authenticated' }
     }
 
-    // Get words that are due for review or have never been reviewed
-    const { data: dueReviews, error: reviewError } = await supabase
+    // Get review history (latest review per word determines due status)
+    const { data: reviewRows, error: reviewError } = await supabase
       .from('reviews')
-      .select('word_id, due_date')
+      .select('word_id, due_date, reviewed_at')
       .eq('user_id', user.id)
-      .lte('due_date', new Date().toISOString())
-      .order('due_date', { ascending: true })
+      .order('reviewed_at', { ascending: false })
 
     if (reviewError) {
       return { data: null, error: reviewError }
     }
+
+    const latestReviewByWord = new Map<string, { due_date: string | null }>()
+    const reviewedWordIds = new Set<string>()
+
+    for (const row of reviewRows || []) {
+      if (!row.word_id) continue
+      reviewedWordIds.add(row.word_id)
+      if (!latestReviewByWord.has(row.word_id)) {
+        latestReviewByWord.set(row.word_id, { due_date: row.due_date })
+      }
+    }
+
+    const now = new Date()
+    const dueWordIds = Array.from(latestReviewByWord.entries())
+      .filter(([, review]) => !!review.due_date && new Date(review.due_date) <= now)
+      .map(([wordId]) => wordId)
 
     // Get words that have never been reviewed
     let unreviewedQuery = supabase
@@ -98,10 +113,10 @@ export async function getDueFlashcards(): Promise<{ data: FlashcardWithWord[] | 
       .select('id')
       .eq('user_id', user.id)
 
-    // Only exclude reviewed words if there are any
-    if (dueReviews && dueReviews.length > 0) {
-      const reviewedWordIds = dueReviews.map(r => r.word_id)
-      unreviewedQuery = unreviewedQuery.not('id', 'in', `(${reviewedWordIds.map(id => `'${id}'`).join(',')})`)
+    // Exclude all reviewed words so only truly-new words remain
+    if (reviewedWordIds.size > 0) {
+      const reviewedWordIdsList = Array.from(reviewedWordIds)
+      unreviewedQuery = unreviewedQuery.not('id', 'in', `(${reviewedWordIdsList.map(id => `'${id}'`).join(',')})`)
     }
 
     const { data: unreviewed, error: unreviewedError } = await unreviewedQuery
@@ -110,10 +125,10 @@ export async function getDueFlashcards(): Promise<{ data: FlashcardWithWord[] | 
       return { data: null, error: unreviewedError }
     }
 
-    const allWordIds = [
-      ...(dueReviews?.map(r => r.word_id) || []),
+    const allWordIds = Array.from(new Set([
+      ...dueWordIds,
       ...(unreviewed?.map(w => w.id) || [])
-    ]
+    ]))
 
     if (allWordIds.length === 0) {
       return { data: [], error: null }
@@ -305,7 +320,8 @@ function parseFlashcardSentences(sentences: any): FlashcardSentence[] {
       return sentences
     }
     if (typeof sentences === 'string') {
-      return JSON.parse(sentences)
+      const parsed = JSON.parse(sentences)
+      return Array.isArray(parsed) ? parsed : []
     }
     return []
   } catch (error) {
@@ -324,7 +340,9 @@ export async function hasActiveFlashcard(wordId: string): Promise<{ hasFlashcard
       .select('*')
       .eq('word_id', wordId)
       .eq('is_active', true)
-      .single()
+      .order('generated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
 
     if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
       return { hasFlashcard: false, error }

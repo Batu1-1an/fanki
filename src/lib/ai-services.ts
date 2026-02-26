@@ -1,5 +1,6 @@
 import { createClientComponentClient } from './supabase'
 import { FlashcardSentence } from '@/types'
+import { PRIMARY_BLANK_TOKEN, getBlankPosition } from './flashcard-text'
 
 export interface GenerateSentencesResponse {
   sentences: FlashcardSentence[]
@@ -57,18 +58,18 @@ export class AIService {
       // Fallback sentences if API fails (keep blanks for active recall)
       const fallbackSentences: FlashcardSentence[] = [
         {
-          sentence: `The situation was quite ___ for everyone involved.`,
-          blank_position: 19, // Position of "quite"
+          sentence: `The situation was quite ${PRIMARY_BLANK_TOKEN} for everyone involved.`,
+          blank_position: getBlankPosition(`The situation was quite ${PRIMARY_BLANK_TOKEN} for everyone involved.`),
           correct_word: word
         },
         {
-          sentence: `I found the book to be very ___ and engaging.`,
-          blank_position: 28, // Position of "very"
+          sentence: `I found the book to be very ${PRIMARY_BLANK_TOKEN} and engaging.`,
+          blank_position: getBlankPosition(`I found the book to be very ${PRIMARY_BLANK_TOKEN} and engaging.`),
           correct_word: word
         },
         {
-          sentence: `Her performance was absolutely ___ last night.`,
-          blank_position: 31, // Position of "absolutely"
+          sentence: `Her performance was absolutely ${PRIMARY_BLANK_TOKEN} last night.`,
+          blank_position: getBlankPosition(`Her performance was absolutely ${PRIMARY_BLANK_TOKEN} last night.`),
           correct_word: word
         }
       ]
@@ -100,6 +101,10 @@ export class AIService {
       if (error) {
         console.error('Error calling generate-image function:', error)
         throw new Error(`Failed to generate image: ${error.message}`)
+      }
+
+      if (!data?.imageUrl || typeof data.imageUrl !== 'string') {
+        throw new Error('Invalid response format from image generation service')
       }
 
       return {

@@ -96,6 +96,7 @@ export default function WelcomeTour({ isOpen, onClose, onComplete }: WelcomeTour
 
   const handleSkip = () => {
     setHighlightedElement(null)
+    onComplete()
     onClose()
   }
 

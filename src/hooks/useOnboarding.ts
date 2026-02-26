@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { createClientComponentClient } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
 
 interface UserPreferences {
   full_name: string
@@ -28,7 +27,6 @@ export function useOnboarding() {
   })
   const [loading, setLoading] = useState(true)
   const supabase = createClientComponentClient()
-  const router = useRouter()
 
   // Check onboarding status on mount
   const checkOnboardingStatus = useCallback(async () => {
@@ -100,6 +98,19 @@ export function useOnboarding() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session?.user) throw new Error('No authenticated user')
 
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('preferences')
+        .eq('id', session.user.id)
+        .maybeSingle()
+
+      const mergedPreferences = {
+        ...(existingProfile?.preferences || {}),
+        learning_goal: preferences.learning_goal,
+        onboarding_completed: true,
+        onboarding_completed_at: new Date().toISOString()
+      }
+
       // Update or create user profile
       const { error } = await supabase
         .from('profiles')
@@ -109,10 +120,7 @@ export function useOnboarding() {
           learning_level: preferences.learning_level,
           target_language: preferences.target_language,
           daily_goal: preferences.daily_goal,
-          preferences: {
-            learning_goal: preferences.learning_goal,
-            onboarding_completed_at: new Date().toISOString()
-          },
+          preferences: mergedPreferences,
           updated_at: new Date().toISOString()
         })
 
@@ -139,6 +147,13 @@ export function useOnboarding() {
     }))
   }
 
+  const skipPreferences = () => {
+    setOnboardingState(prev => ({
+      ...prev,
+      currentStep: prev.hasAddedFirstWord ? 'complete' : 'first-word'
+    }))
+  }
+
   const resetOnboarding = () => {
     localStorage.removeItem('fanki-tour-completed')
     setOnboardingState({
@@ -156,6 +171,7 @@ export function useOnboarding() {
     loading,
     completeTour,
     savePreferences,
+    skipPreferences,
     markFirstWordAdded,
     resetOnboarding,
     isOnboardingComplete,

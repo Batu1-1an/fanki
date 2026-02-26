@@ -235,9 +235,12 @@ export async function addWordToDesk(
 
     const { error } = await supabase
       .from('word_desks')
-      .insert({
+      .upsert({
         word_id: wordId,
         desk_id: deskId
+      }, {
+        onConflict: 'word_id,desk_id',
+        ignoreDuplicates: true
       })
 
     return { error }
@@ -310,10 +313,23 @@ export async function getDeskWords(
     }
 
     // Transform the data to flatten the words
-    const transformedData = data?.map(item => ({
-      ...item.words,
-      added_to_desk_at: item.added_at
-    })) || []
+    const transformedData = (data || []).reduce((acc: Array<any>, item: any) => {
+      const word = item.words
+      if (!word) {
+        return acc
+      }
+
+      if (acc.some(existing => existing.id === word.id)) {
+        return acc
+      }
+
+      acc.push({
+        ...word,
+        added_to_desk_at: item.added_at
+      })
+
+      return acc
+    }, [])
 
     return { data: transformedData, error: null }
   } catch (error) {

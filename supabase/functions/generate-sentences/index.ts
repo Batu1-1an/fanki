@@ -147,6 +147,7 @@ Make the sentences engaging and educational for someone learning English.`;
       throw new Error('Failed to extract content from Gemini API response. The model may have returned an empty response.');
     }
     let sentences;
+    let parseFallback = false;
     try {
       const jsonStartIndex = generatedText.indexOf('[');
       const jsonEndIndex = generatedText.lastIndexOf(']');
@@ -165,23 +166,27 @@ Make the sentences engaging and educational for someone learning English.`;
       }
     } catch (parseError) {
       console.error('Failed to parse Gemini response:', generatedText, parseError);
+      parseFallback = true;
+      const fallbackSentenceOne = `The team's ____ helped them win the championship.`;
+      const fallbackSentenceTwo = `Her ____ was evident in the quality of her work.`;
+      const fallbackSentenceThree = `The project required a lot of ____ to complete successfully.`;
       sentences = [
         {
-          sentence: `The team's ____ helped them win the championship.`,
+          sentence: fallbackSentenceOne,
           correct_word: word.toLowerCase(),
-          blank_position: 12,
+          blank_position: fallbackSentenceOne.indexOf('____'),
           explanation: `Shows how ${word} contributes to success.`
         },
         {
-          sentence: `Her ____ was evident in the quality of her work.`,
+          sentence: fallbackSentenceTwo,
           correct_word: word.toLowerCase(),
-          blank_position: 4,
+          blank_position: fallbackSentenceTwo.indexOf('____'),
           explanation: `Demonstrates ${word} through visible results.`
         },
         {
-          sentence: `The project required a lot of ____ to complete successfully.`,
+          sentence: fallbackSentenceThree,
           correct_word: word.toLowerCase(),
-          blank_position: 31,
+          blank_position: fallbackSentenceThree.indexOf('____'),
           explanation: `Indicates the importance of ${word} for achievement.`
         }
       ];
@@ -190,7 +195,8 @@ Make the sentences engaging and educational for someone learning English.`;
     return new Response(JSON.stringify({
       sentences,
       cached: false,
-      dynamic: true
+      dynamic: true,
+      parseFallback
     }), {
       status: 200,
       headers: {

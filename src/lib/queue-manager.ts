@@ -5,6 +5,8 @@ import { getUserFlashcards } from './flashcards'
 import { getDeskWords } from './desks'
 import { getUserWords } from './words'
 import { aiService } from './ai-services'
+import { classifyDueDate } from './date-utils'
+import { getBlankPosition } from './flashcard-text'
 
 const INITIAL_CHUNK_SIZE = 2 // Fetch first 2 cards to start immediately
 
@@ -81,11 +83,10 @@ async function prefetchInitialContentForWords(
         const transformedSentences = Array.isArray(content.sentences)
           ? content.sentences.map((sentence: any) => {
               const sentenceText = typeof sentence === 'string' ? sentence : sentence.sentence || sentence.text || ''
-              const blankMarker = '___'
 
               return {
                 sentence: sentenceText,
-                blank_position: sentenceText.indexOf(blankMarker) >= 0 ? sentenceText.indexOf(blankMarker) : 0,
+                blank_position: getBlankPosition(sentenceText, sentence?.blank_position ?? 0),
                 correct_word: word.word
               }
             })
@@ -248,10 +249,10 @@ export class ReviewQueueManager {
       }
       const userId = user.id
 
-      // Use optimized database functions with desk filtering built-in
+      // Use optimized database functions
       const [learningResult, dueWordsResult] = await Promise.all([
         includeLearning ? getLearningWords(50) : Promise.resolve({ data: [], error: null }),
-        getDueWords(maxWords * 2, sortOrder) // Get extra for filtering
+        getDueWords(maxWords * 2, sortOrder, deskId && deskId !== 'all' ? deskId : undefined)
       ])
 
       if (learningResult.error) {
@@ -275,7 +276,7 @@ export class ReviewQueueManager {
 
       // Filter by desk if specified - apply to words before enrichment for efficiency
       if (deskId && deskId !== 'all') {
-        const { data: deskWords } = await getDeskWords(deskId, maxWords * 3)
+        const { data: deskWords } = await getDeskWords(deskId, 5000)
         if (deskWords) {
           const deskWordIds = new Set(deskWords.map((w: any) => w.id))
           allWords = allWords.filter(word => deskWordIds.has(word.id))
@@ -430,12 +431,10 @@ export class ReviewQueueManager {
       return 'new'
     }
 
-    // For review cards, compare by UTC date-only strings (aligns with getDueWords)
-    const dueDateStr = new Date(word.lastReview.due_date || new Date()).toISOString().split('T')[0]
-    const todayStr = new Date().toISOString().split('T')[0]
+    const dueClassification = classifyDueDate(word.lastReview.due_date || new Date())
 
-    if (dueDateStr < todayStr) return 'overdue'
-    if (dueDateStr === todayStr) return 'due_today'
+    if (dueClassification === 'overdue') return 'overdue'
+    if (dueClassification === 'due_today') return 'due_today'
     return 'review_soon'
   }
 

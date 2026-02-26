@@ -8,6 +8,7 @@ import { ReviewDashboard } from '@/components/dashboard/ReviewDashboard'
 import { getWordStats } from '@/lib/words'
 import { getReviewStats, getDueWords } from '@/lib/reviews'
 import { ArrowLeft, TrendingUp, Calendar, Target } from 'lucide-react'
+import { classifyDueDate } from '@/lib/date-utils'
 
 interface ProgressClientProps {
   user: User
@@ -76,13 +77,12 @@ export default function ProgressClient({ user }: ProgressClientProps) {
       setDashboardStats(dashboardStatsData)
 
       const cards = dueWordsResp.data || []
-      const todayStr = new Date().toISOString().split('T')[0]
       const counts = cards.reduce((acc, c) => {
         if (!c.lastReview) acc.newWords++
-        else {
-          const due = c.lastReview.due_date ? new Date(c.lastReview.due_date).toISOString().split('T')[0] : ''
-          if (due < todayStr) acc.overdue++
-          else if (due === todayStr) acc.dueToday++
+        else if (c.lastReview.due_date) {
+          const dueClassification = classifyDueDate(c.lastReview.due_date)
+          if (dueClassification === 'overdue') acc.overdue++
+          else if (dueClassification === 'due_today') acc.dueToday++
         }
         return acc
       }, { overdue: 0, dueToday: 0, newWords: 0 })

@@ -21,12 +21,11 @@ import {
   BookOpen,
   Flame
 } from 'lucide-react'
-import { getDueWords } from '@/lib/reviews'
 import { QueuedWord, getQueueManager, generateStudySession } from '@/lib/queue-manager'
 import { Word, Review } from '@/types'
 import { cn } from '@/lib/utils'
-import { formatInterval } from '@/utils/sm2'
 import { StudySessionLoader } from '@/components/ui/StudySessionLoader'
+import { classifyDueDate } from '@/lib/date-utils'
 
 interface TodaysCardsProps {
   onStartSession: (words: QueuedWord[], sessionId: string) => void
@@ -64,9 +63,6 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
   // Removed loadTodaysCards - now handled by parent component
 
   const groupCardsByPriority = (cards: Array<Word & { lastReview?: Review }>): GroupedCards => {
-    // Use UTC date-only strings to avoid timezone skew and match server logic
-    const todayStr = new Date().toISOString().split('T')[0]
-
     const overdue: Array<Word & { lastReview?: Review }> = []
     const dueToday: Array<Word & { lastReview?: Review }> = []
     const newWords: Array<Word & { lastReview?: Review }> = []
@@ -75,9 +71,9 @@ export function TodaysCards({ onStartSession, cards, isLoading, className }: Tod
       if (!card.lastReview) {
         newWords.push(card)
       } else if (card.lastReview.due_date) {
-        const dueDateStr = new Date(card.lastReview.due_date).toISOString().split('T')[0]
-        if (dueDateStr < todayStr) overdue.push(card)
-        else if (dueDateStr === todayStr) dueToday.push(card)
+        const dueClassification = classifyDueDate(card.lastReview.due_date)
+        if (dueClassification === 'overdue') overdue.push(card)
+        else if (dueClassification === 'due_today') dueToday.push(card)
       }
     })
 

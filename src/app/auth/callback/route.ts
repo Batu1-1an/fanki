@@ -8,8 +8,10 @@ export async function GET(request: NextRequest) {
   const origin = requestUrl.origin
   const redirectTo = requestUrl.searchParams.get('redirect_to')?.toString()
 
+  const safeRedirectUrl = getSafeRedirectUrl(redirectTo, `${origin}/dashboard`)
+  const response = NextResponse.redirect(safeRedirectUrl)
+
   if (code) {
-    const response = NextResponse.next()
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -35,16 +37,13 @@ export async function GET(request: NextRequest) {
       
       if (error) {
         console.error('Auth callback error:', error)
-        return NextResponse.redirect(`${origin}/auth/login?error=${encodeURIComponent(error.message)}`)
+        response.headers.set('location', `${origin}/auth/login?error=${encodeURIComponent(error.message)}`)
       }
     } catch (error) {
       console.error('Auth callback exception:', error)
-      return NextResponse.redirect(`${origin}/auth/login?error=Authentication failed`)
+      response.headers.set('location', `${origin}/auth/login?error=Authentication failed`)
     }
   }
 
-  // URL to redirect to after sign up process completes
-  // Use secure redirect validation to prevent open redirect vulnerability
-  const safeRedirectUrl = getSafeRedirectUrl(redirectTo, `${origin}/dashboard`)
-  return NextResponse.redirect(safeRedirectUrl)
+  return response
 }
