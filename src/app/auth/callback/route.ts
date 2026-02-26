@@ -9,7 +9,8 @@ export async function GET(request: NextRequest) {
   const redirectTo = requestUrl.searchParams.get('redirect_to')?.toString()
 
   const safeRedirectUrl = getSafeRedirectUrl(redirectTo, `${origin}/dashboard`)
-  const response = NextResponse.redirect(safeRedirectUrl)
+  const redirectTarget = safeRedirectUrl.startsWith('/') ? `${origin}${safeRedirectUrl}` : safeRedirectUrl
+  const response = NextResponse.redirect(redirectTarget)
 
   if (code) {
     const supabase = createServerClient(

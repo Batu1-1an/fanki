@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 
 describe('Flashcards Library', () => {
   describe('Flashcard Creation', () => {
@@ -31,9 +31,10 @@ describe('Flashcards Library', () => {
     })
 
     it('should get flashcards for study', () => {
+      const now = Date.now()
       const flashcards = [
-        { id: '1', due_date: new Date('2025-01-01') },
-        { id: '2', due_date: new Date('2025-12-31') }
+        { id: '1', due_date: new Date(now - 60_000) },
+        { id: '2', due_date: new Date(now + 86_400_000) }
       ]
       const due = flashcards.filter(f => f.due_date <= new Date())
       expect(due).toHaveLength(1)

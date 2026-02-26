@@ -1,67 +1,40 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { getSafeRedirectUrl, isValidRedirect } from './redirect-utils'
 
 describe('Redirect Utils', () => {
+  beforeEach(() => {
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://fanki.app'
+  })
+
   describe('URL Validation', () => {
     it('should validate internal URLs', () => {
-      const url = '/dashboard'
-      const isInternal = url.startsWith('/')
-      expect(isInternal).toBe(true)
+      expect(isValidRedirect('/dashboard')).toBe(true)
+      expect(isValidRedirect('/dashboard?tab=stats')).toBe(true)
     })
 
     it('should reject external URLs', () => {
-      const url = 'https://evil.com/phishing'
-      const isInternal = url.startsWith('/')
-      expect(isInternal).toBe(false)
+      expect(isValidRedirect('https://evil.com/phishing')).toBe(false)
+      expect(isValidRedirect('javascript:alert(1)')).toBe(false)
     })
 
-    it('should allow whitelisted domains', () => {
-      const whitelist = ['fanki.app', 'localhost']
-      const url = 'https://fanki.app/dashboard'
-      const domain = new URL(url).hostname
-      expect(whitelist).toContain(domain)
+    it('should allow same-origin absolute URLs', () => {
+      expect(isValidRedirect('https://fanki.app/dashboard')).toBe(true)
+      expect(isValidRedirect('https://fanki.app/settings?x=1')).toBe(true)
     })
   })
 
   describe('Safe Redirect', () => {
     it('should return safe URL', () => {
-      const input = '/dashboard'
-      const safe = input.startsWith('/') ? input : '/dashboard'
-      expect(safe).toBe('/dashboard')
+      expect(getSafeRedirectUrl('/dashboard')).toBe('/dashboard')
+      expect(getSafeRedirectUrl('https://fanki.app/dashboard')).toBe('https://fanki.app/dashboard')
     })
 
     it('should default to fallback for unsafe URLs', () => {
-      const input = 'https://evil.com'
-      const fallback = '/dashboard'
-      const safe = input.startsWith('/') ? input : fallback
-      expect(safe).toBe(fallback)
-    })
-  })
-
-  describe('Query Parameter Validation', () => {
-    it('should parse redirect_to parameter', () => {
-      const params = new URLSearchParams('?redirect_to=/profile')
-      const redirectTo = params.get('redirect_to')
-      expect(redirectTo).toBe('/profile')
+      expect(getSafeRedirectUrl('https://evil.com', '/dashboard')).toBe('/dashboard')
     })
 
-    it('should handle missing parameter', () => {
-      const params = new URLSearchParams('')
-      const redirectTo = params.get('redirect_to')
-      expect(redirectTo).toBeNull()
-    })
-  })
-
-  describe('Open Redirect Prevention', () => {
-    it('should block javascript: URLs', () => {
-      const url = 'javascript:alert(1)'
-      const isSafe = url.startsWith('http') || url.startsWith('/')
-      expect(isSafe).toBe(false)
-    })
-
-    it('should block data: URLs', () => {
-      const url = 'data:text/html,<script>alert(1)</script>'
-      const isSafe = url.startsWith('http') || url.startsWith('/')
-      expect(isSafe).toBe(false)
+    it('should fallback to /dashboard when both url and fallback are unsafe', () => {
+      expect(getSafeRedirectUrl('https://evil.com', 'https://other-evil.com')).toBe('/dashboard')
     })
   })
 })
