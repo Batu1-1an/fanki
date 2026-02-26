@@ -1,14 +1,14 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { User } from '@supabase/supabase-js'
 import { Button } from '@/components/ui/button'
 import { StudyStreakTracker } from '@/components/dashboard/StudyStreakTracker'
 import { ReviewDashboard } from '@/components/dashboard/ReviewDashboard'
 import { getWordStats } from '@/lib/words'
-import { getReviewStats, getDueWords } from '@/lib/reviews'
+import { loadDashboardData } from '@/lib/dashboard-data'
 import { ArrowLeft, TrendingUp, Calendar, Target } from 'lucide-react'
-import { classifyDueDate } from '@/lib/date-utils'
 
 interface ProgressClientProps {
   user: User
@@ -38,6 +38,7 @@ interface RecommendedMode {
 }
 
 export default function ProgressClient({ user }: ProgressClientProps) {
+  const router = useRouter()
   const [wordStats, setWordStats] = useState({
     total: 0,
     byDifficulty: {} as Record<number, number>,
@@ -71,52 +72,14 @@ export default function ProgressClient({ user }: ProgressClientProps) {
     setLoading(true)
     setLoadError(null)
     try {
-      const [wordStatsData, dashboardStatsData, dueWordsResp] = await Promise.all([
+      const [wordStatsData, dashboardData] = await Promise.all([
         getWordStats(),
-        getReviewStats(),
-        getDueWords(5000)
+        loadDashboardData('all')
       ])
       setWordStats(wordStatsData)
-      setDashboardStats(dashboardStatsData)
-
-      const cards = dueWordsResp.data || []
-      const counts = cards.reduce((acc, c) => {
-        if (!c.lastReview) acc.newWords++
-        else if (c.lastReview.due_date) {
-          const dueClassification = classifyDueDate(c.lastReview.due_date)
-          if (dueClassification === 'overdue') acc.overdue++
-          else if (dueClassification === 'due_today') acc.dueToday++
-        }
-        return acc
-      }, { overdue: 0, dueToday: 0, newWords: 0 })
-
-      const easeFactors = cards
-        .map(c => c.lastReview?.ease_factor)
-        .filter((ef): ef is number => typeof ef === 'number')
-      const averageDifficulty = easeFactors.length > 0
-        ? Math.round((easeFactors.reduce((s, ef) => s + ef, 0) / easeFactors.length) * 100) / 100
-        : 2.5
-      const globalStats = {
-        total: counts.overdue + counts.dueToday + counts.newWords,
-        overdue: counts.overdue,
-        dueToday: counts.dueToday,
-        newWords: counts.newWords,
-        averageDifficulty
-      }
-      setQueueStats(globalStats)
-
-      // Derive recommendation from global stats
-      let rec: { mode: any; reasoning: string; priority: 'high' | 'medium' | 'low' }
-      if (globalStats.overdue > 10) {
-        rec = { mode: 'overdue_only', reasoning: `You have ${globalStats.overdue} overdue words. Focus on catching up!`, priority: 'high' }
-      } else if (globalStats.dueToday > 20) {
-        rec = { mode: 'review_only', reasoning: `${globalStats.dueToday} words are due today. Focus on reviews first.`, priority: 'medium' }
-      } else if (globalStats.newWords < 5) {
-        rec = { mode: 'mixed', reasoning: 'Good balance of new and review words. Keep up the momentum!', priority: 'low' }
-      } else {
-        rec = { mode: 'mixed', reasoning: 'Balanced study session recommended.', priority: 'low' }
-      }
-      setRecommendedMode(rec)
+      setDashboardStats(dashboardData.dashboardStats)
+      setQueueStats(dashboardData.queueStats)
+      setRecommendedMode(dashboardData.recommendedMode)
     } catch (error) {
       console.error('Failed to load progress dashboard data:', error)
       setLoadError('Could not load progress data. Please try again.')
@@ -146,7 +109,7 @@ export default function ProgressClient({ user }: ProgressClientProps) {
             <div className="flex items-center">
               <Button 
                 variant="ghost" 
-                onClick={() => window.history.back()}
+                onClick={() => router.back()}
                 className="mr-4"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -276,10 +239,10 @@ export default function ProgressClient({ user }: ProgressClientProps) {
           {/* Review Dashboard */}
           <div className="mb-8">
             <ReviewDashboard 
-              onStartSession={(words, sessionId) => {
-                // Navigate to study session
-                window.location.href = `/study?session=${sessionId}`
-              }}
+                onStartSession={(words, sessionId) => {
+                  // Navigate to study session
+                  router.push(`/study?session=${sessionId}`)
+                }}
               stats={dashboardStats}
               queueStats={queueStats}
               recommendedMode={recommendedMode}

@@ -1,4 +1,4 @@
-import { createClientComponentClient } from './supabase'
+import { createClientComponentClient } from './supabase/client'
 import { TablesInsert, TablesUpdate } from '@/types'
 
 const supabase = createClientComponentClient()

@@ -4,9 +4,5 @@
       "maxDuration": 30
     }
   },
-  "env": {
-    "NEXT_PRIVATE_TARGET": "server"
-  },
-  "regions": ["iad1"],
   "outputDirectory": ".next"
 }

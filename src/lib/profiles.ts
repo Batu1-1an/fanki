@@ -1,4 +1,4 @@
-import { createClientComponentClient } from '@/lib/supabase'
+import { createClientComponentClient } from '@/lib/supabase/client'
 import { getCurrentUser } from '@/lib/auth'
 
 export interface UserProfile {

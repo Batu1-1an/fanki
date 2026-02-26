@@ -21,7 +21,7 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import { getStudySessionStats, getStudySessionHistory } from '@/lib/study-sessions'
 import { cn } from '@/lib/utils'
-import { createClientComponentClient } from '@/lib/supabase'
+import { createClientComponentClient } from '@/lib/supabase/client'
 
 interface StreakMilestone {
   days: number

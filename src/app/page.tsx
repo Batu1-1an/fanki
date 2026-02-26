@@ -1,6 +1,3 @@
-'use client'
-
-import { useState } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,12 +9,10 @@ import {
   FileText,
   Image as ImageIcon,
   Layers,
-  Menu,
   Mic,
   Shuffle,
   Sparkles,
   Target,
-  X,
   Zap,
 } from 'lucide-react'
 
@@ -106,8 +101,6 @@ const faqs = [
 ]
 
 export default function Home() {
-  const [mobileOpen, setMobileOpen] = useState(false)
-
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950">
       <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-slate-950/80 backdrop-blur-xl">
@@ -135,50 +128,37 @@ export default function Home() {
             >
               <Link href="/auth/register">Sign Up</Link>
             </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-slate-200 hover:text-white lg:hidden"
-              onClick={() => setMobileOpen((prev) => !prev)}
-              aria-label="Toggle navigation"
-            >
-              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </Button>
           </div>
         </div>
-        {mobileOpen ? (
-          <div className="border-t border-white/10 bg-slate-950/95 lg:hidden">
-            <div className="container mx-auto space-y-4 px-4 py-4">
-              <div className="flex flex-col gap-3">
-                {primaryNav.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMobileOpen(false)}
-                    className="text-slate-200 transition-colors hover:text-white"
-                  >
-                    {item.label}
-                  </Link>
-                ))}
-              </div>
-              <div className="flex flex-col gap-2">
-                <Button variant="ghost" className="text-slate-200 hover:text-white" asChild>
-                  <Link href="/auth/login" onClick={() => setMobileOpen(false)}>
-                    Log in
-                  </Link>
-                </Button>
-                <Button
-                  className="rounded-full bg-gradient-to-r from-orange-500 to-pink-500 font-semibold text-white"
-                  asChild
+        <details className="border-t border-white/10 bg-slate-950/95 lg:hidden">
+          <summary className="list-none cursor-pointer px-4 py-3 text-sm font-medium text-slate-200">
+            Menu
+          </summary>
+          <div className="container mx-auto space-y-4 px-4 py-4">
+            <div className="flex flex-col gap-3">
+              {primaryNav.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="text-slate-200 transition-colors hover:text-white"
                 >
-                  <Link href="/auth/register" onClick={() => setMobileOpen(false)}>
-                    Sign Up
-                  </Link>
-                </Button>
-              </div>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+            <div className="flex flex-col gap-2">
+              <Button variant="ghost" className="text-slate-200 hover:text-white" asChild>
+                <Link href="/auth/login">Log in</Link>
+              </Button>
+              <Button
+                className="rounded-full bg-gradient-to-r from-orange-500 to-pink-500 font-semibold text-white"
+                asChild
+              >
+                <Link href="/auth/register">Sign Up</Link>
+              </Button>
             </div>
           </div>
-        ) : null}
+        </details>
       </header>
 
       <main className="flex-1">

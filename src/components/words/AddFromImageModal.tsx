@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { createWord } from '@/lib/words'
 import { addWordToDesk, getDefaultDesk } from '@/lib/desks'
 import { useAuth } from '@/hooks/useAuth'
-import { createClientComponentClient } from '@/lib/supabase'
+import { createClientComponentClient } from '@/lib/supabase/client'
 import { Word } from '@/types'
 
 interface ExtractedWord {

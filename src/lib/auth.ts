@@ -1,4 +1,4 @@
-import { createClientComponentClient, createServerComponentClient, supabase } from '@/lib/supabase'
+import { createClientComponentClient } from '@/lib/supabase/client'
 import { type User } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 
@@ -15,6 +15,7 @@ export async function getCurrentUser(): Promise<User | null> {
  * Get the current user from the session (server-side)
  */
 export async function getCurrentUserServer(): Promise<User | null> {
+  const { createServerComponentClient } = await import('@/lib/supabase/server')
   const supabaseClient = await createServerComponentClient()
   const { data: { user }, error } = await supabaseClient.auth.getUser()
 

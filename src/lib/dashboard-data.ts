@@ -1,4 +1,4 @@
-import { createClientComponentClient } from './supabase'
+import { createClientComponentClient } from './supabase/client'
 import { getReviewStats, getDueWordCounts } from './reviews'
 import { getStudySessionHistory } from './study-sessions'
 

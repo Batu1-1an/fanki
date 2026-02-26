@@ -1,12 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
 import { QueuedWord, generateStudySession } from '@/lib/queue-manager'
 import { loadDashboardData } from '@/lib/dashboard-data'
 import { getActiveStudySession } from '@/lib/study-sessions'
 import { getUserDesks } from '@/lib/desks'
-import { StudySession } from '../flashcards/StudySession'
 import { LearningPathCard } from './LearningPathCard'
 import { NextStepCard } from './NextStepCard'
 import { QueueBreakdownCard } from './QueueBreakdownCard'
@@ -19,6 +19,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { toLocalDateKey } from '@/lib/date-utils'
+
+const StudySession = dynamic(
+  () => import('../flashcards/StudySession').then(mod => ({ default: mod.StudySession })),
+  { loading: () => <div className="h-96 animate-pulse rounded-lg bg-muted" /> }
+)
 
 interface ModernDashboardProps {
   className?: string

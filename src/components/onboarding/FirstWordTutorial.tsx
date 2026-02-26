@@ -15,8 +15,6 @@ export default function FirstWordTutorial({ isOpen, onClose, onComplete }: First
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
   const modalRef = useRef<HTMLDivElement>(null)
 
-  if (!isOpen) return null
-
   const steps = [
     {
       title: "Let's add your first word! 🌟",
@@ -114,6 +112,8 @@ export default function FirstWordTutorial({ isOpen, onClose, onComplete }: First
       onComplete()
     }
   }
+
+  if (!isOpen) return null
 
   return (
     <>

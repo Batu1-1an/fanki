@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createServerComponentClient } from '@/lib/supabase'
+import Link from 'next/link'
+import { createServerComponentClient } from '@/lib/supabase/server'
 import WordManagementDashboard from '@/components/words/WordManagementDashboard'
 
 export default async function WordsPage() {
@@ -18,9 +19,9 @@ export default async function WordsPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <a href="/dashboard" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
+              <Link href="/dashboard" className="text-blue-600 hover:text-blue-700 text-sm font-medium">
                 ← Back to Dashboard
-              </a>
+              </Link>
               <h1 className="text-2xl font-bold text-gray-900 mt-2">My Words</h1>
               <p className="text-gray-600">
                 Manage your vocabulary collection

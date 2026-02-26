@@ -1,20 +1,28 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { User } from '@supabase/supabase-js'
 import { useOnboarding } from '@/hooks/useOnboarding'
-import { getWordStats } from '@/lib/words'
 import WelcomeTour from '@/components/onboarding/WelcomeTour'
 import OnboardingPreferences from '@/components/onboarding/OnboardingPreferences'
 import FirstWordTutorial from '@/components/onboarding/FirstWordTutorial'
 import AddWordModal from '@/components/words/AddWordModal'
-import { StudySessionDashboard } from '@/components/dashboard/StudySessionDashboard'
-import { ModernDashboard } from '@/components/dashboard/ModernDashboard'
 import { DashboardLayout } from '@/components/layout/DashboardLayout'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { QueuedWord } from '@/lib/queue-manager'
 import { Sparkles, LayoutDashboard } from 'lucide-react'
+
+const ModernDashboard = dynamic(
+  () => import('@/components/dashboard/ModernDashboard').then(mod => ({ default: mod.ModernDashboard })),
+  { loading: () => <div className="h-96 animate-pulse rounded-lg bg-muted" /> }
+)
+
+const StudySessionDashboard = dynamic(
+  () => import('@/components/dashboard/StudySessionDashboard').then(mod => ({ default: mod.StudySessionDashboard })),
+  { loading: () => <div className="h-96 animate-pulse rounded-lg bg-muted" /> }
+)
 
 interface DashboardClientProps {
   user: User
@@ -39,12 +47,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
     words: QueuedWord[]
     sessionId: string
   } | null>(null)
-  const [wordStats, setWordStats] = useState({
-    total: 0,
-    byDifficulty: {} as Record<number, number>,
-    byCategory: {} as Record<string, number>,
-    recentCount: 0
-  })
   const [useModernDashboard, setUseModernDashboard] = useState(true)
   const [preferencesError, setPreferencesError] = useState<string | null>(null)
   const [isSavingPreferences, setIsSavingPreferences] = useState(false)
@@ -67,22 +69,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
       localStorage.setItem('fanki-dashboard-view', newValue ? 'modern' : 'classic')
     }
   }
-
-  // Load word statistics (now optimized with database function)
-  useEffect(() => {
-    const loadWordStats = async () => {
-      try {
-        const stats = await getWordStats()
-        setWordStats(stats)
-      } catch (error) {
-        console.error('Failed to load word stats:', error)
-      }
-    }
-    
-    if (!loading) {
-      loadWordStats()
-    }
-  }, [loading])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -158,16 +144,6 @@ export default function DashboardClient({ user }: DashboardClientProps) {
   }
 
   const handleWordAdded = () => {
-    // Reload word stats after adding a word
-    const loadWordStats = async () => {
-      try {
-        const stats = await getWordStats()
-        setWordStats(stats)
-      } catch (error) {
-        console.error('Failed to reload word stats:', error)
-      }
-    }
-    loadWordStats()
     markFirstWordAdded()
   }
 

@@ -1,4 +1,4 @@
-import { createClientComponentClient } from './supabase'
+import { createClientComponentClient } from './supabase/client'
 import { QueuedCard, ReviewCard, CardReviewStatus } from '@/types'
 import { getDueCards } from './reviews'
 import { aiService } from './ai-services'

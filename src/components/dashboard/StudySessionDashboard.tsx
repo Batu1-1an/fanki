@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -24,12 +25,11 @@ import { TodaysCards } from './TodaysCards'
 import { ReviewDashboard } from './ReviewDashboard'
 import { StudyStreakTracker } from './StudyStreakTracker'
 import { QueuedWord, generateStudySession } from '@/lib/queue-manager'
-import { 
-  getActiveStudySession, 
+import {
+  getActiveStudySession,
   getStudySessionHistory, 
   getStudySessionStats 
 } from '@/lib/study-sessions'
-import { StudySession } from '../flashcards/StudySession'
 import { getDueWords } from '@/lib/reviews'
 import { Word, Review } from '@/types'
 import { cn } from '@/lib/utils'
@@ -37,6 +37,11 @@ import { ExtendedStudySession, SessionStatus } from '@/types/study-sessions'
 import { Skeleton } from '@/components/ui/skeleton'
 import { loadDashboardData, refreshQueueStats, refreshSessionHistory } from '@/lib/dashboard-data'
 import { classifyDueDate } from '@/lib/date-utils'
+
+const StudySession = dynamic(
+  () => import('../flashcards/StudySession').then(mod => ({ default: mod.StudySession })),
+  { loading: () => <div className="h-96 animate-pulse rounded-lg bg-muted" /> }
+)
 
 interface StudySessionDashboardProps {
   className?: string

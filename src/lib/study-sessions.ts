@@ -1,4 +1,4 @@
-import { createClientComponentClient } from './supabase'
+import { createClientComponentClient } from './supabase/client'
 import { StudySession, SessionType, TablesInsert, TablesUpdate } from '@/types'
 import { ExtendedStudySession, ExtendedStudySessionInsert, ExtendedStudySessionUpdate, SessionStatus } from '@/types/study-sessions'
 

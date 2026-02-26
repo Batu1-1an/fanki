@@ -1,4 +1,4 @@
-import { createClientComponentClient } from './supabase'
+import { createClientComponentClient } from './supabase/client'
 import { FlashcardSentence } from '@/types'
 import { PRIMARY_BLANK_TOKEN, getBlankPosition } from './flashcard-text'
 

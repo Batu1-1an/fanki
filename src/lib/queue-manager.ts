@@ -1,6 +1,6 @@
-import { createClientComponentClient } from './supabase'
+import { createClientComponentClient } from './supabase/client'
 import { Word, Review, FlashcardWithWord, WordStatus, LEARNING_STEPS } from '@/types'
-import { getDueWords, getWordProgress, getLearningWords } from './reviews'
+import { getDueWords, getDueWordCounts, getWordProgress, getLearningWords } from './reviews'
 import { getUserFlashcards } from './flashcards'
 import { getDeskWords } from './desks'
 import { getUserWords } from './words'
@@ -273,15 +273,6 @@ export class ReviewQueueManager {
         ...(learningResult.data || []),
         ...(dueWordsResult.data || []).filter(word => !learningWordIds.has(word.id))
       ]
-
-      // Filter by desk if specified - apply to words before enrichment for efficiency
-      if (deskId && deskId !== 'all') {
-        const { data: deskWords } = await getDeskWords(deskId, 5000)
-        if (deskWords) {
-          const deskWordIds = new Set(deskWords.map((w: any) => w.id))
-          allWords = allWords.filter(word => deskWordIds.has(word.id))
-        }
-      }
 
       // Filter to specific word IDs when provided (custom sessions)
       if (wordIds && wordIds.length > 0) {
@@ -578,6 +569,7 @@ export async function generateStudySession(options: QueueOptions = {}): Promise<
   try {
     const queueManager = getQueueManager()
     let { queue, error, userId } = await queueManager.generateQueue(options)
+    const generatedQueueWasEmpty = queue.length === 0
 
     if (error) {
       return { words: [], sessionId: '', estimatedTimeMinutes: 0, error }
@@ -642,7 +634,7 @@ export async function generateStudySession(options: QueueOptions = {}): Promise<
     }
 
     // Ensure fallback queues get initial content if needed
-    if (queue.length > 0 && userId) {
+    if (generatedQueueWasEmpty && queue.length > 0 && userId) {
       const updates = await prefetchInitialContentForWords(queue, userId)
       if (updates.size > 0) {
         queue = queue.map(word => {
@@ -687,8 +679,17 @@ export async function getRecommendedStudyMode(): Promise<{
   priority: 'high' | 'medium' | 'low'
 }> {
   try {
-    const queueManager = getQueueManager()
-    const { stats } = await queueManager.generateQueue({ maxWords: 100 })
+    const counts = await getDueWordCounts()
+
+    if (counts.error) {
+      throw counts.error
+    }
+
+    const stats = {
+      overdue: counts.overdue,
+      dueToday: counts.dueToday,
+      newWords: counts.newWords
+    }
 
     if (stats.overdue > 10) {
       return {

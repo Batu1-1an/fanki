@@ -45,6 +45,12 @@ export default function StudyClient() {
     }
   }, [authLoading, user])
 
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/auth/login')
+    }
+  }, [authLoading, user, router])
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -54,7 +60,6 @@ export default function StudyClient() {
   }
 
   if (!user) {
-    router.push('/auth/login')
     return null
   }
 

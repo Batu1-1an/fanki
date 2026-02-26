@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { User } from '@supabase/supabase-js'
-import { createClientComponentClient } from '@/lib/supabase'
+import { createClientComponentClient } from '@/lib/supabase/client'
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null)
