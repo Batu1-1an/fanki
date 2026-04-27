@@ -1,298 +1,187 @@
-# 📚 Fanki - Modern Flashcard Learning App
+<div align="center">
+  <h1>📚 Fanki</h1>
+  <p><strong>Smart flashcards powered by spaced repetition & AI</strong></p>
 
-A powerful spaced repetition flashcard application built with Next.js, React, and Supabase. Fanki helps you learn and retain information efficiently using the SM-2 algorithm.
+  <p>
+    <img src="https://img.shields.io/badge/Next.js-15.5.3-000000?logo=next.js&logoColor=white" alt="Next.js" />
+    <img src="https://img.shields.io/badge/React-19.1.1-61DAFB?logo=react&logoColor=white" alt="React" />
+    <img src="https://img.shields.io/badge/TypeScript-5.6.2-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
+    <img src="https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase&logoColor=white" alt="Supabase" />
+    <img src="https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind" />
+    <img src="https://img.shields.io/badge/Vitest-6E9F18?logo=vitest&logoColor=white" alt="Vitest" />
+    <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" />
+  </p>
+</div>
 
-![Next.js](https://img.shields.io/badge/Next.js-15.5.3-black) ![React](https://img.shields.io/badge/React-19.1.1-blue) ![TypeScript](https://img.shields.io/badge/TypeScript-5.6.2-blue) ![Supabase](https://img.shields.io/badge/Supabase-Latest-green)
+---
 
 ## ✨ Features
 
-- 🧠 **Spaced Repetition**: SM-2 algorithm for optimal learning
-- 🎴 **Multiple Card Types**: Basic, Cloze, Reverse, Typing, and Image Occlusion
-- 🤖 **AI-Powered Content**: Generate sentences, images, and pronunciation audio
-- 📊 **Progress Tracking**: Detailed statistics and learning insights
-- 📚 **Deck Organization**: Organize cards into custom desks (decks)
-- ⚡ **Performance Optimized**: Chunked pre-fetching for instant card transitions
-- 🎨 **Modern UI**: Beautiful, responsive design with smooth animations
-- 🔒 **Secure**: Row-level security with Supabase
+| Icon | Feature | Description |
+|------|---------|-------------|
+| 🧠 | **SM-2 Spaced Repetition** | Optimal scheduling algorithm proven by decades of learning science |
+| 🎴 | **Multiple Card Types** | Basic, Cloze, Typing, Reverse, and Image Occlusion |
+| 🤖 | **AI-Powered Content** | Auto-generate sentences, images, mnemonics, and audio via Gemini & ElevenLabs |
+| 📊 | **Progress Tracking** | Detailed analytics, study streaks, and learning path visualization |
+| 📂 | **Desk Organization** | Group cards into desks for focused study sessions |
+| ⚡ | **Chunked Prefetching** | Instant card transitions with intelligent background loading |
+| 🎨 | **Modern UI** | Polished, responsive design with smooth framer-motion animations |
+| 🔒 | **RLS Security** | Row-level security via Supabase for data isolation |
+| 🔑 | **OAuth + Email Auth** | Google sign-in or email/password authentication |
+| 🌄 | **Unsplash Integration** | Contextual imagery to reinforce vocabulary retention |
+
+---
+
+## 🏗 Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                         Browser                                  │
+│  ┌──────────┐  ┌──────────────┐  ┌───────────────────────────┐  │
+│  │  Auth UI  │  │  Dashboard   │  │     Study Session         │  │
+│  │  (Login/  │  │  (Stats,     │  │  ┌─────────────────────┐  │  │
+│  │   Signup) │  │   Streaks)   │  │  │ Card Renderer       │  │  │
+│  └────┬─────┘  └──────┬───────┘  │  │ ┌───┐ ┌───┐ ┌───┐   │  │  │
+│       │               │          │  │ │ B │ │ C │ │ T │   │  │  │
+│       ▼               ▼          │  │ │ a │ │ l │ │ y │   │  │  │
+│  ┌───────────────────────────────────────┤ │ s │ │ o │ │ p │   │  │  │
+│  │        Next.js App Router             │ │ i │ │ z │ │ e │   │  │  │
+│  │  (RSC + API Routes + Middleware)      │ │ c │ │ e │ │   │   │  │  │
+│  └──────────────┬──────────────────────┘  │ └───┘ └───┘ └───┘   │  │  │
+│                 │                          └─────────────────────┘  │  │
+│                 ▼                          ┌──────────────────┐    │  │
+│    ┌──────────────────────┐               │  Review Queue     │    │  │
+│    │   Supabase Client    │◄──────────────┤  Manager (SM-2)   │    │  │
+│    │   @supabase/ssr      │               └──────────────────┘    │  │
+│    └──────────┬───────────┘                                        │  │
+└───────────────┼────────────────────────────────────────────────────┘
+                │
+                ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                      Supabase Backend                            │
+│  ┌──────────────┐  ┌─────────────────┐  ┌────────────────────┐  │
+│  │  PostgreSQL   │  │  Edge Functions │  │    Storage         │  │
+│  │  (SM-2 data,  │  │  (Gemini,       │  │  (Flashcard images │  │
+│  │   reviews,    │  │   ElevenLabs,   │  │   & audio)         │  │
+│  │   users)      │  │   Unsplash)    │  │                    │  │
+│  └──────────────┘  └─────────────────┘  └────────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
+
+        ┌──────────────┐     ┌────────────────┐     ┌───────────────┐
+        │  Google      │     │  ElevenLabs     │     │  Unsplash     │
+        │  Gemini AI   │─────│  Text-to-Speech │─────│  Image Search │
+        └──────────────┘     └────────────────┘     └───────────────┘
+```
+
+### Study Flow
+
+```
+Login → Dashboard (due counts, streak) → Start Session
+  → Queue Manager (overdue > due > new > future)
+  → Prefetch Chunk → Render Card → Review (Again/Hard/Good/Easy)
+  → SM-2 Recalculate → Save Review → Next Card
+  → Session Complete → Dashboard Refresh
+```
+
+---
 
 ## 🚀 Quick Start
 
-### Prerequisites
+```bash
+# Clone & install
+git clone https://github.com/yourusername/fanki.git
+cd fanki
+npm install
 
-- Node.js 18+ installed
-- npm or yarn package manager
-- Supabase account ([sign up free](https://supabase.com))
+# Configure environment
+cp .env.example .env.local
+# Edit .env.local with your Supabase credentials
 
-### Installation
+# Set up Supabase
+npx supabase link --project-ref your-project-ref
+npx supabase db push
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/fanki.git
-   cd fanki
-   ```
+# Deploy Edge Functions (for AI features)
+npx supabase secrets set GEMINI_API_KEY=your_gemini_key
+npx supabase secrets set ELEVENLABS_API_KEY=your_elevenlabs_key
+npx supabase secrets set UNSPLASH_ACCESS_KEY=your_unsplash_key
+npx supabase functions deploy
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+# Start dev server
+npm run dev
+```
 
-3. **Set up environment variables**
-   
-   Copy the example environment file:
-   ```bash
-   cp .env.example .env.local
-   ```
-   
-   Edit `.env.local` and add your Supabase credentials:
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   NEXT_PUBLIC_APP_URL=http://localhost:3000
-   NEXT_PUBLIC_SITE_URL=http://localhost:3000
-   ```
+Open [http://localhost:3000](http://localhost:3000).
 
-4. **Set up Supabase**
-   
-   The database migrations are in `supabase/migrations/`. You can apply them using the Supabase CLI:
-   ```bash
-   npx supabase link --project-ref your-project-ref
-   npx supabase db push
-   ```
-   
-   Or manually apply the migrations in your Supabase dashboard.
-
-5. **Set up Edge Functions**
-   
-   Deploy the edge functions for AI features:
-   ```bash
-   # Set your API keys as secrets
-   npx supabase secrets set GEMINI_API_KEY=your_gemini_key
-   npx supabase secrets set ELEVENLABS_API_KEY=your_elevenlabs_key
-   npx supabase secrets set UNSPLASH_ACCESS_KEY=your_unsplash_key
-   
-   # Deploy functions
-   npx supabase functions deploy
-   ```
-
-6. **Run the development server**
-   ```bash
-   npm run dev
-   ```
-   
-   Open [http://localhost:3000](http://localhost:3000) in your browser.
+---
 
 ## 🧪 Testing
 
-Run tests with Vitest:
-
 ```bash
-# Run all tests
-npm test
-
-# Run tests with UI
-npm run test:ui
-
-# Run tests with coverage
-npm run test:coverage
+npm test           # Run all tests
+npm run test:ui    # Vitest UI mode
+npm run test:coverage  # With coverage report
 ```
 
-## 📖 Usage
+---
 
-### Creating Your First Card
-
-1. Sign up or log in to your account
-2. Click "Add Word" in the dashboard
-3. Enter the word, definition, and any additional information
-4. Choose a card type (Basic, Cloze, etc.)
-5. Click "Save"
-
-### Studying Cards
-
-1. Go to the Dashboard
-2. Click "Start Study Session"
-3. Review cards using the 4-button system:
-   - **Again**: Completely forgot
-   - **Hard**: Difficult to recall
-   - **Good**: Recalled with minor difficulty
-   - **Easy**: Perfect recall
-
-## 🔄 Application Flow
-
-This is the end-to-end runtime flow used by the app:
-
-1. **Login and callback**
-   - User signs in with email or OAuth.
-   - `/auth/callback` exchanges provider code for Supabase session.
-   - Session cookies are written on the redirect response and user is sent to dashboard.
-
-2. **Dashboard and queue preparation**
-   - Dashboard loads due/new counts, streak, and recent study stats.
-   - If a desk is selected, queue and counters are scoped to that desk.
-   - Queue manager prioritizes cards as: `overdue -> due_today -> new -> future`.
-
-3. **Session start and prefetch**
-   - Study session is created in DB (`study_sessions`).
-   - Initial chunk is prefetched so first cards appear immediately.
-   - Missing sentence/image content can be generated in background via Edge Functions.
-
-4. **Review loop (core learning cycle)**
-   - User answers card with `Again/Hard/Good/Easy`.
-   - Review is saved to `reviews` with response time, quality, and status transition.
-   - Scheduling is recalculated (learning/relearning/review phases + SM-2 parameters).
-   - Session counters update in real time (studied, correct, total reviews, accuracy).
-
-5. **Completion and feedback**
-   - When queue is done, session is completed and duration/accuracy are persisted.
-   - Dashboard refreshes with updated due counts and progress data.
-
-### Sequence Overview
-
-```
-login -> /auth/callback -> session cookie set -> /dashboard
-      -> generate queue (desk-aware) -> start study session
-      -> render card -> review submit -> save review -> recalculate due date
-      -> next card ... -> complete session -> refresh dashboard/progress
-```
-
-### Organizing with Desks
-
-1. Create a new desk from the Desk Manager
-2. Assign words to desks
-3. Filter your study sessions by desk
-
-## 🏗️ Architecture
-
-### Tech Stack
-
-- **Frontend**: Next.js 15 (App Router), React 19, TypeScript
-- **Styling**: Tailwind CSS, Shadcn/ui components
-- **Backend**: Supabase (PostgreSQL + Edge Functions)
-- **AI Services**: Google Gemini, ElevenLabs, Unsplash
-- **Testing**: Vitest, Testing Library
-
-### Project Structure
+## 📁 Project Structure
 
 ```
 fanki/
 ├── src/
-│   ├── app/              # Next.js app router pages
-│   ├── components/       # React components
-│   │   ├── cards/        # Card renderer components
-│   │   ├── dashboard/    # Dashboard components
-│   │   ├── flashcards/   # Study session components
-│   │   ├── ui/           # Shadcn UI components
-│   │   └── words/        # Word management components
-│   ├── lib/              # Business logic & API functions
-│   ├── types/            # TypeScript type definitions
-│   ├── utils/            # Utility functions (SM-2, etc.)
-│   └── test/             # Test setup and utilities
+│   ├── app/                    # Next.js App Router pages & API routes
+│   │   ├── api/                # Route handlers (flashcards, reviews, etc.)
+│   │   ├── auth/               # Login, register, callback
+│   │   ├── dashboard/          # Main dashboard & progress
+│   │   ├── study/              # Study session page
+│   │   ├── flashcards/         # Demo & flashcard views
+│   │   ├── profile/            # User profile
+│   │   └── settings/           # App settings
+│   ├── components/
+│   │   ├── cards/              # Card renderers (Cloze, Typing)
+│   │   ├── dashboard/          # Dashboard widgets
+│   │   ├── flashcards/         # Study session components
+│   │   ├── layout/             # Sidebar, nav layout
+│   │   ├── onboarding/         # Tutorial & first-run
+│   │   ├── ui/                 # shadcn/ui primitives
+│   │   └── words/              # Word management UI
+│   ├── lib/                    # Business logic & API clients
+│   │   └── supabase/           # Client & server wrappers
+│   ├── hooks/                  # React hooks (useAuth, useOnboarding)
+│   ├── types/                  # TypeScript definitions
+│   ├── utils/                  # SM-2 algorithm, helpers
+│   └── test/                   # Test setup
 ├── supabase/
-│   ├── functions/        # Edge functions
-│   └── migrations/       # Database migrations
-├── docs/                 # Documentation
-└── public/              # Static assets
+│   └── functions/              # Edge Functions (AI, images, audio)
+├── docs/                       # Documentation
+├── public/                     # Static assets
+├── .github/                    # CI/CD workflows
+└── plan/                       # Planning docs (internal)
 ```
-
-### Database Schema
-
-The application uses a flexible card-based system:
-
-- **note_types**: Card type definitions (basic, cloze, etc.)
-- **card_templates**: Templates for rendering cards
-- **notes**: User-created content (words, phrases, etc.)
-- **cards**: Individual reviewable items with SM-2 scheduling
-- **reviews**: Review history and performance tracking
-- **desks**: Organization/deck system
-- **words**: Legacy word system (migrated to cards)
-
-## 🔧 Configuration
-
-### SM-2 Algorithm Parameters
-
-The spaced repetition algorithm can be configured in `src/types/index.ts`:
-
-```typescript
-export const LEARNING_STEPS = [1, 10] // Minutes: 1 min, 10 min
-export const GRADUATION_INTERVAL = 1 // Days after graduation
-```
-
-### Performance Settings
-
-Chunked pre-fetching settings in `src/lib/queue-manager.ts`:
-
-```typescript
-const INITIAL_CHUNK_SIZE = 2 // Cards to fetch immediately
-const CHUNK_SIZE = 10        // Background chunk size
-const PREFETCH_THRESHOLD = 3 // When to fetch next chunk
-```
-
-## 🌐 Deployment
-
-### Vercel (Recommended)
-
-1. Push your code to GitHub
-2. Import project in Vercel
-3. Add environment variables in Vercel dashboard
-4. Deploy
-
-### Other Platforms
-
-The app can be deployed to any platform supporting Next.js:
-
-- Netlify
-- AWS Amplify
-- Railway
-- Render
-
-Make sure to set all environment variables in your deployment platform.
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Write tests for new features
-- Follow the existing code style
-- Update documentation as needed
-- Ensure all tests pass before submitting PR
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [SuperMemo SM-2 Algorithm](https://www.supermemo.com/en/archives1990-2015/english/ol/sm2)
-- [Anki](https://apps.ankiweb.net/) for inspiration
-- [Shadcn/ui](https://ui.shadcn.com/) for beautiful components
-- [Supabase](https://supabase.com/) for backend infrastructure
-
-## 📧 Support
-
-For questions or issues:
-
-- Open an issue on GitHub
-- Check the [documentation](./docs)
-- Join our Discord community
-
-## 🗺️ Roadmap
-
-- [ ] Mobile app (React Native)
-- [ ] Collaborative decks
-- [ ] Public deck marketplace
-- [ ] Advanced analytics dashboard
-- [ ] Voice recognition for pronunciation
-- [ ] Offline mode with service workers
-- [ ] Custom card templates
-- [ ] Import/export from Anki
 
 ---
 
-**Built with ❤️ by the Fanki team**
+## 🛠 Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Framework** | Next.js 15 (App Router) |
+| **UI Library** | React 19, TypeScript |
+| **Styling** | Tailwind CSS, shadcn/ui |
+| **Backend** | Supabase (PostgreSQL, Edge Functions) |
+| **Auth** | Supabase Auth (email + Google OAuth) |
+| **AI** | Google Gemini, ElevenLabs TTS, Unsplash API |
+| **Testing** | Vitest, Testing Library, jsdom |
+| **Animations** | Framer Motion |
+| **Algorithm** | SM-2 Spaced Repetition |
+
+---
+
+## 📄 License
+
+MIT — see [LICENSE](LICENSE).
+
+---
+
+<p align="center"><strong>Built with ❤️ for lifelong learners</strong></p>

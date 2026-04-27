@@ -16,8 +16,9 @@
 /.vercel
 
 # Environment variables
-.env*.local
-!/.env.production.local
+.env
+.env.local
+.env.*.local
 
 # TypeScript
 *.tsbuildinfo
@@ -26,6 +27,11 @@ next-env.d.ts
 # Misc
 .DS_Store
 *.pem
+*.key
+*.cert
+
+# IDE & local config
+.roo/
 
 # VSCode
 .vscode/

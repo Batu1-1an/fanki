@@ -7,7 +7,6 @@ const nextConfig = {
   },
   images: {
     domains: [
-      'razvummhayqnswnabnxk.supabase.co',
       'via.placeholder.com'
     ],
     remotePatterns: [
