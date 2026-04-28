@@ -1,14 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   experimental: {
     serverActions: {
       allowedOrigins: ['localhost:3000', '*.vercel.app'],
     },
   },
   images: {
-    domains: [
-      'via.placeholder.com'
-    ],
     remotePatterns: [
       {
         protocol: 'https',
@@ -20,8 +18,14 @@ const nextConfig = {
         protocol: 'https',
         hostname: 'placehold.co',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
     ],
   },
+  poweredByHeader: false,
+  reactStrictMode: true,
 };
 
 export default nextConfig;
