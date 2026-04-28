@@ -99,7 +99,7 @@ describe('Flashcards API Routes', () => {
       const now = new Date()
       const flashcards = [
         { id: '1', due_date: new Date('2025-01-01') },
-        { id: '2', due_date: new Date('2025-12-31') }
+        { id: '2', due_date: new Date('2027-12-31') }
       ]
       
       const due = flashcards.filter(f => f.due_date <= now)

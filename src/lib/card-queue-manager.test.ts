@@ -13,7 +13,7 @@ describe('Card Queue Manager', () => {
     it('should filter by due date', () => {
       const cards = [
         { id: '1', due_date: new Date('2025-01-01') },
-        { id: '2', due_date: new Date('2025-12-31') }
+        { id: '2', due_date: new Date('2027-12-31') }
       ]
       const due = cards.filter(c => c.due_date <= new Date())
       expect(due).toHaveLength(1)

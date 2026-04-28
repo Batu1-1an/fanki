@@ -23,7 +23,7 @@ describe('Words API Routes', () => {
         definition: 'definition'
       }
       
-      const isValid = wordData.word && wordData.definition
+      const isValid = !!(wordData.word && wordData.definition)
       expect(isValid).toBe(true)
     })
 
@@ -214,7 +214,7 @@ describe('Words API Routes', () => {
 
     it('should validate update data', () => {
       const updates = { definition: '' }
-      const isValid = !updates.definition || updates.definition.trim().length > 0
+      const isValid = !!updates.definition && updates.definition.trim().length > 0
       
       expect(isValid).toBe(false)
     })
