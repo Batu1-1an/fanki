@@ -228,12 +228,14 @@ export class AIService {
   ) {
     try {
       // First, get or create the word record
-      const { data: wordRecord, error: wordError } = await this.supabase
+      const wordQuery = await this.supabase
         .from('words')
         .select('id')
         .eq('word', word.toLowerCase())
         .eq('user_id', userId)
         .single()
+      let { data: wordRecord } = wordQuery
+      const { error: wordError } = wordQuery
 
       if (wordError && wordError.code !== 'PGRST116') { // PGRST116 is "not found" error
         console.error('Error fetching word:', wordError)
