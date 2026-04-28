@@ -9,7 +9,8 @@
     <img src="https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase&logoColor=white" alt="Supabase" />
     <img src="https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind" />
     <img src="https://img.shields.io/badge/Vitest-6E9F18?logo=vitest&logoColor=white" alt="Vitest" />
-    <img src="https://img.shields.io/github/actions/workflow/status/Batu1-1an/fanki/ci.yml?branch=main&logo=github&label=CI" alt="CI" />
+     <img src="https://img.shields.io/github/actions/workflow/status/Batu1-1an/fanki/ci.yml?branch=main&logo=github&label=CI" alt="CI" />
+     <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white" alt="Docker" />
     <img src="https://img.shields.io/badge/license-MIT-blue?logo=open-source-initiative" alt="MIT License" />
   </p>
 </div>
@@ -114,15 +115,37 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+### Docker
+
+```bash
+docker build -t fanki .
+docker run -p 3000:3000 --env-file .env.local fanki
+```
+
 ---
 
 ## 🧪 Testing
+
+**`680 / 680` tests passing** — CI enforces a green pipeline on every PR.
 
 ```bash
 npm test           # Run all tests
 npm run test:ui    # Vitest UI mode
 npm run test:coverage  # With coverage report
 ```
+
+---
+
+## 🆕 Recent Improvements
+
+| Change | Description |
+|--------|-------------|
+| 🐳 **Docker Support** | Multi-stage Dockerfile for optimized production images |
+| ✅ **680 / 680 Tests** | Fixed stale dates and boolean coercion — suite fully green |
+| 📋 **Changelog** | `CHANGELOG.md` tracks all notable changes per release |
+| 📂 **Contributing** | `CONTRIBUTING.md` moved to repo root for visibility |
+| ⚙️ **Production Configs** | Hardened `tsconfig`, `next.config.mjs`, and `.eslintrc.json` |
+| 🛡️ **CI Badge** | Build status visible at the top of the README |
 
 ---
 
@@ -157,6 +180,8 @@ fanki/
 │   └── functions/              # Edge Functions (AI, images, audio)
 ├── docs/                       # Documentation
 ├── public/                     # Static assets
+├── Dockerfile                  # Multi-stage production build
+├── .dockerignore               # Docker context exclusions
 ├── .github/                    # CI/CD workflows
 └── plan/                       # Planning docs (internal)
 ```
