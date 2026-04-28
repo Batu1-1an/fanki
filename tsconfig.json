@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "target": "ES2017",
     "lib": [
       "dom",
       "dom.iterable",
@@ -16,6 +17,9 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,
+    "noFallthroughCasesInSwitch": true,
+    "allowImportingTsExtensions": false,
+    "forceConsistentCasingInFileNames": true,
     "plugins": [
       {
         "name": "next"
@@ -25,10 +29,7 @@
       "@/*": [
         "./src/*"
       ]
-    },
-    "target": "ES2017",
-    "allowImportingTsExtensions": false,
-    "forceConsistentCasingInFileNames": true
+    }
   },
   "include": [
     "next-env.d.ts",

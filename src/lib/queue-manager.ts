@@ -568,7 +568,7 @@ export async function generateStudySession(options: QueueOptions = {}): Promise<
 }> {
   try {
     const queueManager = getQueueManager()
-    let { queue, error, userId } = await queueManager.generateQueue(options)
+    const { queue, error, userId } = await queueManager.generateQueue(options)
     const generatedQueueWasEmpty = queue.length === 0
 
     if (error) {

@@ -228,7 +228,7 @@ export class AIService {
   ) {
     try {
       // First, get or create the word record
-      let { data: wordRecord, error: wordError } = await this.supabase
+      const { data: wordRecord, error: wordError } = await this.supabase
         .from('words')
         .select('id')
         .eq('word', word.toLowerCase())

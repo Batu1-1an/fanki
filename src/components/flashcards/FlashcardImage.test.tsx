@@ -8,7 +8,7 @@ describe('FlashcardImage', () => {
     })
 
     it('should show loading state', () => {
-      let isLoading = true
+      const isLoading = true
       expect(isLoading).toBe(true)
     })
 

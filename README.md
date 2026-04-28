@@ -9,7 +9,8 @@
     <img src="https://img.shields.io/badge/Supabase-3FCF8E?logo=supabase&logoColor=white" alt="Supabase" />
     <img src="https://img.shields.io/badge/Tailwind_CSS-06B6D4?logo=tailwindcss&logoColor=white" alt="Tailwind" />
     <img src="https://img.shields.io/badge/Vitest-6E9F18?logo=vitest&logoColor=white" alt="Vitest" />
-    <img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT License" />
+    <img src="https://img.shields.io/github/actions/workflow/status/Batu1-1an/fanki/ci.yml?branch=main&logo=github&label=CI" alt="CI" />
+    <img src="https://img.shields.io/badge/license-MIT-blue?logo=open-source-initiative" alt="MIT License" />
   </p>
 </div>
 
@@ -89,7 +90,7 @@ Login → Dashboard (due counts, streak) → Start Session
 
 ```bash
 # Clone & install
-git clone https://github.com/yourusername/fanki.git
+git clone https://github.com/Batu1-1an/fanki.git
 cd fanki
 npm install
 
